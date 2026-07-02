@@ -1,0 +1,6 @@
+{
+  "name": "SmartGym SaaS Platform",
+  "description": "پلتفرم جامع و هوشمند مدیریت باشگاه‌های بدنسازی و مربیان با دستیار هوش مصنوعی و پنل اختصاصی مربی، مدیر و ورزشکار",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
