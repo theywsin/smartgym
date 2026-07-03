@@ -29,6 +29,7 @@ export interface Tenant {
   membersCount: number;
   monthlyRevenue: number;
   createdAt: string;
+  features?: string[];
   whiteLabelTheme?: {
     primaryColor: string;
     secondaryColor: string;

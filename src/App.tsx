@@ -59,11 +59,45 @@ import {
 import { UserRole, Tenant, Booking, StoreProduct } from "./types";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
+// Custom Premium Sub-components Integration
+import GymLogo from "./components/GymLogo";
+import IranianGatewaySimulator from "./components/IranianGatewaySimulator";
+import AthleteDashboard from "./components/AthleteDashboard";
+import GymInfoTab from "./components/GymInfoTab";
+import CoachMemberDetail from "./components/CoachMemberDetail";
+import AICoachProgramGenerator from "./components/AICoachProgramGenerator";
+import TicketSystem from "./components/TicketSystem";
+import ThreeGymCanvas from "./components/ThreeGymCanvas";
+
 export default function App() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // New Unified Design System States & Gateways
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
+  const [paymentGatewayConfigs, setPaymentGatewayConfigs] = useState({
+    activeGateway: "زرین‌پال (ZarinPal)",
+    merchantId: "ZARINPAL-890124901",
+    apiKey: "API_KEY_SECURE_981240",
+    webhook: "https://smartgym.ir/api/v1/payment/webhook",
+    isSandbox: true
+  });
+  
+  const [tenantSubTab, setTenantSubTab] = useState<"dashboard" | "info" | "support" | "coaches">("dashboard");
+  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings">("dashboard");
+  const [selectedDetailedMember, setSelectedDetailedMember] = useState<any | null>(null);
+
+  // Iranian Payment Gateway flow states
+  const [pendingPurchasePlan, setPendingPurchasePlan] = useState<any | null>(null);
+  const [showPaymentSimulator, setShowPaymentSimulator] = useState(false);
+  const [showTenantBrandModal, setShowTenantBrandModal] = useState(false);
+  const [showTenantSubscriptionModal, setShowTenantSubscriptionModal] = useState(false);
+  const [footerDocView, setFooterDocView] = useState<"terms" | "privacy" | "support" | "sla" | null>(null);
+  const [tenantCustomColor, setTenantCustomColor] = useState("emerald");
+  const [tenantBrandText, setTenantBrandText] = useState("");
+
 
   // Persistent States
   const [workoutPrograms, setWorkoutPrograms] = useState<any[]>(MOCK_WORKOUT_PROGRAMS);
@@ -75,6 +109,116 @@ export default function App() {
   const [tenantPasswordInput, setTenantPasswordInput] = useState("");
   const [tenantLoginError, setTenantLoginError] = useState("");
 
+  // Coaches Persistent List and Login States
+  const [coaches, setCoaches] = useState<any[]>([
+    { id: "1", name: "استاد پوریا کریمی", username: "pouria", password: "123", specialty: "بدنسازی و فیتنس", clubId: "all" },
+    { id: "2", name: "سارا حسینی", username: "sara", password: "123", specialty: "تغذیه و لاغری", clubId: "all" }
+  ]);
+  const [loggedInCoach, setLoggedInCoach] = useState<any | null>(null);
+  const [coachUsernameInput, setCoachUsernameInput] = useState("");
+  const [coachPasswordInput, setCoachPasswordInput] = useState("");
+  const [coachLoginError, setCoachLoginError] = useState("");
+
+  const [newCoachName, setNewCoachName] = useState("");
+  const [newCoachUsername, setNewCoachUsername] = useState("");
+  const [newCoachPassword, setNewCoachPassword] = useState("");
+  const [newCoachSpecialty, setNewCoachSpecialty] = useState("بدنسازی و فیتنس");
+  const [coachAddSuccess, setCoachAddSuccess] = useState(false);
+
+  // Landing Page Interactive Features Slider State
+  const [landingSlide, setLandingSlide] = useState(0);
+
+  // Platform Customization & General SaaS Settings
+  const [platformBrandLogo, setPlatformBrandLogo] = useState("SMART GYM");
+  const [platformTheme, setPlatformTheme] = useState("emerald"); // choices: emerald, blue, rose, violet, amber
+
+  // Map platformTheme state to actual CSS styling properties dynamically
+  const getThemeAccent = () => {
+    switch (platformTheme) {
+      case "blue":
+        return {
+          bg: "bg-blue-600",
+          hoverBg: "hover:bg-blue-500",
+          text: "text-blue-500",
+          border: "border-blue-500",
+          gradient: "from-blue-600 to-indigo-600",
+          shadow: "shadow-blue-900/30",
+          badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+          focus: "focus:border-blue-500",
+          fill: "fill-blue-500",
+          accentColor: "blue"
+        };
+      case "rose":
+        return {
+          bg: "bg-rose-600",
+          hoverBg: "hover:bg-rose-500",
+          text: "text-rose-500",
+          border: "border-rose-500",
+          gradient: "from-rose-600 to-pink-600",
+          shadow: "shadow-rose-900/30",
+          badge: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+          focus: "focus:border-rose-500",
+          fill: "fill-rose-500",
+          accentColor: "rose"
+        };
+      case "violet":
+        return {
+          bg: "bg-violet-600",
+          hoverBg: "hover:bg-violet-500",
+          text: "text-violet-500",
+          border: "border-violet-500",
+          gradient: "from-violet-600 to-fuchsia-600",
+          shadow: "shadow-violet-900/30",
+          badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+          focus: "focus:border-violet-500",
+          fill: "fill-violet-500",
+          accentColor: "violet"
+        };
+      case "amber":
+        return {
+          bg: "bg-amber-600",
+          hoverBg: "hover:bg-amber-500",
+          text: "text-amber-500",
+          border: "border-amber-500",
+          gradient: "from-amber-600 to-orange-600",
+          shadow: "shadow-amber-900/30",
+          badge: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+          focus: "focus:border-amber-500",
+          fill: "fill-amber-500",
+          accentColor: "amber"
+        };
+      case "emerald":
+      default:
+        return {
+          bg: "bg-emerald-600",
+          hoverBg: "hover:bg-emerald-500",
+          text: "text-emerald-500",
+          border: "border-emerald-500",
+          gradient: "from-emerald-600 to-teal-600",
+          shadow: "shadow-emerald-900/30",
+          badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+          focus: "focus:border-emerald-500",
+          fill: "fill-emerald-500",
+          accentColor: "emerald"
+        };
+    }
+  };
+
+  const themeAccent = getThemeAccent();
+
+  const [platformLandingTitle, setPlatformLandingTitle] = useState("مدیریت باشگاه را هوشمند، سریع و بدون دردسر انجام دهید");
+  const [platformLandingSubtitle, setPlatformLandingSubtitle] = useState("از ساخت خودکار برنامه‌های تمرینی و غذایی با هوش مصنوعی گرفته تا حضور و غیاب پیشرفته، درگاه مستقیم بانکی، کلوپ وفاداری، انبارداری و بوفه، و مدیریت یکپارچه بی‌نهایت شعبه؛ همه و همه در یک بستر مدرن و شیشه‌ای (Glassmorphism).");
+  
+  // Payment Gateways Settings (SuperAdmin Configured)
+  const [gatewayZarinpalEnabled, setGatewayZarinpalEnabled] = useState(true);
+  const [gatewayZarinpalMerchant, setGatewayZarinpalMerchant] = useState("zarinpal_merchant_889900");
+  const [gatewaySepEnabled, setGatewaySepEnabled] = useState(true);
+  const [gatewaySepTerminalId, setGatewaySepTerminalId] = useState("sep_terminal_998811");
+
+  // Club / Tenant Subscription Details
+  const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(24); // default 24 days left
+  const [clubRevenue, setClubRevenue] = useState(48200000); // 48,200,000 IRR base club revenue
+
   // Purchase & Credentials Generator States
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchasedPlan, setPurchasedPlan] = useState<any | null>(null);
@@ -84,7 +228,7 @@ export default function App() {
   const [memberSubTab, setMemberSubTab] = useState<"workout" | "nutrition" | "stats">("workout");
 
   // Coach Manual Creator View
-  const [coachSubView, setCoachSubView] = useState<"directory" | "create_workout" | "create_nutrition">("directory");
+  const [coachSubView, setCoachSubView] = useState<"directory" | "create_workout" | "create_nutrition" | "ai_generation">("directory");
 
   // Search filter
   const [globalSearch, setGlobalSearch] = useState("");
@@ -270,6 +414,14 @@ export default function App() {
   // Timers Reference
   const timerIntervalRef = useRef<any>(null);
   const restIntervalRef = useRef<any>(null);
+
+  // Landing page interactive features slider autoplay
+  useEffect(() => {
+    const slideTimer = setInterval(() => {
+      setLandingSlide((prev) => (prev + 1) % 4);
+    }, 5000);
+    return () => clearInterval(slideTimer);
+  }, []);
 
   // Workout Timer logic
   useEffect(() => {
@@ -588,89 +740,175 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"} font-sans transition-colors duration-200 selection:bg-blue-600/30 overflow-x-hidden`} dir="rtl">
+    <div className={`min-h-screen ${isDarkMode ? "dark-theme-vars bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"} font-sans transition-colors duration-200 selection:bg-emerald-600/30 overflow-x-hidden`} dir="rtl">
+      
+      {/* Dynamic Theme Style Override */}
+      <style>{`
+        :root {
+          --primary: ${
+            platformTheme === "blue" ? "#2563eb" :
+            platformTheme === "rose" ? "#e11d48" :
+            platformTheme === "violet" ? "#7c3aed" :
+            platformTheme === "amber" ? "#d97706" :
+            "#10b981"
+          };
+          --secondary: ${
+            platformTheme === "blue" ? "#60a5fa" :
+            platformTheme === "rose" ? "#fb7185" :
+            platformTheme === "violet" ? "#a78bfa" :
+            platformTheme === "amber" ? "#fbbf24" :
+            "#34d399"
+          };
+          --accent: ${
+            platformTheme === "blue" ? "#93c5fd" :
+            platformTheme === "rose" ? "#fecdd3" :
+            platformTheme === "violet" ? "#ddd6fe" :
+            platformTheme === "amber" ? "#fde68a" :
+            "#a7f3d0"
+          };
+        }
+        
+        ::selection {
+          background-color: var(--primary) !important;
+          opacity: 0.3;
+        }
+
+        /* Dynamically style primary colored elements matching platformTheme */
+        .text-emerald-400 {
+          color: ${
+            platformTheme === "blue" ? "#60a5fa" :
+            platformTheme === "rose" ? "#fb7185" :
+            platformTheme === "violet" ? "#a78bfa" :
+            platformTheme === "amber" ? "#fbbf24" :
+            "#34d399"
+          } !important;
+        }
+
+        .bg-emerald-600 {
+          background-color: var(--primary) !important;
+        }
+
+        .hover\\:bg-emerald-500:hover {
+          background-color: var(--secondary) !important;
+        }
+
+        .border-emerald-500 {
+          border-color: var(--primary) !important;
+        }
+
+        .bg-emerald-500\\/10 {
+          background-color: ${
+            platformTheme === "blue" ? "rgba(96, 165, 250, 0.1)" :
+            platformTheme === "rose" ? "rgba(251, 113, 133, 0.1)" :
+            platformTheme === "violet" ? "rgba(167, 139, 250, 0.1)" :
+            platformTheme === "amber" ? "rgba(251, 191, 36, 0.1)" :
+            "rgba(52, 211, 153, 0.1)"
+          } !important;
+          color: ${
+            platformTheme === "blue" ? "#60a5fa" :
+            platformTheme === "rose" ? "#fb7185" :
+            platformTheme === "violet" ? "#a78bfa" :
+            platformTheme === "amber" ? "#fbbf24" :
+            "#34d399"
+          } !important;
+        }
+
+        .text-gradient-emerald-green, .text-gradient-cyan-blue {
+          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%) !important;
+          -webkit-background-clip: text !important;
+          -webkit-text-fill-color: transparent !important;
+        }
+
+        .pulsing-glow {
+          box-shadow: 0 0 20px ${
+            platformTheme === "blue" ? "rgba(37, 99, 235, 0.2)" :
+            platformTheme === "rose" ? "rgba(225, 29, 72, 0.2)" :
+            platformTheme === "violet" ? "rgba(124, 58, 237, 0.2)" :
+            platformTheme === "amber" ? "rgba(217, 119, 6, 0.2)" :
+            "rgba(16, 185, 129, 0.2)"
+          } !important;
+        }
+      `}</style>
       
       {/* 1. Header & Brand Navigation Section */}
-      <header className="sticky top-0 z-50 glass-panel border-b border-white/10 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab("landing")}>
-            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-emerald-500 rounded-xl flex items-center justify-center text-white font-extrabold text-lg pulsing-glow">
-              SG
+      {!(activeTab === "member" && loggedInMember) && (
+        <header className="sticky top-0 z-50 glass-panel border-b border-white/10 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab("landing")}>
+              <GymLogo showText={true} size="md" isDark={isDarkMode} brandText={platformBrandLogo} themeColor={platformTheme} />
             </div>
-            <div>
-              <span className="text-xl font-black bg-gradient-to-l from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">اسمارت جیم</span>
-              <span className="text-[9px] block text-slate-400 font-bold tracking-widest">SaaS PLATFORM</span>
-            </div>
+
+            {/* Desktop Navigation Link Tabs */}
+            <nav className="hidden lg:flex items-center gap-1.5 bg-slate-900/50 p-1.5 rounded-full border border-white/5">
+              <button 
+                onClick={() => setActiveTab("landing")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "landing" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-900/30" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                لندینگ معرفی
+              </button>
+              <button 
+                onClick={() => setActiveTab("superadmin")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "superadmin" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                سوپر ادمین (SaaS)
+              </button>
+              <button 
+                onClick={() => setActiveTab("tenant")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "tenant" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                پنل مستأجر (باشگاه)
+              </button>
+              <button 
+                onClick={() => setActiveTab("coach")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "coach" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                پنل مربیان
+              </button>
+              <button 
+                onClick={() => setActiveTab("member")}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "member" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                پنل ورزشکار و پلیر
+              </button>
+            </nav>
           </div>
 
-          {/* Desktop Navigation Link Tabs */}
-          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-900/50 p-1.5 rounded-full border border-white/5">
+          {/* Action Controls & Dark Mode Toggle */}
+          <div className="flex items-center gap-3">
             <button 
-              onClick={() => setActiveTab("landing")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "landing" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-900/30" : "text-slate-400 hover:text-slate-200"}`}
+              onClick={() => setIsDarkMode(!isDarkMode)} 
+              className="p-2 rounded-lg bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+              title="تغییر تم رنگی"
             >
-              لندینگ معرفی
+              {isDarkMode ? "☀️" : "🌙"}
             </button>
+            
             <button 
-              onClick={() => setActiveTab("superadmin")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "superadmin" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
+              onClick={() => {
+                setActiveTab("landing");
+                setTimeout(() => {
+                  const plansEl = document.getElementById("subscription_plans_section");
+                  if (plansEl) {
+                    plansEl.scrollIntoView({ behavior: "smooth" });
+                  } else {
+                    alert("هم‌اکنون بسته‌های اشتراک باشگاه در نیمه پایین لندینگ در دسترس هستند.");
+                  }
+                }, 150);
+              }}
+              className="hidden sm:flex items-center gap-1.5 bg-gradient-to-l from-blue-600 to-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-lg hover:brightness-110 transition-all pulsing-glow"
             >
-              سوپر ادمین (SaaS)
+              🛒 خرید اشتراک باشگاه‌ها
             </button>
-            <button 
-              onClick={() => setActiveTab("tenant")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "tenant" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              پنل مستأجر (باشگاه)
-            </button>
-            <button 
-              onClick={() => setActiveTab("coach")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "coach" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              پنل مربیان
-            </button>
-            <button 
-              onClick={() => setActiveTab("member")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "member" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              پنل ورزشکار و پلیر
-            </button>
-            <button 
-              onClick={() => setActiveTab("ai_labs")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "ai_labs" ? "bg-gradient-to-l from-emerald-600 to-cyan-600 text-white shadow-md shadow-emerald-900/20" : "text-emerald-400 hover:text-emerald-300"}`}
-            >
-              <Sparkles className="w-3.5 h-3.5 inline ml-1 animate-pulse" />
-              دستیار هوش مصنوعی
-            </button>
-          </nav>
-        </div>
 
-        {/* Action Controls & Dark Mode Toggle */}
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)} 
-            className="p-2 rounded-lg bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
-            title="تغییر تم رنگی"
-          >
-            {isDarkMode ? "☀️" : "🌙"}
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab("ai_labs")}
-            className="hidden sm:flex items-center gap-1.5 bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs shadow-lg hover:brightness-110 transition-all pulsing-glow"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            تولید برنامه با AI
-          </button>
-
-          <button 
-            className="lg:hidden p-2 text-slate-300 hover:text-white" 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-        </div>
-      </header>
+            <button 
+              className="lg:hidden p-2 text-slate-300 hover:text-white" 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Mobile Menu Navigation overlay */}
       {isMobileMenuOpen && (
@@ -705,13 +943,6 @@ export default function App() {
           >
             پنل اعضا و پلیر تمرین خودکار
           </button>
-          <button 
-            onClick={() => { setActiveTab("ai_labs"); setIsMobileMenuOpen(false); }}
-            className={`p-3 rounded-xl text-sm font-bold text-right text-emerald-400 bg-emerald-950/40 border border-emerald-900/30 transition-all`}
-          >
-            <Sparkles className="w-4 h-4 inline ml-2" />
-            آزمایشگاه هوش مصنوعی (AI)
-          </button>
         </div>
       )}
 
@@ -731,13 +962,12 @@ export default function App() {
                   بروزرسانی جدید: مجهز به موتور هوش مصنوعی مربیگری هوشمند
                 </div>
                 
-                <h1 className="text-4xl sm:text-6xl font-black leading-tight text-slate-100">
-                  مدیریت باشگاه را <br />
-                  <span className="bg-gradient-to-l from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">هوشمند، سریع و بدون دردسر</span> انجام دهید
+                <h1 className="text-3xl sm:text-5xl font-black leading-tight text-slate-100">
+                  {platformLandingTitle}
                 </h1>
 
-                <p className="text-slate-400 text-base sm:text-lg leading-relaxed">
-                  از ساخت خودکار برنامه‌های تمرینی و غذایی با هوش مصنوعی گرفته تا حضور و غیاب پیشرفته، درگاه مستقیم بانکی، کلوپ وفاداری، انبارداری و بوفه، و مدیریت یکپارچه بی‌نهایت شعبه؛ همه و همه در یک بستر مدرن و شیشه‌ای (Glassmorphism).
+                <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                  {platformLandingSubtitle}
                 </p>
 
                 <div className="flex flex-wrap gap-4 pt-2">
@@ -790,54 +1020,135 @@ export default function App() {
                       <div className="w-6"></div>
                     </div>
 
-                    {/* Preview Dashboard */}
-                    <div className="p-6 space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-sm font-extrabold text-slate-200">داشبورد مدیریتی شعبه مرکزی اکسیژن</h4>
-                          <span className="text-[10px] text-slate-500">گزارش لحظه‌ای وضعیت شعبه</span>
-                        </div>
-                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full">● آنلاین</span>
-                      </div>
-
-                      {/* Info grid */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl">
-                          <span className="text-[9px] text-slate-400 block mb-1">درآمد شهریه امروز</span>
-                          <span className="text-base font-extrabold text-blue-400">۴,۸۲۰,۰۰۰ تومان</span>
-                        </div>
-                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl">
-                          <span className="text-[9px] text-slate-400 block mb-1">حضور ورزشکاران امروز</span>
-                          <span className="text-base font-extrabold text-emerald-400">۱۲۴ نفر</span>
-                        </div>
-                      </div>
-
-                      {/* Artificial visual progress bars */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-slate-400">تکمیل ظرفیت همزمان سالن</span>
-                          <span className="text-blue-400 font-bold">۷۲٪</span>
-                        </div>
-                        <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-l from-blue-500 to-cyan-400 rounded-full" style={{ width: "72%" }}></div>
-                        </div>
-                      </div>
-
-                      {/* Interactive callout */}
-                      <div className="bg-indigo-950/40 border border-indigo-900/30 p-3 rounded-xl flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-indigo-400" />
+                    {/* Preview Dashboard / Animated Interactive Features Slider */}
+                    <div className="p-6 space-y-6 min-h-[380px] flex flex-col justify-between transition-all duration-500">
+                      
+                      {/* Slide Content wrapper with fade/slide animations */}
+                      <div className="space-y-4 animate-fade-in animate-duration-300">
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-wider text-slate-950 bg-gradient-to-r ${
+                            landingSlide === 0 ? "from-emerald-400 to-teal-400" :
+                            landingSlide === 1 ? "from-blue-400 to-indigo-400" :
+                            landingSlide === 2 ? "from-amber-400 to-orange-400" :
+                            "from-violet-400 to-purple-400"
+                          }`}>
+                            {
+                              landingSlide === 0 ? "هوش مصنوعی هوشمند (AI Co-pilot)" :
+                              landingSlide === 1 ? "اپلیکیشن اختصاصی ورزشکار (PWA)" :
+                              landingSlide === 2 ? "حسابداری و درگاه ابری" :
+                              "هویت کلوپ ورزشی شما"
+                            }
+                          </span>
+                          
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500">
+                            <span>{landingSlide + 1} / 4</span>
                           </div>
-                          <span className="text-slate-300">موتور هوش مصنوعی آماده پردازش است.</span>
                         </div>
+
+                        <div className="space-y-2 text-right">
+                          <h4 className="text-base font-black text-white">
+                            {
+                              landingSlide === 0 ? "موتور فوق‌پیشرفته هوش مصنوعی" :
+                              landingSlide === 1 ? "اپلیکیشن شیشه‌ای بدون نیاز به نصب" :
+                              landingSlide === 2 ? "امور مالی و فروش هوشمند بوفه" :
+                              "شخصی‌سازی کامل هویت باشگاه"
+                            }
+                          </h4>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {
+                              landingSlide === 0 ? "طراحی فوری و اتوماتیک برنامه‌های تمرینی و غذایی متناسب با بیومتریک و شاخص‌های فیزیکی ورزشکار در چند ثانیه." :
+                              landingSlide === 1 ? "پخش‌کننده تمرینی مجهز به زمان‌سنج ست‌ها، انیمیشن حرکات و ثبت رکوردهای روزانه برای ورزشکاران کلوپ." :
+                              landingSlide === 2 ? "سیستم مدیریت درگاه پرداخت، فاکتورهای دوره‌ای، انبارداری بوفه و پکیج‌های عضویت باشگاه با گزارش مالی متمرکز." :
+                              "امکان ویرایش ساعات کاری، نام شعبه، لوگوی کلوپ، آدرس نقشه و پکیج‌های اختصاصی برای مستقل‌سازی برند باشگاه شما."
+                            }
+                          </p>
+                        </div>
+
+                        {/* Interactive Widget Simulation Based on Slide Index */}
+                        <div className="pt-2">
+                          {landingSlide === 0 && (
+                            <div className="space-y-3 bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl animate-fade-in">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400">تحلیل وزن ورزشکار:</span>
+                                <span className="text-emerald-400 font-extrabold font-mono">۷۸ کیلوگرم</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-l from-emerald-500 to-teal-400 rounded-full animate-pulse" style={{ width: "65%" }}></div>
+                              </div>
+                              <div className="text-[10px] text-slate-500 text-center">🎯 پیشنهاد هوشمند: برنامه هایپرتروفی سینه و بازو</div>
+                            </div>
+                          )}
+
+                          {landingSlide === 1 && (
+                            <div className="space-y-3 bg-blue-500/5 border border-blue-500/10 p-4 rounded-2xl animate-fade-in">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400">ست بعدی تمرین:</span>
+                                <span className="text-blue-400 font-bold font-mono">ست ۲ از ۴</span>
+                              </div>
+                              <div className="bg-slate-950 p-2 rounded-xl text-center text-[10px] text-slate-300 border border-white/5 flex justify-between items-center">
+                                <span>حرکت: پرس سینه هالتر</span>
+                                <span className="text-blue-400 font-bold">۱۲ تکرار × ۸۰ کیلوگرم</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {landingSlide === 2 && (
+                            <div className="space-y-3 bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl animate-fade-in">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400">تراکنش‌های موفق امروز:</span>
+                                <span className="text-amber-400 font-bold font-mono">۴,۸۲۰,۰۰۰ تومان</span>
+                              </div>
+                              <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-l from-amber-500 to-orange-400 rounded-full" style={{ width: "82%" }}></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {landingSlide === 3 && (
+                            <div className="space-y-3 bg-violet-500/5 border border-violet-500/10 p-4 rounded-2xl animate-fade-in">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-400">پیکربندی باشگاه:</span>
+                                <span className="text-violet-400 font-bold font-mono">oxygen.smartgym.ir</span>
+                              </div>
+                              <div className="bg-slate-950 p-2 rounded-xl text-center text-[10px] text-slate-400 border border-white/5">
+                                ✔ لوگوی شخصی بارگذاری شد • نام شعبه: اکسیژن مرکزی
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+
+                      {/* Dots and Navigation Controls */}
+                      <div className="flex items-center justify-between border-t border-white/5 pt-4">
                         <button 
-                          onClick={() => setActiveTab("ai_labs")}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2.5 py-1 rounded-md text-[10px] transition-all"
+                          onClick={() => setLandingSlide((prev) => (prev - 1 + 4) % 4)}
+                          className="w-8 h-8 rounded-lg bg-slate-900 border border-white/5 hover:border-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-all text-sm font-bold"
+                          title="قبلی"
                         >
-                          اجرا
+                          →
+                        </button>
+
+                        {/* Dot indicators */}
+                        <div className="flex items-center gap-1.5">
+                          {[0, 1, 2, 3].map((idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setLandingSlide(idx)}
+                              className={`h-2 rounded-full transition-all duration-300 ${idx === landingSlide ? "w-6 bg-blue-500" : "w-2 bg-slate-700 hover:bg-slate-600"}`}
+                            ></button>
+                          ))}
+                        </div>
+
+                        <button 
+                          onClick={() => setLandingSlide((prev) => (prev + 1) % 4)}
+                          className="w-8 h-8 rounded-lg bg-slate-900 border border-white/5 hover:border-white/15 text-slate-400 hover:text-white flex items-center justify-center transition-all text-sm font-bold"
+                          title="بعدی"
+                        >
+                          ←
                         </button>
                       </div>
+
                     </div>
                   </div>
                 </div>
@@ -924,6 +1235,10 @@ export default function App() {
             </div>
 
 
+            {/* 3D Gym Space Visualization Section */}
+            <ThreeGymCanvas />
+
+
             {/* Comparison Module Table */}
             <div className="space-y-6">
               <div className="text-center space-y-2">
@@ -980,7 +1295,7 @@ export default function App() {
 
 
             {/* Subscription Plans Pricing Grid */}
-            <div className="space-y-6">
+            <div id="subscription_plans_section" className="space-y-6">
               <div className="text-center space-y-2">
                 <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">سرمایه‌گذاری برای رشد باشگاه شما</span>
                 <h2 className="text-2xl sm:text-4xl font-extrabold">تعرفه‌های شفاف خرید اشتراک پلتفرم</h2>
@@ -988,13 +1303,13 @@ export default function App() {
               </div>
 
               <div className="grid md:grid-cols-3 gap-8">
-                {SUBSCRIPTION_PLANS.map((plan) => (
+                {subscriptionPlans.map((plan) => (
                   <div 
                     key={plan.id}
-                    className={`relative rounded-3xl p-6 flex flex-col justify-between ${plan.isPopular ? "bg-gradient-to-b from-blue-900/40 to-slate-900/60 border-2 border-blue-500 pulsing-glow" : "bg-slate-900/40 border border-white/10"}`}
+                    className={`relative rounded-3xl p-6 flex flex-col justify-between ${plan.isPopular ? "bg-gradient-to-b from-emerald-950/40 to-slate-900/60 border-2 border-emerald-500 pulsing-glow" : "bg-slate-900/40 border border-white/10"}`}
                   >
                     {plan.isPopular && (
-                      <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-slate-950 font-bold text-xs px-4 py-1.5 rounded-full uppercase tracking-widest">
+                      <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-emerald-500 text-slate-950 font-bold text-[10px] px-4 py-1.5 rounded-full uppercase tracking-widest">
                         محبوب‌ترین پلن
                       </span>
                     )}
@@ -1010,7 +1325,7 @@ export default function App() {
                           {plan.priceToman.toLocaleString()}
                         </span>
                         <span className="text-xs text-slate-400 mr-1">تومان</span>
-                        <div className="text-[10px] text-slate-500">معادل {(plan.priceIrr).toLocaleString()} ریال</div>
+                        <div className="text-[10px] text-slate-500 font-mono">معادل {(plan.priceToman * 10).toLocaleString()} ریال</div>
                       </div>
 
                       <ul className="space-y-3 pt-2 text-xs text-slate-300">
@@ -1025,19 +1340,10 @@ export default function App() {
 
                     <button 
                       onClick={() => {
-                        const randNum = Math.floor(Math.random() * 900 + 100);
-                        const generatedUsername = `club_oxygen_${randNum}`;
-                        const generatedPassword = `pass_${randNum}`;
-                        
-                        setPurchasedPlan(plan);
-                        setGeneratedClubCredentials({
-                          username: generatedUsername,
-                          password: generatedPassword,
-                          clubName: `باشگاه ورزشی اکسیژن (پلن ${plan.name})`
-                        });
-                        setShowPurchaseModal(true);
+                        setPendingPurchasePlan(plan);
+                        setShowPaymentSimulator(true);
                       }}
-                      className={`w-full mt-8 py-3 rounded-xl font-bold text-xs transition-all ${plan.isPopular ? "bg-blue-500 hover:bg-blue-600 text-slate-950" : "bg-white/10 hover:bg-white/15 text-white"}`}
+                      className={`w-full mt-8 py-3 rounded-xl font-bold text-xs transition-all ${plan.isPopular ? "bg-emerald-600 hover:bg-emerald-500 text-slate-950" : "bg-white/10 hover:bg-white/15 text-white"}`}
                     >
                       خرید و راه‌اندازی فوری پنل
                     </button>
@@ -1100,7 +1406,37 @@ export default function App() {
               </div>
             </div>
 
-            {/* Micro Stats Grid */}
+            {/* Super Admin Sub Tabs */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-2">
+              <button
+                onClick={() => setSuperAdminSubTab("dashboard")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "dashboard" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                داشبورد و آمار لحظه‌ای
+              </button>
+              <button
+                onClick={() => setSuperAdminSubTab("plans")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "plans" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                مدیریت اشتراک‌ها (داینامیک لندینگ)
+              </button>
+              <button
+                onClick={() => setSuperAdminSubTab("tickets")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "tickets" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                پشتیبانی سراسری تیکت‌ها ({tickets.length})
+              </button>
+              <button
+                onClick={() => setSuperAdminSubTab("settings")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "settings" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                ⚙️ تنظیمات پلتفرم و درگاه بانکی
+              </button>
+            </div>
+
+            {superAdminSubTab === "dashboard" && (
+              <>
+                {/* Micro Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="glass-panel p-4 rounded-2xl border border-white/5">
                 <span className="text-[10px] text-slate-500 block mb-1">کل درآمدهای پلتفرم (SaaS)</span>
@@ -1282,6 +1618,323 @@ export default function App() {
                 ))}
               </div>
             </div>
+            </>
+            )}
+
+            {superAdminSubTab === "plans" && (
+              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
+                <div className="flex flex-wrap justify-between items-center border-b border-white/5 pb-4 gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white text-right">طرح‌ها و اشتراک‌های داینامیک پلتفرم</h3>
+                    <p className="text-xs text-slate-400 text-right">تغییرات در این بخش به صورت زنده در صفحه فرود (Landing Page) پلتفرم اعمال خواهد شد.</p>
+                  </div>
+                  {/* Create New Plan Button */}
+                  <button 
+                    onClick={() => {
+                      const newId = `plan_${Date.now()}`;
+                      const customPlan = {
+                        id: newId,
+                        name: "پلن جدید سفارشی اسمارت جیم",
+                        priceToman: 4500000,
+                        priceIrr: 45000000,
+                        durationMonths: 6,
+                        features: ["کاربران نامحدود", "پشتیبانی تیکتی VIP", "آنالیز فیزیکی هوشمند", "اتصال درگاه پرداخت اختصاصی"],
+                        isPopular: false
+                      };
+                      setSubscriptionPlans([...subscriptionPlans, customPlan]);
+                      alert("پلن جدید سفارشی با موفقیت ایجاد گردید و به لیست اضافه شد!");
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md"
+                  >
+                    <Plus className="w-4 h-4" />
+                    ایجاد طرح اشتراک جدید
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 text-slate-400">
+                        <th className="pb-3 font-semibold text-right">عنوان اشتراک</th>
+                        <th className="pb-3 font-semibold text-right">مدت (ماه)</th>
+                        <th className="pb-3 font-semibold text-right">قیمت (تومان)</th>
+                        <th className="pb-3 font-semibold text-right">امکانات کلیدی</th>
+                        <th className="pb-3 font-semibold text-center">وضعیت (محبوب‌ترین)</th>
+                        <th className="pb-3 font-semibold text-left">عملیات مدیریت</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-slate-300">
+                      {subscriptionPlans.map((plan) => (
+                        <tr key={plan.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 font-bold text-slate-100 text-right">
+                            <input
+                              type="text"
+                              value={plan.name}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, name: val } : p));
+                              }}
+                              className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-lg text-slate-100 w-48 text-xs font-bold text-right"
+                            />
+                          </td>
+                          <td className="py-4 text-right">
+                            <input
+                              type="number"
+                              value={plan.durationMonths}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, durationMonths: val } : p));
+                              }}
+                              className="bg-slate-950 border border-white/10 px-2 py-1.5 rounded-lg text-slate-100 w-16 text-xs font-mono text-center font-bold"
+                            />
+                          </td>
+                          <td className="py-4 font-bold text-emerald-400 font-mono text-right">
+                            <input
+                              type="number"
+                              value={plan.priceToman}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, priceToman: val, priceIrr: val * 10 } : p));
+                              }}
+                              className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-lg text-emerald-400 w-28 text-xs font-mono text-center font-bold"
+                            />
+                          </td>
+                          <td className="py-4 text-slate-400 text-right">
+                            <input
+                              type="text"
+                              value={plan.features.join(", ")}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const featuresList = val.split(",").map(f => f.trim()).filter(Boolean);
+                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, features: featuresList } : p));
+                              }}
+                              className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-lg text-slate-200 w-full text-xs font-bold text-right"
+                              placeholder="مطلب ۱، مطلب ۲، مطلب ۳"
+                            />
+                          </td>
+                          <td className="py-4 text-center">
+                            <button
+                              onClick={() => {
+                                setSubscriptionPlans(subscriptionPlans.map(p => ({
+                                  ...p,
+                                  isPopular: p.id === plan.id ? !p.isPopular : false
+                                })));
+                              }}
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold ${plan.isPopular ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-white/5 text-slate-400"}`}
+                            >
+                              {plan.isPopular ? "محبوب‌ترین" : "طرح عادی"}
+                            </button>
+                          </td>
+                          <td className="py-4 text-left">
+                            <button 
+                              onClick={() => {
+                                if (confirm("آیا از حذف این طرح اطمینان دارید؟")) {
+                                  setSubscriptionPlans(subscriptionPlans.filter(p => p.id !== plan.id));
+                                }
+                              }}
+                              className="text-red-400 hover:text-red-300 font-bold px-2 py-1 transition-all"
+                            >
+                              حذف طرح
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {superAdminSubTab === "tickets" && (
+              <TicketSystem
+                isSuperAdmin={true}
+                isDarkMode={isDarkMode}
+                tickets={tickets}
+                setTickets={setTickets}
+                currentUserLabel="پشتیبانی سراسری اسمارت جیم"
+              />
+            )}
+
+            {superAdminSubTab === "settings" && (
+              <div className="space-y-6 animate-fade-in text-right text-xs" dir="rtl">
+                
+                {/* 1. Brand Logo & Site-wide Theme Settings Card */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      🎨 شخصی‌سازی هویت بصری و رنگ تم پلتفرم (White-Label)
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">تغییر لوگو و پالت رنگ کل پلتفرم که برای کاربران نمایش داده می‌شود.</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-2 font-bold">نام تجاری / لوگو متنی پلتفرم</label>
+                      <input
+                        type="text"
+                        value={platformBrandLogo}
+                        onChange={(e) => {
+                          setPlatformBrandLogo(e.target.value);
+                        }}
+                        placeholder="مانند: SMART GYM"
+                        className="w-full bg-slate-950 border border-white/10 px-4 py-3 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-2 font-bold">پالت رنگ تم پلتفرم (Theme Preset)</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[
+                          { id: "emerald", label: "سبز جنگلی", color: "bg-emerald-500" },
+                          { id: "blue", label: "آبی نئون", color: "bg-blue-500" },
+                          { id: "rose", label: "یاقوتی", color: "bg-rose-500" },
+                          { id: "violet", label: "بنفش", color: "bg-violet-500" },
+                          { id: "amber", label: "کهربایی", color: "bg-amber-500" }
+                        ].map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => setPlatformTheme(preset.id)}
+                            className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${platformTheme === preset.id ? "border-emerald-500 bg-emerald-500/10 scale-105" : "border-white/5 bg-slate-950 hover:bg-slate-900"}`}
+                          >
+                            <span className={`w-4 h-4 rounded-full ${preset.color}`} />
+                            <span className="text-[9px] text-slate-400">{preset.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Landing Page Text Configuration Card */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      📝 تغییر تمام متن‌های صفحه فرود (Landing Page Editor)
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">متون هدر، شعارهای اصلی و توضیحات تکمیلی سایت را ویرایش و شخصی‌سازی کنید.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1.5 font-bold">عنوان اصلی صفحه فرود (Hero Title) *</label>
+                      <textarea
+                        rows={2}
+                        value={platformLandingTitle}
+                        onChange={(e) => setPlatformLandingTitle(e.target.value)}
+                        placeholder="عنوان بزرگ بالای صفحه"
+                        className="w-full bg-slate-950 border border-white/10 px-4 py-3 rounded-xl text-white focus:outline-none focus:border-emerald-500 leading-relaxed font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-300 block mb-1.5 font-bold">توضیحات فرعی صفحه فرود (Hero Subtitle) *</label>
+                      <textarea
+                        rows={3}
+                        value={platformLandingSubtitle}
+                        onChange={(e) => setPlatformLandingSubtitle(e.target.value)}
+                        placeholder="پاراگراف معرفی خدمات زیر عنوان اصلی"
+                        className="w-full bg-slate-950 border border-white/10 px-4 py-3 rounded-xl text-slate-300 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Payment Gateway Configuration Card */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      💳 تنظیمات اتصال به درگاه‌های پرداخت شتابی (ZarinPal & Saman SEP)
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">تنظیم درگاه‌های بانکی جهت پرداخت حق اشتراک باشگاه‌ها به حساب پلتفرم.</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* ZarinPal Card */}
+                    <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <span className="font-black text-amber-500 flex items-center gap-1.5">
+                          🟡 درگاه پرداخت زرین‌پال (ZarinPal)
+                        </span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={gatewayZarinpalEnabled} 
+                            onChange={(e) => setGatewayZarinpalEnabled(e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">کد مرچنت زرین‌پال (Merchant ID) *</label>
+                          <input
+                            type="text"
+                            value={gatewayZarinpalMerchant}
+                            onChange={(e) => setGatewayZarinpalMerchant(e.target.value)}
+                            disabled={!gatewayZarinpalEnabled}
+                            placeholder="مثال: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-lg text-xs font-mono text-slate-300 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                          />
+                        </div>
+                        <span className="text-[9px] text-slate-500 block leading-relaxed">
+                          📌 تسویه آنی، کارمزد ۱ درصد تا سقف ۳۰۰۰ تومان، بدون نیاز به داشتن ای‌نماد.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Saman SEP Card */}
+                    <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                        <span className="font-black text-blue-400 flex items-center gap-1.5">
+                          🔵 درگاه مستقیم سپ بانک سامان (SEP PSP)
+                        </span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={gatewaySepEnabled} 
+                            onChange={(e) => setGatewaySepEnabled(e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">کد ترمینال درگاه (Terminal ID) *</label>
+                          <input
+                            type="text"
+                            value={gatewaySepTerminalId}
+                            onChange={(e) => setGatewaySepTerminalId(e.target.value)}
+                            disabled={!gatewaySepEnabled}
+                            placeholder="مثال: 122340987"
+                            className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-lg text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                          />
+                        </div>
+                        <span className="text-[9px] text-slate-500 block leading-relaxed">
+                          📌 درگاه مستقیم شاپرکی با اتصال مستقیم بانکی، بدون کارمزد اضافی، نیازمند ثبت آدرس سایت و نماد الکترونیک.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save button notification */}
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => alert("تمامی تنظیمات برندینگ، متون صفحه فرود و درگاه‌های زرین‌پال و سپ با موفقیت ذخیره شدند و روی کل پلتفرم اعمال گردیدند.")}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-3 rounded-2xl text-xs transition-all shadow-lg shadow-emerald-950/20"
+                  >
+                    💾 ذخیره نهایی و اعمال تنظیمات عمومی
+                  </button>
+                </div>
+
+              </div>
+            )}
 
           </div>
         )}
@@ -1319,9 +1972,11 @@ export default function App() {
                 if ((u === "oxygen" && p === "123") || 
                     (generatedClubCredentials && u === generatedClubCredentials.username && p === generatedClubCredentials.password)) {
                   setLoggedInTenant({
+                    id: u === "oxygen" ? "oxygen" : u,
                     username: u,
                     clubName: u === "oxygen" ? "باشگاه مدرن اکسیژن" : generatedClubCredentials?.clubName,
-                    planName: u === "oxygen" ? "طلایی سالانه" : purchasedPlan?.name
+                    planName: u === "oxygen" ? "طلایی سالانه" : purchasedPlan?.name,
+                    features: u === "oxygen" ? ["کاربران نامحدود", "پشتیبانی تیکتی VIP", "آنالیز فیزیکی هوشمند", "اتصال درگاه پرداخت اختصاصی"] : (purchasedPlan?.features || [])
                   });
                   setTenantLoginError("");
                 } else {
@@ -1395,12 +2050,15 @@ export default function App() {
             {/* Header of tenant */}
             <div className="bg-slate-900/40 p-6 rounded-3xl border border-white/5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gradient-to-tr from-pink-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-xl">
+                <div className="w-14 h-14 bg-gradient-to-tr from-emerald-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-xl">
                   {loggedInTenant.clubName ? loggedInTenant.clubName.substring(0, 2) : "اکسیژن"}
                 </div>
                 <div>
                   <h2 className="text-2xl font-black">{loggedInTenant.clubName || "باشگاه ورزشی مدرن اکسیژن"}</h2>
-                  <span className="text-xs text-slate-400">پنل اختصاصی مدیریت باشگاه (Tenant Portal) | اشتراک: {loggedInTenant.planName || "طلایی سالانه"}</span>
+                  <span className="text-xs text-slate-400">
+                    پنل اختصاصی مدیریت باشگاه (Tenant Portal) | اشتراک: {loggedInTenant.planName || "طلایی سالانه"} 
+                    <span className="text-emerald-400 font-black font-mono mr-2">({subscriptionDaysLeft} روز باقی‌مانده)</span>
+                  </span>
                 </div>
               </div>
  
@@ -1408,10 +2066,16 @@ export default function App() {
               <div className="flex gap-2">
                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-3 py-1.5 rounded-xl font-bold">وضعیت: فعال</span>
                 <button 
-                  onClick={() => alert("کد تم وایت‌لیبل باشگاه با موفقیت بروزرسانی شد.")}
+                  onClick={() => setShowTenantSubscriptionModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer animate-pulse"
+                >
+                  🔋 شارژ و تمدید اشتراک
+                </button>
+                <button 
+                  onClick={() => setShowTenantBrandModal(true)}
                   className="bg-white/5 hover:bg-white/10 text-slate-300 text-xs px-3 py-1.5 rounded-xl border border-white/10"
                 >
-                  شخصی‌سازی برند
+                  ⚙️ شخصی‌سازی برند باشگاه
                 </button>
                 <button 
                   onClick={() => {
@@ -1426,8 +2090,357 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quick dashboard metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {/* Tenant Brand Personalization Modal (White-Label Configurator) */}
+            {showTenantBrandModal && (
+              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+                <div className="glass-panel max-w-md w-full p-6 rounded-3xl border border-white/10 space-y-6 relative text-right animate-scale-up" dir="rtl">
+                  
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      ⚙️ شخصی‌سازی برندینگ و ظاهر وب‌اپلیکیشن باشگاه
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">تغییر نام، لوگوی متنی و تم رنگی اختصاصی پلتفرم برای ورزشکاران این شعبه.</p>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-bold">نام کامل باشگاه (تایتل مدیریت)</label>
+                      <input
+                        type="text"
+                        defaultValue={loggedInTenant.clubName || "باشگاه مدرن اکسیژن"}
+                        id="tenant_brand_club_name"
+                        placeholder="مانند: باشگاه فیتنس رویال نیاوران"
+                        className="w-full bg-slate-950 border border-white/10 px-3.5 py-2.5 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-1 font-bold">لوگوی متنی اختصاصی (Branded Text)</label>
+                      <input
+                        type="text"
+                        value={tenantBrandText || loggedInTenant.clubName || ""}
+                        onChange={(e) => setTenantBrandText(e.target.value)}
+                        placeholder="لوگوی متنی بالای پنل ورزشکاران"
+                        className="w-full bg-slate-950 border border-white/10 px-3.5 py-2.5 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-2 font-bold">تم رنگی وب‌اپلیکیشن ورزشکاران (Brand Accent)</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[
+                          { id: "emerald", label: "سبز جنگلی", color: "bg-emerald-500" },
+                          { id: "blue", label: "آبی نئون", color: "bg-blue-500" },
+                          { id: "rose", label: "یاقوتی", color: "bg-rose-500" },
+                          { id: "violet", label: "بنفش", color: "bg-violet-500" },
+                          { id: "amber", label: "کهربایی", color: "bg-amber-500" }
+                        ].map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => setTenantCustomColor(preset.id)}
+                            className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${tenantCustomColor === preset.id ? "border-emerald-500 bg-emerald-500/10 scale-105" : "border-white/5 bg-slate-950 hover:bg-slate-900"}`}
+                          >
+                            <span className={`w-3 h-3 rounded-full ${preset.color}`} />
+                            <span className="text-[8px] text-slate-400">{preset.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setShowTenantBrandModal(false)}
+                      className="bg-slate-900 hover:bg-slate-800 text-slate-400 px-4 py-2.5 rounded-xl text-xs font-bold"
+                    >
+                      انصراف
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newName = (document.getElementById("tenant_brand_club_name") as HTMLInputElement)?.value || loggedInTenant.clubName;
+                        setLoggedInTenant((prev: any) => ({
+                          ...prev,
+                          clubName: newName
+                        }));
+                        setTenants((prev: any[]) => prev.map(t => t.id === loggedInTenant.id ? { ...t, clubName: newName } : t));
+                        setShowTenantBrandModal(false);
+                        alert("🎉 تبریک! برند وایت‌لیبل باشگاه با موفقیت شخصی‌سازی و فعال شد. هم‌اکنون لوگو، متون اختصاصی و تم رنگی سفارشی شما روی کل وب‌اپلیکیشن کاربران اعمال گردید.");
+                      }}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs transition-all shadow-md"
+                    >
+                      💾 ثبت و اعمال برندینگ
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* Tenant Subscription Recharge/Upgrade Modal */}
+            {showTenantSubscriptionModal && (
+              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+                <div className="glass-panel max-w-lg w-full p-6 rounded-3xl border border-white/10 space-y-6 relative text-right animate-scale-up animate-fade-in" dir="rtl">
+                  
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      🔋 شارژ، تمدید و ارتقای سریع اشتراک پورتال باشگاه
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">یکی از پلن‌های زیر را جهت افزایش شارژ لایسنس و فعال‌سازی امکانات ویژه پورتال اسمارت جیم انتخاب فرمایید.</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[
+                      {
+                        name: "پلن برنزی (پایه)",
+                        desc: "شامل مدیریت پایه، حضور غیاب ساده و صندوق بوفه",
+                        priceToman: 490000,
+                        extensionDays: 30,
+                        features: ["مدیریت اعضا", "صندوق بوفه", "پذیرش QR"]
+                      },
+                      {
+                        name: "پلن حرفه‌ای (نقره‌ای)",
+                        desc: "پرطرفدارترین! شامل تیکت ابری، بوفه پیشرفته و مدیریت کلاس‌ها",
+                        priceToman: 1190000,
+                        extensionDays: 90,
+                        features: ["مدیریت اعضا", "صندوق بوفه", "تیکت ابری", "مدیریت کلاس‌ها"]
+                      },
+                      {
+                        name: "پلن سازمانی (طلایی سالانه)",
+                        desc: "ویژه! شامل مدیریت مربیان مجاز، ریز مالی هوشمند، AI Coach و پشتیبانی اختصاصی VIP",
+                        priceToman: 3900000,
+                        extensionDays: 365,
+                        features: ["مدیریت اعضا", "صندوق بوفه", "تیکت ابری", "مدیریت کلاس‌ها", "مدیریت مربیان و ریز درآمد", "برنامه‌ساز هوش مصنوعی (AI Coach)"]
+                      }
+                    ].map((plan, index) => (
+                      <div key={index} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-emerald-500/20 transition-all">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-white">{plan.name}</span>
+                            <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-bold px-2 py-0.5 rounded-md">+{plan.extensionDays} روز اعتبار</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">{plan.desc}</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 justify-between md:justify-end">
+                          <div className="text-left font-sans">
+                            <span className="text-xs text-slate-400 font-bold block text-left">مبلغ سرمایه‌گذاری</span>
+                            <span className="text-xs text-emerald-400 font-extrabold">{plan.priceToman.toLocaleString()} تومان</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingPurchasePlan({
+                                name: plan.name,
+                                priceToman: plan.priceToman,
+                                extensionDays: plan.extensionDays,
+                                features: plan.features,
+                                isRenewal: true
+                              });
+                              setShowTenantSubscriptionModal(false);
+                              setShowPaymentSimulator(true);
+                            }}
+                            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2 rounded-xl text-[10px] transition-all cursor-pointer"
+                          >
+                            💳 خرید و اتصال به درگاه
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-white/5 text-[10px] text-slate-400 flex items-start gap-2 leading-relaxed">
+                    <span>💡</span>
+                    <p>پس از اتمام تراکنش از طریق درگاه بانکی شاپرک، تمدید اشتراک شما به صورت لحظه‌ای و آنی در دیتابیس هوشمند پلتفرم ثبت شده و دسترسی به تمام امکانات مجدداً فعال خواهد شد.</p>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => setShowTenantSubscriptionModal(false)}
+                      className="bg-slate-900 hover:bg-slate-800 text-slate-400 px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      بستن پنجره
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic SaaS Plan Features & Remaining Days Simulation Controller */}
+            <div className="bg-slate-900/60 p-5 rounded-3xl border border-white/5 space-y-4 text-right animate-fade-in" dir="rtl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    🛡️ جزئیات لایسنس و فعال‌سازی امکانات پنل باشگاه
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    امکانات این پرتال به صورت خودکار بر اساس نوع اشتراک خریداری شده (<span className="text-emerald-400 font-bold">{loggedInTenant.planName || "طلایی سالانه"}</span>) و تعداد روزهای معتبر فعال است.
+                  </p>
+                </div>
+                
+                {/* Simulated subscription helper */}
+                <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-2xl border border-white/5 self-start md:self-auto">
+                  <span className="text-[10px] text-slate-400">شبیه‌ساز روزهای باقیمانده:</span>
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        const nextVal = Math.max(0, subscriptionDaysLeft - 5);
+                        setSubscriptionDaysLeft(nextVal);
+                        if (nextVal === 0) alert("⚠️ توجه: روزهای باقیمانده به صفر رسید! تمامی امکانات به جز تمدید غیرفعال گردید.");
+                      }}
+                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center text-xs"
+                    >
+                      -۵
+                    </button>
+                    <span className="font-mono font-bold text-xs text-amber-400 px-1 w-8 text-center">{subscriptionDaysLeft}</span>
+                    <button 
+                      onClick={() => setSubscriptionDaysLeft(prev => prev + 5)}
+                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center text-xs"
+                    >
+                      +۵
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setSubscriptionDaysLeft(0);
+                        alert("🚨 اشتراک به صورت آزمایشی منقضی شد! تمام امکانات قفل شدند تا صحت عملکرد آن بررسی شود.");
+                      }}
+                      className="bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-400 px-2 py-1.5 rounded-lg text-[9px] font-bold"
+                    >
+                      منقضی کردن (۰ روز)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Indicator & Instant Renewal Option */}
+              {subscriptionDaysLeft === 0 ? (
+                <div className="bg-red-500/10 border-2 border-red-500/30 p-4 rounded-2xl space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-lg">🚨</span>
+                    <div>
+                      <h4 className="font-black text-xs text-red-400">زمان پایان پلن فرا رسیده است! امکانات غیرفعال شدند</h4>
+                      <p className="text-[10px] text-slate-300 leading-relaxed mt-1">
+                        پلتفرم اسمارت جیم با توجه به پایان یافتن اشتراک شما، دسترسی به پنل مربیان، تیکت پشتیبانی و تغییر اطلاعات باشگاه را موقتاً مسدود کرده است. لطفاً برای فعال‌سازی فوری روی دکمه زیر کلیک کنید.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSubscriptionDaysLeft(30);
+                      alert("🎉 پرداخت موفقیت‌آمیز بود! اشتراک طلایی باشگاه برای ۳۰ روز دیگر تمدید و فعال گردید.");
+                    }}
+                    className="w-full bg-red-600 hover:bg-red-500 text-white py-2.5 rounded-xl font-black text-xs transition-all shadow-md shadow-red-950/20"
+                  >
+                    💳 پرداخت سریع شهریه و تمدید مجدد لایسنس پلتفرم
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[9px] text-slate-500 block">داشبورد آمار پایه</span>
+                    <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                  </div>
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[9px] text-slate-500 block">آدرس و نقشه تعاملی</span>
+                    <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                  </div>
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[9px] text-slate-500 block">پشتیبانی و تیکت ابری</span>
+                    {!(loggedInTenant.planName && loggedInTenant.planName.includes("برنزی")) ? (
+                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                    ) : (
+                      <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به ارتقا)</span>
+                    )}
+                  </div>
+                  <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
+                    <span className="text-[9px] text-slate-500 block">مدیریت مربیان و امور مالی</span>
+                    {(loggedInTenant.planName && (loggedInTenant.planName.includes("طلایی") || loggedInTenant.planName.includes("سالانه"))) ? (
+                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                    ) : (
+                      <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به طلایی)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tenant Sub-Tab Navigation */}
+            <div className="flex border-b border-white/10 gap-2 mb-2 overflow-x-auto">
+              <button
+                onClick={() => setTenantSubTab("dashboard")}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "dashboard" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+              >
+                📊 داشبورد و آمار باشگاه
+              </button>
+              <button
+                onClick={() => {
+                  if (subscriptionDaysLeft === 0) {
+                    alert("🚨 اشتراک باشگاه شما منقضی شده است! لطفاً جهت دسترسی به تنظیمات ساعت و نقشه ابتدا اشتراک خود را شارژ نمایید.");
+                  } else {
+                    setTenantSubTab("info");
+                  }
+                }}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "info" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${subscriptionDaysLeft === 0 ? "opacity-40" : ""}`}
+              >
+                🕒 ساعت کاری و آدرس باشگاه {subscriptionDaysLeft === 0 && "🔒"}
+              </button>
+              <button
+                onClick={() => {
+                  if (subscriptionDaysLeft === 0) {
+                    alert("🚨 اشتراک باشگاه شما منقضی شده است! لطفاً ابتدا اشتراک خود را تمدید کنید.");
+                  } else if (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی")) {
+                    alert("❌ قابلیت پشتیبانی و تیکت ابری در لایسنس پایه (برنزی) شما فعال نیست. لطفاً اشتراک خود را به پلن نقره‌ای یا طلایی ارتقا دهید.");
+                  } else {
+                    setTenantSubTab("support");
+                  }
+                }}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "support" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${(subscriptionDaysLeft === 0 || (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی"))) ? "opacity-40" : ""}`}
+              >
+                🎫 تیکت و پشتیبانی ابری {(subscriptionDaysLeft === 0 || (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی"))) && "🔒"}
+              </button>
+              <button
+                onClick={() => {
+                  if (subscriptionDaysLeft === 0) {
+                    alert("🚨 اشتراک باشگاه شما منقضی شده است! دسترسی به مدیریت مربیان تا زمان تمدید اشتراک مسدود است.");
+                  } else {
+                    setTenantSubTab("coaches");
+                  }
+                }}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "coaches" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${subscriptionDaysLeft === 0 ? "opacity-40" : ""}`}
+              >
+                🏋️‍♂️ مدیریت مربیان و ریز درآمد {subscriptionDaysLeft === 0 && "🔒"}
+              </button>
+            </div>
+
+            {tenantSubTab === "dashboard" && (
+              <>
+                {/* Dynamically active subscription features */}
+                {loggedInTenant.features && loggedInTenant.features.length > 0 && (
+                  <div className="bg-slate-900/60 border border-white/5 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-right animate-fade-in" dir="rtl">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-emerald-400 flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-emerald-400" />
+                        امکانات اختصاصی فعال باشگاه (بر اساس خرید اشتراک {loggedInTenant.planName})
+                      </h4>
+                      <p className="text-xs text-slate-400">به این امکانات کلیدی که به صورت دستی توسط مدیریت کل پلتفرم تنظیم شده است، دسترسی دارید:</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {loggedInTenant.features.map((feat: string, i: number) => (
+                        <span key={i} className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-3 py-1 rounded-full font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3 text-emerald-400 animate-pulse" />
+                          {feat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick dashboard metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="bg-slate-900/40 border border-white/5 p-4 rounded-2xl">
                 <span className="text-[10px] text-slate-500 block mb-1">درآمد مالی ماه جاری باشگاه</span>
                 <span className="text-xl font-bold text-white">۴۸,۲۰۰,۰۰۰ تومان</span>
@@ -1654,25 +2667,286 @@ export default function App() {
                 ))}
               </div>
             </div>
+            
+            </>
+            )}
+
+            {tenantSubTab === "info" && (
+              <div className="animate-fade-in text-right" dir="rtl">
+                <GymInfoTab 
+                  isDarkMode={isDarkMode} 
+                  tenantName={loggedInTenant.clubName || "مجموعه ورزشی اکسیژن"} 
+                  onUpdateTenantName={(newName) => {
+                    setLoggedInTenant({ ...loggedInTenant, clubName: newName });
+                    setTenants(prev => prev.map(t => t.id === loggedInTenant.id ? { ...t, clubName: newName } : t));
+                  }}
+                />
+              </div>
+            )}
+
+            {tenantSubTab === "support" && (
+              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6 animate-fade-in text-right" dir="rtl">
+                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">تیکت‌های پشتیبانی باشگاه</h3>
+                    <p className="text-xs text-slate-400">تیکت‌های ارسالی شما به سوپر ادمین در این بخش قابل پیگیری و ثبت است.</p>
+                  </div>
+                </div>
+                <TicketSystem
+                  isSuperAdmin={false}
+                  isDarkMode={isDarkMode}
+                  tickets={tickets}
+                  setTickets={setTickets}
+                  currentUserLabel={loggedInTenant.clubName || "باشگاه ورزشی اکسیژن"}
+                />
+              </div>
+            )}
+
+            {tenantSubTab === "coaches" && (
+              <div className="grid md:grid-cols-12 gap-8 animate-fade-in text-right" dir="rtl">
+                
+                {/* Right Column: Add Coach Form */}
+                <div className="md:col-span-5 glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">🏋️‍♂️ ثبت مربی جدید</h3>
+                    <p className="text-xs text-slate-400">یک مربی جدید با اطلاعات ورود اختصاصی تعریف کنید.</p>
+                  </div>
+
+                  {coachAddSuccess && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl text-xs font-bold animate-pulse">
+                      ✅ مربی جدید با موفقیت ثبت شد و آماده ورود به پنل اختصاصی مربیان است.
+                    </div>
+                  )}
+
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newCoachName || !newCoachUsername || !newCoachPassword) {
+                      alert("لطفا تمامی فیلدها را پر کنید");
+                      return;
+                    }
+                    const newCoach = {
+                      id: String(coaches.length + 1),
+                      name: newCoachName,
+                      username: newCoachUsername,
+                      password: newCoachPassword,
+                      specialty: newCoachSpecialty,
+                      clubId: loggedInTenant.id || "1"
+                    };
+                    setCoaches([...coaches, newCoach]);
+                    setNewCoachName("");
+                    setNewCoachUsername("");
+                    setNewCoachPassword("");
+                    setCoachAddSuccess(true);
+                    setTimeout(() => setCoachAddSuccess(false), 4000);
+                  }} className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">نام و نام خانوادگی مربی</label>
+                      <input 
+                        type="text"
+                        value={newCoachName}
+                        onChange={(e) => setNewCoachName(e.target.value)}
+                        placeholder="مثال: استاد علیرضا احمدی"
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">تخصص اصلی</label>
+                      <input 
+                        type="text"
+                        value={newCoachSpecialty}
+                        onChange={(e) => setNewCoachSpecialty(e.target.value)}
+                        placeholder="مثال: فیتنس، پاورلیفتینگ، تغذیه"
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">نام کاربری (نام لاتین)</label>
+                      <input 
+                        type="text"
+                        value={newCoachUsername}
+                        onChange={(e) => setNewCoachUsername(e.target.value)}
+                        placeholder="مثال: ahmadifit"
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-left font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">رمز عبور ورود</label>
+                      <input 
+                        type="password"
+                        value={newCoachPassword}
+                        onChange={(e) => setNewCoachPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-left"
+                        required
+                      />
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black py-2.5 rounded-xl transition-all text-xs"
+                    >
+                      ثبت مربی و صدور اعتبارنامه
+                    </button>
+                  </form>
+                </div>
+
+                {/* Left Column: Coaches List */}
+                <div className="md:col-span-7 glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">📋 لیست مربیان مجاز باشگاه</h3>
+                    <p className="text-xs text-slate-400">مربیانی که در این بخش تعریف می‌شوند دسترسی کامل به پنل طراحی برنامه‌ها خواهند داشت.</p>
+                  </div>
+
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                    {coaches.filter(c => c.clubId === "all" || c.clubId === loggedInTenant.id).map((coach, index) => (
+                      <div key={coach.id} className="bg-slate-950/60 border border-white/5 p-4 rounded-2xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl flex items-center justify-center text-xs">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-white">{coach.name}</h4>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">تخصص: {coach.specialty}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 text-left font-sans">
+                          <div className="font-mono text-left">
+                            <span className="text-[9px] text-slate-500 block">نام کاربری ورود</span>
+                            <span className="text-xs text-emerald-400 font-bold">{coach.username}</span>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              alert(`📊 جزئیات درآمد و صورتحساب مربی (${coach.name}):\n\n` +
+                                    `💵 کل درآمد ناخالص: ۵,۴۰۰,۰۰۰ تومان\n` +
+                                    `🤝 سهم مربی (۷۰٪): ۳,۷۸۰,۰۰۰ تومان\n` +
+                                    `🏢 سهم باشگاه (۳۰٪): ۱,۶۲۰,۰۰۰ تومان\n\n` +
+                                    `📋 ریز تراکنش‌های مرتبط:\n` +
+                                    `۱. تمدید شهریه سهراب رضایی (بدنسازی خصوصی) -> مبلغ ۶۵۰,۰۰۰ تومان (سهم مربی: ۴۵۵,۰۰۰ تومان)\n` +
+                                    `۲. طراحی برنامه غذایی علی احمدی -> مبلغ ۳۰۰,۰۰۰ تومان (سهم مربی: ۲۱۰,۰۰۰ تومان)\n` +
+                                    `۳. دوره خصوصی فیتنس نگار محمدی -> مبلغ ۴,۴۵۰,۰۰۰ تومان (سهم مربی: ۳,۱۱۵,۰۰۰ تومان)`);
+                            }}
+                            className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold px-2.5 py-1 rounded-lg mt-1 transition-all"
+                          >
+                            📊 ریز درآمد و امور مالی مربی
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {coaches.filter(c => c.clubId === "all" || c.clubId === loggedInTenant.id).length === 0 && (
+                      <div className="text-center py-8 text-slate-500 text-xs">
+                        هیچ مربی فعالی برای این شعبه ثبت نشده است. از فرم مقابل مربی اول را ثبت کنید.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
 
           </div>
         )}
 
 
         {/* -------------------- TAB 4: COACH PANEL -------------------- */}
-        {activeTab === "coach" && (
+        {activeTab === "coach" && !loggedInCoach && (
+          <div className="max-w-md mx-auto my-12 glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 text-right animate-fade-in animate-duration-300" dir="rtl">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-3xl flex items-center justify-center text-white font-black text-2xl mx-auto shadow-lg shadow-indigo-950/40">
+                🏋️‍♂️
+              </div>
+              <h2 className="text-2xl font-black text-white mt-4 font-sans">ورود مربیان باشگاه</h2>
+              <p className="text-xs text-slate-400">نام کاربری و کلمه‌عبور مربیگری خود را وارد نمایید.</p>
+            </div>
+
+            {coachLoginError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3.5 rounded-xl text-xs font-bold text-center">
+                ⚠️ {coachLoginError}
+              </div>
+            )}
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const found = coaches.find(c => c.username.toLowerCase() === coachUsernameInput.toLowerCase() && c.password === coachPasswordInput);
+              if (found) {
+                setLoggedInCoach(found);
+                setCoachLoginError("");
+              } else {
+                setCoachLoginError("نام کاربری یا رمز عبور اشتباه است.");
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">نام کاربری مربی</label>
+                <input 
+                  type="text"
+                  value={coachUsernameInput}
+                  onChange={(e) => setCoachUsernameInput(e.target.value)}
+                  placeholder="مثال: pouria"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-violet-500 text-left font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">رمز عبور ورود</label>
+                <input 
+                  type="password"
+                  value={coachPasswordInput}
+                  onChange={(e) => setCoachPasswordInput(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-violet-500 text-left"
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black py-3 rounded-xl transition-all shadow-lg shadow-violet-950/40 text-xs"
+              >
+                ورود امن به پنل مربی
+              </button>
+            </form>
+
+            <div className="text-center pt-2 text-[10px] text-slate-500">
+              💡 مربی محترم، در صورتی که حساب کاربری فعال ندارید، اطلاعات ورود خود را از مدیریت باشگاه ورزشی دریافت فرمایید.
+            </div>
+          </div>
+        )}
+
+        {activeTab === "coach" && loggedInCoach && (
           <div className="space-y-8 animate-fade-in">
             
             {/* Header of Coach panel */}
             <div className="bg-slate-900/40 p-6 rounded-3xl border border-white/5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-xl">
+                <div className="w-14 h-14 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-xl animate-pulse">
                   مربی
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black">پنل اختصاصی مربی: استاد پوریا کریمی</h2>
-                  <span className="text-xs text-slate-400">مربی رسمی فدراسیون بدنسازی | مدیریت برنامه‌های تمرینی، غذایی و پایش بیومتریک اعضا</span>
+                  <h2 className="text-2xl font-black text-white">پنل اختصاصی مربی: {loggedInCoach.name}</h2>
+                  <span className="text-xs text-slate-400">تخصص: {loggedInCoach.specialty} | مدیریت برنامه‌های تمرینی، غذایی و پایش بیومتریک اعضا</span>
                 </div>
+              </div>
+
+              <div>
+                <button
+                  onClick={() => {
+                    setLoggedInCoach(null);
+                    setCoachUsernameInput("");
+                    setCoachPasswordInput("");
+                  }}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs px-4 py-2 rounded-xl font-bold transition-all"
+                >
+                  خروج از پنل مربیگری
+                </button>
               </div>
             </div>
 
@@ -1697,6 +2971,13 @@ export default function App() {
               >
                 <Plus className="w-4 h-4" />
                 طراحی برنامه غذایی جدید (دستی)
+              </button>
+              <button 
+                onClick={() => setCoachSubView("ai_generation")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${coachSubView === "ai_generation" ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg shadow-emerald-950/40" : "bg-slate-900/50 text-slate-400 hover:text-slate-200 border border-white/5"}`}
+              >
+                <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse animate-duration-1000" />
+                طراحی برنامه هوشمند با هوش مصنوعی (AI Coach)
               </button>
             </div>
 
@@ -1967,11 +3248,15 @@ export default function App() {
                     {members.map((member) => (
                       <div key={member.id} className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 flex flex-wrap items-center justify-between gap-4 text-xs hover:border-indigo-500/30 transition-all">
                         <div className="flex items-center gap-3 animate-fade-in">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-black text-indigo-400 text-sm">
+                          <div 
+                            onClick={() => setSelectedDetailedMember(member)}
+                            className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-black text-indigo-400 text-sm cursor-pointer hover:scale-110 hover:border-emerald-500 transition-all"
+                            title="مشاهده پرونده و عملکرد"
+                          >
                             {member.name.substring(0, 1)}
                           </div>
-                          <div>
-                            <span className="font-bold text-slate-200 block text-sm">{member.name}</span>
+                          <div className="cursor-pointer group" onClick={() => setSelectedDetailedMember(member)} title="مشاهده پرونده و عملکرد">
+                            <span className="font-bold text-slate-200 block text-sm group-hover:text-emerald-400 transition-colors">{member.name}</span>
                             <span className="text-[10px] text-slate-500 block mt-1">تلفن: {member.phone} | تاریخ پیوستن: {member.joinedDate}</span>
                           </div>
                         </div>
@@ -1991,6 +3276,12 @@ export default function App() {
                           </div>
 
                           <div className="flex gap-2">
+                            <button 
+                              onClick={() => setSelectedDetailedMember(member)}
+                              className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 px-3 py-2 rounded-xl font-bold transition-all text-[11px]"
+                            >
+                              🔍 مشاهده عملکرد و پرونده
+                            </button>
                             <button 
                               onClick={() => {
                                 setLoggedInMember(member);
@@ -2327,9 +3618,35 @@ export default function App() {
             {coachSubView === "create_nutrition" && (
               <div className="space-y-6 animate-fade-in text-right" dir="rtl">
                 <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-6">
-                  <div className="border-b border-white/5 pb-4">
-                    <h3 className="text-lg font-black text-white">طراحی دستی برنامه غذایی و رژیم جدید</h3>
-                    <p className="text-xs text-slate-400">اطلاعات ماکروها، کالری روزانه و جزییات وعده‌ها را برای ورزشکار تعیین کنید.</p>
+                  <div className="border-b border-white/5 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-black text-white">طراحی دستی برنامه غذایی و رژیم جدید</h3>
+                      <p className="text-xs text-slate-400">اطلاعات ماکروها، کالری روزانه و جزییات وعده‌ها را برای ورزشکار تعیین کنید.</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Dynamic AI autofill simulation
+                        setMNutTitle("رژیم کات و چربی‌سوزی پیشرفته همراه با حفظ عضله (تولید شده با AI)");
+                        setMNutCalories(2250);
+                        setMNutProtein(175);
+                        setMNutCarbs(190);
+                        setMNutFats(55);
+                        setMNutWater(3.5);
+                        setMNutBreakfast("سفیده تخم‌مرغ ۴ عدد + تخم‌مرغ کامل ۱ عدد آب‌پز + ۵۰ گرم نان تست سبوس‌دار + ۱ قاشق چایخوری کره بادام‌زمینی طبیعی به همراه یک فنجان قهوه اسپرسو تلخ");
+                        setMNutLunch("۲۰۰ گرم فیله مرغ گریل‌شده به همراه رزماری + ۱۲۰ گرم برنج کته قهوه‌ای بدون چربی + ۱۵۰ گرم کلم بروکلی بخارپز و چند قطره لیموترش تازه");
+                        setMNutDinner("۱۸۰ گرم فیله ماهی قزل‌آلا یا سالمون تنوری + ۱۰۰ گرم سیب‌زمینی شیرین یا معمولی پخته + یک کاسه کوچک سالاد فصل شامل کاهو، خیار و گوجه بدون سس با سرکه سیب");
+                        setMNutSnack("یک عدد سیب درختی کوچک + ۳۰ گرم مغز بادام خام مابین وعده + یک اسکوپ پروتئین وی مخلوط با آب بعد از تمرین");
+                        setMNutAdvice("کربوهیدرات‌های ساده مانند قند، شکر، نوشابه و فست‌فود را ۱۰۰٪ قطع کنید.\nحداقل ۳.۵ لیتر آب خالص در طول شبانه‌روز بنوشید.\nخواب باکیفیت شبانه حداقل ۸ ساعت در ریکاوری و چربی‌سوزی کلیدی است.");
+                        setMNutShopping("فیله مرغ, ماهی قزل آلا, تخم مرغ, نان تست سبوس دار, برنج قهوه ای, کلم بروکلی, سیب, بادام خام, پروتئین وی");
+                        alert("رژیم تخصصی کات عضلانی با هوش مصنوعی (AI Nutrition Generator) تولید و فرم با موفقیت بازنویسی شد! اکنون می‌توانید آن را شخصی‌سازی یا ذخیره کنید.");
+                      }}
+                      className="bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:scale-105 transition-all shadow-md shadow-emerald-950/20"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      تولید خودکار رژیم غذایی با هوش مصنوعی (AI)
+                    </button>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
@@ -2539,6 +3856,32 @@ export default function App() {
               </div>
             )}
 
+            {coachSubView === "ai_generation" && (
+              <div className="space-y-6 animate-fade-in text-right" dir="rtl">
+                <AICoachProgramGenerator
+                  isDarkMode={isDarkMode}
+                  members={members}
+                  setMembers={setMembers}
+                  workoutPrograms={workoutPrograms}
+                  setWorkoutPrograms={setWorkoutPrograms}
+                  nutritionPlans={nutritionPlans}
+                  setNutritionPlans={setNutritionPlans}
+                />
+              </div>
+            )}
+
+            {selectedDetailedMember && (
+              <CoachMemberDetail
+                member={selectedDetailedMember}
+                onClose={() => setSelectedDetailedMember(null)}
+                isDarkMode={isDarkMode}
+                workoutPrograms={workoutPrograms}
+                nutritionPlans={nutritionPlans}
+                attendanceRecords={attendanceRecords || []}
+                invoices={invoices || []}
+              />
+            )}
+
           </div>
         )}
 
@@ -2625,7 +3968,32 @@ export default function App() {
         )}
 
         {activeTab === "member" && loggedInMember && (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-8 animate-fade-in text-right" dir="rtl">
+            
+            {/* Direct PWA Mobile Athlete Dashboard Layout */}
+            <div className="w-full max-w-2xl mx-auto">
+              <AthleteDashboard 
+                member={loggedInMember}
+                workoutPrograms={workoutPrograms}
+                nutritionPlans={nutritionPlans}
+                isDarkMode={isDarkMode}
+                onLogout={handleMemberLogout}
+                attendanceRecords={attendanceRecords}
+                onCheckIn={(record) => {
+                  setAttendanceRecords([record, ...attendanceRecords]);
+                  alert("حضور شما با موفقیت ثبت شد!");
+                }}
+                tenantCustomColor={tenantCustomColor}
+                tenantBrandText={tenantBrandText || (loggedInTenant && loggedInTenant.clubName) || "اسمارت جیم"}
+                onAddClubRevenue={(amount) => setClubRevenue((prev) => prev + amount)}
+                onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                clubInfo={loggedInTenant}
+              />
+            </div>
+
+            {/* Hiding old heavy desktop structure */}
+            {false && (
+              <div className="space-y-8">
             
             {/* Real PWA Banner & Offline Mode Status */}
             <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 flex flex-wrap items-center justify-between gap-4 text-xs">
@@ -3209,6 +4577,8 @@ export default function App() {
                 <span>خروج</span>
               </button>
             </div>
+            </div>
+            )}
 
           </div>
         )}
@@ -3567,71 +4937,73 @@ export default function App() {
       </main>
 
       {/* 24. Standard commercial footer for a real SaaS */}
-      <footer className="bg-slate-950 border-t border-white/10 py-12 mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8 text-xs">
-          
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-sm">
-                SG
+      {!(activeTab === "member" && loggedInMember) && (
+        <footer className="bg-slate-950 border-t border-white/10 py-12 mt-24">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8 text-xs">
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-extrabold text-sm">
+                  SG
+                </div>
+                <span className="text-base font-black text-white">پلتفرم اسمارت جیم</span>
               </div>
-              <span className="text-base font-black text-white">پلتفرم اسمارت جیم</span>
+              <p className="text-slate-400 leading-relaxed">
+                بزرگترین و مجهزترین سامانه ابری مدیریت یکپارچه کلوپ‌های ورزشی، باشگاه‌های بدنسازی و سالن‌های پرورش اندام ایران با تکیه بر تکنولوژی بومی و هوش مصنوعی پیشرفته.
+              </p>
             </div>
-            <p className="text-slate-400 leading-relaxed">
-              بزرگترین و مجهزترین سامانه ابری مدیریت یکپارچه کلوپ‌های ورزشی، باشگاه‌های بدنسازی و سالن‌های پرورش اندام ایران با تکیه بر تکنولوژی بومی و هوش مصنوعی پیشرفته.
-            </p>
+
+            <div className="space-y-3">
+              <span className="font-bold text-slate-200 block">دسترسی سریع</span>
+              <ul className="space-y-2 text-slate-400">
+                <li><button onClick={() => setActiveTab("landing")} className="hover:text-blue-400 transition-colors">خانه و لندینگ پیج</button></li>
+                <li><button onClick={() => setActiveTab("superadmin")} className="hover:text-blue-400 transition-colors">سوپر ادمین نظارت</button></li>
+                <li><button onClick={() => setActiveTab("tenant")} className="hover:text-blue-400 transition-colors">پنل مستاجر باشگاه</button></li>
+                <li><button onClick={() => setActiveTab("coach")} className="hover:text-blue-400 transition-colors">پنل مربیان</button></li>
+                <li><button onClick={() => setActiveTab("member")} className="hover:text-blue-400 transition-colors">پنل ورزشکار و پلیر</button></li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <span className="font-bold text-slate-200 block">پشتیبانی و امنیت</span>
+              <ul className="space-y-2 text-slate-400">
+                <li><button onClick={() => setFooterDocView("terms")} className="hover:text-emerald-400 transition-colors text-right w-full cursor-pointer">شرایط و قوانین استفاده</button></li>
+                <li><button onClick={() => setFooterDocView("privacy")} className="hover:text-emerald-400 transition-colors text-right w-full cursor-pointer">حفظ حریم خصوصی اعضا</button></li>
+                <li><button onClick={() => setFooterDocView("support")} className="hover:text-emerald-400 transition-colors text-right w-full cursor-pointer">تیکت پشتیبانی ۲۴ ساعته</button></li>
+                <li><button onClick={() => setFooterDocView("sla")} className="hover:text-emerald-400 transition-colors text-right w-full cursor-pointer">تضمین پایداری سرورها (SLA)</button></li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <span className="font-bold text-slate-200 block">ارتباط با اسمارت جیم</span>
+              <ul className="space-y-2 text-slate-400">
+                <li className="flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>شماره تماس: ۰۲۱-۸۸۸۸۴۴۴۴</span>
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>ایمیل: support@smartgym.ir</span>
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>تهران، پارک فناوری پردیس، بخش شتابدهی</span>
+                </li>
+              </ul>
+            </div>
+
           </div>
 
-          <div className="space-y-3">
-            <span className="font-bold text-slate-200 block">دسترسی سریع</span>
-            <ul className="space-y-2 text-slate-400">
-              <li><button onClick={() => setActiveTab("landing")} className="hover:text-blue-400 transition-colors">خانه و لندینگ پیج</button></li>
-              <li><button onClick={() => setActiveTab("superadmin")} className="hover:text-blue-400 transition-colors">سوپر ادمین نظارت</button></li>
-              <li><button onClick={() => setActiveTab("tenant")} className="hover:text-blue-400 transition-colors">پنل مستاجر باشگاه</button></li>
-              <li><button onClick={() => setActiveTab("coach")} className="hover:text-blue-400 transition-colors">پنل مربیان</button></li>
-              <li><button onClick={() => setActiveTab("member")} className="hover:text-blue-400 transition-colors">پنل ورزشکار و پلیر</button></li>
-            </ul>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-white/5 text-center text-[10px] text-slate-500 flex flex-wrap justify-between items-center gap-4">
+            <span>تمامی حقوق مادی و معنوی این وب‌سایت محفوظ و متعلق به شرکت فنی مهندسی اسمارت جیم کلاود می‌باشد. © ۱۴۰۵</span>
+            <div className="flex gap-4">
+              <a href="#" className="hover:text-slate-300">سایت مپ</a>
+              <a href="#" className="hover:text-slate-300">امنیت کلاود</a>
+              <a href="#" className="hover:text-slate-300">APIها</a>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            <span className="font-bold text-slate-200 block">پشتیبانی و امنیت</span>
-            <ul className="space-y-2 text-slate-400">
-              <li><a href="#" className="hover:text-blue-400">شرایط و قوانین استفاده</a></li>
-              <li><a href="#" className="hover:text-blue-400">حفظ حریم خصوصی اعضا</a></li>
-              <li><a href="#" className="hover:text-blue-400">تیکت پشتیبانی ۲۴ ساعته</a></li>
-              <li><a href="#" className="hover:text-blue-400">تضمین پایداری سرورها</a></li>
-            </ul>
-          </div>
-
-          <div className="space-y-3">
-            <span className="font-bold text-slate-200 block">ارتباط با اسمارت جیم</span>
-            <ul className="space-y-2 text-slate-400">
-              <li className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span>شماره تماس: ۰۲۱-۸۸۸۸۴۴۴۴</span>
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span>ایمیل: support@smartgym.ir</span>
-              </li>
-              <li className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span>تهران، پارک فناوری پردیس، بخش شتابدهی</span>
-              </li>
-            </ul>
-          </div>
-
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-white/5 text-center text-[10px] text-slate-500 flex flex-wrap justify-between items-center gap-4">
-          <span>تمامی حقوق مادی و معنوی این وب‌سایت محفوظ و متعلق به شرکت فنی مهندسی اسمارت جیم کلاود می‌باشد. © ۱۴۰۵</span>
-          <div className="flex gap-4">
-            <a href="#" className="hover:text-slate-300">سایت مپ</a>
-            <a href="#" className="hover:text-slate-300">امنیت کلاود</a>
-            <a href="#" className="hover:text-slate-300">APIها</a>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {showPurchaseModal && generatedClubCredentials && purchasedPlan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in text-right" dir="rtl">
@@ -3694,9 +5066,9 @@ export default function App() {
                   setShowPurchaseModal(false);
                   setActiveTab("tenant");
                 }}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-3 rounded-xl transition-all shadow-lg shadow-blue-900/30 text-xs text-center"
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black py-3 rounded-xl transition-all shadow-lg shadow-emerald-950/40 text-xs text-center"
               >
-                ورود مستقیم به پنل مدیریت باشگاه
+                🚀 ورود فوری و خودکار به پنل باشگاه
               </button>
               <button 
                 onClick={() => setShowPurchaseModal(false)}
@@ -3705,6 +5077,170 @@ export default function App() {
                 بستن پنجره
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Iranian Payment Gateway Simulator Overlay */}
+      {showPaymentSimulator && pendingPurchasePlan && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 overflow-y-auto flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl">
+            <IranianGatewaySimulator
+              amountToman={pendingPurchasePlan.priceToman}
+              planName={pendingPurchasePlan.name}
+              gatewayName={paymentGatewayConfigs.activeGateway}
+              isSandbox={paymentGatewayConfigs.isSandbox}
+              merchantId={paymentGatewayConfigs.merchantId}
+              onCancel={() => {
+                setShowPaymentSimulator(false);
+                setPendingPurchasePlan(null);
+              }}
+              onSuccess={() => {
+                if (pendingPurchasePlan.isRenewal) {
+                  setSubscriptionDaysLeft((prev) => prev + (pendingPurchasePlan.extensionDays || 30));
+                  if (loggedInTenant) {
+                    setLoggedInTenant((prev: any) => ({
+                      ...prev,
+                      planName: pendingPurchasePlan.name
+                    }));
+                    setTenants((prevList) => prevList.map(t => t.id === loggedInTenant.id ? { ...t, planName: pendingPurchasePlan.name } : t));
+                  }
+                  setShowPaymentSimulator(false);
+                  setPendingPurchasePlan(null);
+                  alert(`🎉 پرداخت موفقیت‌آمیز بود! اشتراک باشگاه شما به "${pendingPurchasePlan.name}" ارتقا یافت و اعتبار شما به میزان ${pendingPurchasePlan.extensionDays} روز دیگر تمدید شد.`);
+                  return;
+                }
+
+                const randNum = Math.floor(Math.random() * 900 + 100);
+                const generatedUsername = `club_oxygen_${randNum}`;
+                const generatedPassword = `pass_${randNum}`;
+                
+                setPurchasedPlan(pendingPurchasePlan);
+                setGeneratedClubCredentials({
+                  username: generatedUsername,
+                  password: generatedPassword,
+                  clubName: `مجموعه ورزشی اکسیژن (شعبه ${pendingPurchasePlan.name})`
+                });
+
+                // Add to active tenants list
+                const newlyCreated: Tenant = {
+                  id: `tenant_${Date.now()}`,
+                  name: `مجموعه ورزشی اکسیژن (شعبه ${pendingPurchasePlan.name})`,
+                  ownerName: "مدیر باشگاه اکسیژن",
+                  email: "oxygen@smartgym.ir",
+                  phone: "09121234567",
+                  status: "ACTIVE",
+                  planName: pendingPurchasePlan.name,
+                  expiresAt: "1406/04/01",
+                  branchesCount: 1,
+                  membersCount: 0,
+                  monthlyRevenue: pendingPurchasePlan.priceToman,
+                  createdAt: "1405/04/01",
+                  features: pendingPurchasePlan.features || []
+                };
+                setTenants((prev) => [newlyCreated, ...prev]);
+
+                setShowPaymentSimulator(false);
+                setPendingPurchasePlan(null);
+                setShowPurchaseModal(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated Pages for Footer Support & Security */}
+      {footerDocView && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in" dir="rtl">
+          <div className="glass-panel max-w-2xl w-full p-8 rounded-[2.5rem] border border-white/10 space-y-6 relative text-right animate-scale-up" dir="rtl">
+            
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[60px] -z-10"></div>
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-[60px] -z-10"></div>
+
+            <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl flex items-center justify-center text-lg">
+                  {footerDocView === "terms" && "📜"}
+                  {footerDocView === "privacy" && "🛡️"}
+                  {footerDocView === "support" && "🎫"}
+                  {footerDocView === "sla" && "⚡"}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">
+                    {footerDocView === "terms" && "شرایط و قوانین استفاده از اسمارت جیم"}
+                    {footerDocView === "privacy" && "سند حفظ حریم خصوصی اعضا و باشگاه‌ها"}
+                    {footerDocView === "support" && "تیکت پشتیبانی ۲۴ ساعته و راهنمای سیستم"}
+                    {footerDocView === "sla" && "تضمین پایداری سرورها و امنیت کلاود (SLA)"}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">آخرین به‌روزرسانی: تیرماه ۱۴۰۵</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs text-slate-300 leading-relaxed max-h-[350px] overflow-y-auto pr-1">
+              {footerDocView === "terms" && (
+                <>
+                  <p className="font-bold text-white text-sm">۱. لایسنس و حقوق پلتفرم:</p>
+                  <p>استفاده از خدمات ابری مدیریت باشگاه اسمارت جیم شامل ثبت‌نام، تخصیص لایسنس، پرداخت هزینه‌ها و نحوه ارائه خدمات به باشگاه‌ها و ورزشکاران منوط به پذیرش تام این سند است. هرگونه استفاده غیرمجاز با پیگرد قانونی همراه خواهد بود.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۲. اطلاعات مربیان و اعضا:</p>
+                  <p>مسئولیت صحت قانونی کلیه اطلاعات هویتی، تراکنش‌های مالی باشگاه، حضور غیاب و برنامه‌های ورزشی مربیان کاملاً بر عهده مدیریت باشگاه (مستأجر) می‌باشد.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۳. لغو اشتراک و پرداخت‌ها:</p>
+                  <p>تمدید اشتراک به صورت لحظه‌ای انجام می‌شود و مبالغ واریز شده بابت خدمات SaaS غیرقابل استرداد است.</p>
+                </>
+              )}
+
+              {footerDocView === "privacy" && (
+                <>
+                  <p className="font-bold text-white text-sm">۱. جمع‌آوری حداقل اطلاعات مورد نیاز:</p>
+                  <p>پلتفرم اسمارت جیم خود را متعهد به حفظ ۱۰۰٪ اطلاعات حساس باشگاه‌ها، مربیان و به ویژه سوابق تمرینی، پزشکی و بیومتریک ورزشکاران می‌داند. ما تنها اطلاعاتی را جمع‌آوری می‌کنیم که برای فرآیند صدور برنامه‌های ورزشی و پذیرش مورد نیاز است.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۲. امنیت و رمزنگاری پیشرفته:</p>
+                  <p>کلیه اطلاعات رد و بدل شده در بستر ابری به صورت رمزنگاری شده چندلایه (SSL/AES-256) ذخیره و در فایروال‌های پیشرفته مراقبت می‌گردد و هرگز در اختیار شخص ثالث یا تبلیغات قرار نخواهد گرفت.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۳. حق فراموشی و حذف اطلاعات:</p>
+                  <p>هر زمان که ورزشکار یا مدیر باشگاه تصمیم به لغو کامل حساب کاربری بگیرد، امکان پاک‌سازی کامل تمام تاریخچه‌ها فراهم است.</p>
+                </>
+              )}
+
+              {footerDocView === "support" && (
+                <>
+                  <p className="font-bold text-white text-sm">۱. مرکز تیکتینگ یکپارچه:</p>
+                  <p>پشتیبانی کارشناسان فنی ما در ۷ روز هفته و ۲۴ ساعت شبانه‌روز از طریق ثبت تیکت، تماس تلفنی اضطراری و چت آنلاین در خدمت شماست. هدف ما پایداری کسب‌وکار شما در بالاترین بازدهی است.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۲. زمان پاسخگویی VIP:</p>
+                  <p>میانگین زمان پاسخگویی به تیکت‌های فنی و مالی باشگاه‌ها کمتر از ۱۵ دقیقه می‌باشد. در تمام طول مسیر راه‌اندازی و ثبت نام اعضا در کنار شما هستیم.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۳. اطلاعات تماس سریع:</p>
+                  <p>در صورت نیاز به تماس فوری می‌توانید با شماره پشتیبانی ۰۲۱-۸۸۸۸۴۴۴۴ یا ایمیل رسمی support@smartgym.ir ارتباط برقرار نمایید.</p>
+                </>
+              )}
+
+              {footerDocView === "sla" && (
+                <>
+                  <p className="font-bold text-white text-sm">۱. تضمین آپ‌تایم سالانه ۹۹.۹۸٪:</p>
+                  <p>ضمانت پایداری سرورهای ابری اسمارت جیم معادل ۹۹.۹۸٪ آپ‌تایم سالانه در مجهزترین دیتاسنترهای داخلی و کلاود همزمان می‌باشد تا فرآیند پذیرش و مانیتورینگ باشگاه با هیچ وقفه‌ای روبرو نشود.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۲. نسخه‌های پشتیبان روزانه و اتوماتیک:</p>
+                  <p>تهیه نسخه پشتیبان (Backups) از تمامی اطلاعات مالی باشگاه، اطلاعات مربیان، بیومتریک و برنامه‌های تمرینی به صورت روزانه و خودکار در سرورهای سرد جداگانه انجام می‌پذیرد تا هیچ‌گونه ریسک داده‌ای وجود نداشته باشد.</p>
+                  
+                  <p className="font-bold text-white text-sm mt-3">۳. مانیتورینگ آنلاین فایروال‌ها:</p>
+                  <p>سیستم پایش ترافیک ابری به طور ۲۴ ساعته هرگونه حمله DDoS و دسترسی غیرمجاز را شناسایی و مسدود می‌نماید.</p>
+                </>
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end pt-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setFooterDocView(null)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+              >
+                بستن و بازگشت به سایت
+              </button>
+            </div>
+
           </div>
         </div>
       )}

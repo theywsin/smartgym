@@ -6,6 +6,34 @@
   --font-mono: "Fira Code", ui-monospace, monospace;
 }
 
+:root {
+  /* Green Corporate Palette */
+  --primary: #16A34A;
+  --secondary: #22C55E;
+  --success: #15803D;
+  --accent: #4ADE80;
+  
+  /* Light Theme defaults */
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-input: #F1F5F9;
+  --border-color: rgba(15, 23, 42, 0.08);
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+}
+
+.dark-theme-vars {
+  /* Dark Theme defaults */
+  --bg-main: #0F172A;
+  --bg-card: #1E293B;
+  --bg-input: #0F172A;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --glass-bg: rgba(15, 23, 42, 0.75);
+}
+
 /* Base custom styles for premium glassmorphism and RTL scrollbars */
 @layer base {
   html {
@@ -17,49 +45,122 @@
   
   /* Selection colors */
   ::selection {
-    background-color: rgba(59, 130, 246, 0.3);
+    background-color: rgba(22, 163, 74, 0.3);
     color: #ffffff;
   }
 }
 
 /* Custom classes for Glassmorphism & premium UI */
 .glass-panel {
-  background: rgba(17, 24, 39, 0.7);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
 }
 
-.glass-panel-light {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+/* ----------------------------------------------------
+   LIGHT MODE (WHITE MODE) DYNAMIC THEME ADAPTATION
+   ---------------------------------------------------- */
+.min-h-screen:not(.dark-theme-vars) {
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-input: #F1F5F9;
+  --border-color: rgba(15, 23, 42, 0.08);
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --glass-bg: rgba(255, 255, 255, 0.9);
+}
+
+/* Force Light Mode background and text overrides */
+.min-h-screen:not(.dark-theme-vars) .glass-panel {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: #0F172A !important;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+}
+
+/* Adapt slate background containers in light mode */
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/40,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/50,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/60,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/50,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/60,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/80,
+.min-h-screen:not(.dark-theme-vars) .bg-black\/20 {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Forms & inputs visibility in light mode */
+.min-h-screen:not(.dark-theme-vars) input,
+.min-h-screen:not(.dark-theme-vars) select,
+.min-h-screen:not(.dark-theme-vars) textarea {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+.min-h-screen:not(.dark-theme-vars) input::placeholder,
+.min-h-screen:not(.dark-theme-vars) textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Text elements compatibility in light mode */
+.min-h-screen:not(.dark-theme-vars) .text-white,
+.min-h-screen:not(.dark-theme-vars) .text-slate-100,
+.min-h-screen:not(.dark-theme-vars) .text-slate-200 {
+  color: #0F172A !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-slate-300,
+.min-h-screen:not(.dark-theme-vars) .text-slate-400 {
+  color: #334155 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-slate-500 {
+  color: #64748B !important;
+}
+
+/* Border corrections */
+.min-h-screen:not(.dark-theme-vars) .border-white\/5,
+.min-h-screen:not(.dark-theme-vars) .border-white\/10 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Keep primary emerald accent and branding visible */
+.min-h-screen:not(.dark-theme-vars) .text-emerald-400 {
+  color: #059669 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  color: #059669 !important;
 }
 
 .text-gradient-cyan-blue {
-  background: linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #16A34A 0%, #22C55E 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gradient-emerald-green {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  background: linear-gradient(135deg, #16A34A 0%, #4ADE80 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .pulsing-glow {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 20px rgba(22, 163, 74, 0.2);
   animation: pulse-glow-anim 2s infinite alternate;
 }
 
 @keyframes pulse-glow-anim {
   from {
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 10px rgba(22, 163, 74, 0.15);
   }
   to {
-    box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 25px rgba(22, 163, 74, 0.4);
   }
 }
+
 
