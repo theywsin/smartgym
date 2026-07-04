@@ -56,7 +56,9 @@ import {
   MOCK_PRODUCTS,
   SUBSCRIPTION_PLANS
 } from "./data";
-import { UserRole, Tenant, Booking, StoreProduct } from "./types";
+import { UserRole, Tenant, Booking, StoreProduct, toPersianNums } from "./types";
+import { mysqlDb } from "./lib/mysqlSim";
+import { db, collection, doc, setDoc, getDocs } from "./lib/firebase";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
@@ -67,13 +69,13 @@ import GymInfoTab from "./components/GymInfoTab";
 import CoachMemberDetail from "./components/CoachMemberDetail";
 import AICoachProgramGenerator from "./components/AICoachProgramGenerator";
 import TicketSystem from "./components/TicketSystem";
-import ThreeGymCanvas from "./components/ThreeGymCanvas";
+import CoachEarningsPanel from "./components/CoachEarningsPanel";
 
 export default function App() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // New Unified Design System States & Gateways
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
@@ -102,6 +104,11 @@ export default function App() {
   // Persistent States
   const [workoutPrograms, setWorkoutPrograms] = useState<any[]>(MOCK_WORKOUT_PROGRAMS);
   const [nutritionPlans, setNutritionPlans] = useState<any[]>(MOCK_NUTRITION_PLANS);
+  const [exercisesList, setExercisesList] = useState<any[]>(EXERCISES);
+  const [newExName, setNewExName] = useState("");
+  const [newExGroup, setNewExGroup] = useState("سینه");
+  const [newExCorrect, setNewExCorrect] = useState("");
+  const [newExWrong, setNewExWrong] = useState("");
 
   // Tenant Authentication States
   const [loggedInTenant, setLoggedInTenant] = useState<any | null>(null);
@@ -115,6 +122,13 @@ export default function App() {
     { id: "2", name: "سارا حسینی", username: "sara", password: "123", specialty: "تغذیه و لاغری", clubId: "all" }
   ]);
   const [loggedInCoach, setLoggedInCoach] = useState<any | null>(null);
+  const [coachSales, setCoachSales] = useState<any[]>([
+    { id: "s_1", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "برنامه تمرینی پیشرفته ۲۴ جلسه‌ای", price: 1200000, date: "1405/04/01", month: "تیر" },
+    { id: "s_2", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "سهراب مرادی", packageName: "رژیم غذایی تفکیک عضلانی ۳۰ روزه", price: 850000, date: "1405/04/02", month: "تیر" },
+    { id: "s_3", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "رضا قاسمی", packageName: "دوره فشرده چربی‌سوزی و آنالیز بدن", price: 1500000, date: "1405/03/12", month: "خرداد" },
+    { id: "s_4", coachId: "2", coachName: "سارا حسینی", studentName: "الناز شاکری", packageName: "برنامه پیشرفته فرم‌دهی و تغذیه", price: 1800000, date: "1405/04/01", month: "تیر" },
+    { id: "s_5", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "تمدید عضویت ماهانه کلوپ قهرمانان", price: 950000, date: "1405/03/25", month: "خرداد" }
+  ]);
   const [coachUsernameInput, setCoachUsernameInput] = useState("");
   const [coachPasswordInput, setCoachPasswordInput] = useState("");
   const [coachLoginError, setCoachLoginError] = useState("");
@@ -228,7 +242,22 @@ export default function App() {
   const [memberSubTab, setMemberSubTab] = useState<"workout" | "nutrition" | "stats">("workout");
 
   // Coach Manual Creator View
-  const [coachSubView, setCoachSubView] = useState<"directory" | "create_workout" | "create_nutrition" | "ai_generation">("directory");
+  const [coachSubView, setCoachSubView] = useState<"directory" | "create_workout" | "create_nutrition" | "ai_generation" | "earnings">("directory");
+
+  // Coach member selection and physical biometrics editor states
+  const [selectedCoachMemberId, setSelectedCoachMemberId] = useState<string>("m_101");
+  const [selectedTargetMemberId, setSelectedTargetMemberId] = useState<string>("");
+  const [editMemberBmi, setEditMemberBmi] = useState("");
+  const [editMemberBmr, setEditMemberBmr] = useState("");
+  const [editMemberFat, setEditMemberFat] = useState("");
+  const [editMemberArm, setEditMemberArm] = useState("");
+  const [editMemberChest, setEditMemberChest] = useState("");
+  const [editMemberWaist, setEditMemberWaist] = useState("");
+  const [editMemberThigh, setEditMemberThigh] = useState("");
+  const [editMemberNotes, setEditMemberNotes] = useState("");
+
+  // Shared state for membership requests
+  const [membershipRequests, setMembershipRequests] = useState<any[]>(() => mysqlDb.getMembershipRequests());
 
   // Search filter
   const [globalSearch, setGlobalSearch] = useState("");
@@ -389,6 +418,8 @@ export default function App() {
     ownerName: "",
     email: "",
     phone: "",
+    username: "",
+    password: "",
     planName: "پلن حرفه‌ای (نقره‌ای)",
     status: "ACTIVE" as const
   });
@@ -414,6 +445,319 @@ export default function App() {
   // Timers Reference
   const timerIntervalRef = useRef<any>(null);
   const restIntervalRef = useRef<any>(null);
+
+  // Dynamic Coach Member and Biometrics synchronization
+  const activeCoachMember = members.find(m => m.id === selectedCoachMemberId) || members[0];
+
+  // -------------------------------------------------------------
+  // Real Firestore Cloud Database Persistent Synchronizer
+  // -------------------------------------------------------------
+  const [isDbReady, setIsDbReady] = useState(false);
+  const [isDbLoading, setIsDbLoading] = useState(true);
+
+  useEffect(() => {
+    const initializeCloudDatabase = async () => {
+      try {
+        console.log("Connecting to live Firestore database...");
+
+        // 1. Tenants
+        const tenantsSnap = await getDocs(collection(db, "tenants"));
+        let loadedTenants: any[] = [];
+        if (tenantsSnap.empty) {
+          console.log("Seeding initial tenants into Firestore...");
+          for (const t of MOCK_TENANTS) {
+            await setDoc(doc(db, "tenants", t.id), t);
+          }
+          loadedTenants = [...MOCK_TENANTS];
+        } else {
+          tenantsSnap.forEach(d => loadedTenants.push(d.data()));
+        }
+        setTenants(loadedTenants);
+
+        // 2. Members (Athletes)
+        const membersSnap = await getDocs(collection(db, "members"));
+        let loadedMembers: any[] = [];
+        if (membersSnap.empty) {
+          console.log("Seeding initial members into Firestore...");
+          const initialMembers = mysqlDb.getMembers();
+          for (const m of initialMembers) {
+            await setDoc(doc(db, "members", m.id), m);
+          }
+          loadedMembers = [...initialMembers];
+        } else {
+          membersSnap.forEach(d => loadedMembers.push(d.data()));
+        }
+        setMembers(loadedMembers);
+
+        // 3. Coaches
+        const coachesSnap = await getDocs(collection(db, "coaches"));
+        let loadedCoaches: any[] = [];
+        if (coachesSnap.empty) {
+          console.log("Seeding initial coaches into Firestore...");
+          const initialCoaches = mysqlDb.getCoaches();
+          for (const c of initialCoaches) {
+            await setDoc(doc(db, "coaches", c.id), c);
+          }
+          loadedCoaches = [...initialCoaches];
+        } else {
+          coachesSnap.forEach(d => loadedCoaches.push(d.data()));
+        }
+        setCoaches(loadedCoaches);
+
+        // 4. Membership Requests (Invoices)
+        const requestsSnap = await getDocs(collection(db, "membership_requests"));
+        let loadedRequests: any[] = [];
+        if (requestsSnap.empty) {
+          console.log("Seeding initial membership requests into Firestore...");
+          const initialRequests = mysqlDb.getMembershipRequests();
+          for (const r of initialRequests) {
+            await setDoc(doc(db, "membership_requests", r.id), r);
+          }
+          loadedRequests = [...initialRequests];
+        } else {
+          requestsSnap.forEach(d => loadedRequests.push(d.data()));
+        }
+        setMembershipRequests(loadedRequests);
+
+        // 5. Workout Programs
+        const programsSnap = await getDocs(collection(db, "workout_programs"));
+        let loadedPrograms: any[] = [];
+        if (programsSnap.empty) {
+          console.log("Seeding initial workout programs into Firestore...");
+          for (const p of MOCK_WORKOUT_PROGRAMS) {
+            await setDoc(doc(db, "workout_programs", p.id), p);
+          }
+          loadedPrograms = [...MOCK_WORKOUT_PROGRAMS];
+        } else {
+          programsSnap.forEach(d => loadedPrograms.push(d.data()));
+        }
+        setWorkoutPrograms(loadedPrograms);
+
+        // 6. Nutrition Plans
+        const nutritionSnap = await getDocs(collection(db, "nutrition_plans"));
+        let loadedNutrition: any[] = [];
+        if (nutritionSnap.empty) {
+          console.log("Seeding initial nutrition plans into Firestore...");
+          for (const n of MOCK_NUTRITION_PLANS) {
+            await setDoc(doc(db, "nutrition_plans", n.id), n);
+          }
+          loadedNutrition = [...MOCK_NUTRITION_PLANS];
+        } else {
+          nutritionSnap.forEach(d => loadedNutrition.push(d.data()));
+        }
+        setNutritionPlans(loadedNutrition);
+
+        // 7. Store Products
+        const productsSnap = await getDocs(collection(db, "store_products"));
+        let loadedProducts: any[] = [];
+        if (productsSnap.empty) {
+          console.log("Seeding initial store products into Firestore...");
+          for (const p of MOCK_PRODUCTS) {
+            await setDoc(doc(db, "store_products", p.id), p);
+          }
+          loadedProducts = [...MOCK_PRODUCTS];
+        } else {
+          productsSnap.forEach(d => loadedProducts.push(d.data()));
+        }
+        setStoreProducts(loadedProducts);
+
+        // 8. Bookings
+        const bookingsSnap = await getDocs(collection(db, "bookings"));
+        let loadedBookings: any[] = [];
+        if (bookingsSnap.empty) {
+          console.log("Seeding initial bookings into Firestore...");
+          for (const b of MOCK_BOOKINGS) {
+            await setDoc(doc(db, "bookings", b.id), b);
+          }
+          loadedBookings = [...MOCK_BOOKINGS];
+        } else {
+          bookingsSnap.forEach(d => loadedBookings.push(d.data()));
+        }
+        setBookings(loadedBookings);
+
+        // 9. Tickets
+        const ticketsSnap = await getDocs(collection(db, "tickets"));
+        let loadedTickets: any[] = [];
+        if (ticketsSnap.empty) {
+          console.log("Seeding initial tickets into Firestore...");
+          for (const t of MOCK_TICKETS) {
+            await setDoc(doc(db, "tickets", t.id), t);
+          }
+          loadedTickets = [...MOCK_TICKETS];
+        } else {
+          ticketsSnap.forEach(d => loadedTickets.push(d.data()));
+        }
+        setTickets(loadedTickets);
+
+        // 10. Attendance Records
+        const attendanceSnap = await getDocs(collection(db, "attendance_records"));
+        let loadedAttendance: any[] = [];
+        if (attendanceSnap.empty) {
+          console.log("Seeding initial attendance records into Firestore...");
+          for (const a of MOCK_ATTENDANCE) {
+            await setDoc(doc(db, "attendance_records", a.id), a);
+          }
+          loadedAttendance = [...MOCK_ATTENDANCE];
+        } else {
+          attendanceSnap.forEach(d => loadedAttendance.push(d.data()));
+        }
+        setAttendanceRecords(loadedAttendance);
+
+        // 11. Exercises List
+        const exercisesSnap = await getDocs(collection(db, "exercises_database"));
+        let loadedExercises: any[] = [];
+        if (exercisesSnap.empty) {
+          console.log("Seeding initial exercises database into Firestore...");
+          for (const ex of EXERCISES) {
+            await setDoc(doc(db, "exercises_database", ex.id), ex);
+          }
+          loadedExercises = [...EXERCISES];
+        } else {
+          exercisesSnap.forEach(d => loadedExercises.push(d.data()));
+        }
+        setExercisesList(loadedExercises);
+
+        // 12. Coach Sales & Package Earnings List
+        const salesSnap = await getDocs(collection(db, "coach_sales"));
+        let loadedSales: any[] = [];
+        const initialSales = [
+          { id: "s_1", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "برنامه تمرینی پیشرفته ۲۴ جلسه‌ای", price: 1200000, date: "1405/04/01", month: "تیر" },
+          { id: "s_2", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "سهراب مرادی", packageName: "رژیم غذایی تفکیک عضلانی ۳۰ روزه", price: 850000, date: "1405/04/02", month: "تیر" },
+          { id: "s_3", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "رضا قاسمی", packageName: "دوره فشرده چربی‌سوزی و آنالیز بدن", price: 1500000, date: "1405/03/12", month: "خرداد" },
+          { id: "s_4", coachId: "2", coachName: "سارا حسینی", studentName: "الناز شاکری", packageName: "برنامه پیشرفته فرم‌دهی و تغذیه", price: 1800000, date: "1405/04/01", month: "تیر" },
+          { id: "s_5", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "تمدید عضویت ماهانه کلوپ قهرمانان", price: 950000, date: "1405/03/25", month: "خرداد" }
+        ];
+        if (salesSnap.empty) {
+          console.log("Seeding initial coach sales into Firestore...");
+          for (const s of initialSales) {
+            await setDoc(doc(db, "coach_sales", s.id), s);
+          }
+          loadedSales = [...initialSales];
+        } else {
+          salesSnap.forEach(d => loadedSales.push(d.data()));
+        }
+        setCoachSales(loadedSales);
+
+        console.log("Live Firestore cloud database successfully loaded and synchronized.");
+        setIsDbReady(true);
+        setIsDbLoading(false);
+      } catch (error) {
+        console.error("Firestore database failed to synchronize:", error);
+        setIsDbLoading(false);
+      }
+    };
+
+    initializeCloudDatabase();
+  }, []);
+
+  // Automated state synchronization to live cloud database
+  useEffect(() => {
+    if (isDbReady && tenants.length > 0) {
+      mysqlDb.saveTenants(tenants);
+    }
+  }, [tenants, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && members.length > 0) {
+      mysqlDb.saveMembers(members);
+    }
+  }, [members, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && coaches.length > 0) {
+      mysqlDb.saveCoaches(coaches);
+    }
+  }, [coaches, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && membershipRequests.length > 0) {
+      mysqlDb.saveMembershipRequests(membershipRequests);
+    }
+  }, [membershipRequests, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && workoutPrograms.length > 0) {
+      mysqlDb.saveWorkoutPrograms(workoutPrograms);
+    }
+  }, [workoutPrograms, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && nutritionPlans.length > 0) {
+      mysqlDb.saveNutritionPlans(nutritionPlans);
+    }
+  }, [nutritionPlans, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && storeProducts.length > 0) {
+      mysqlDb.saveStoreProducts(storeProducts);
+    }
+  }, [storeProducts, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && bookings.length > 0) {
+      mysqlDb.saveBookings(bookings);
+    }
+  }, [bookings, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && tickets.length > 0) {
+      mysqlDb.saveTickets(tickets);
+    }
+  }, [tickets, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && attendanceRecords.length > 0) {
+      mysqlDb.saveAttendanceRecords(attendanceRecords);
+    }
+  }, [attendanceRecords, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && exercisesList.length > 0) {
+      mysqlDb.saveExercisesList(exercisesList);
+    }
+  }, [exercisesList, isDbReady]);
+
+  useEffect(() => {
+    if (isDbReady && coachSales.length > 0) {
+      mysqlDb.saveCoachSales(coachSales);
+    }
+  }, [coachSales, isDbReady]);
+
+  useEffect(() => {
+    if (activeCoachMember) {
+      setEditMemberBmi(activeCoachMember.bmi || "۰.۰ (تعریف نشده)");
+      setEditMemberBmr(activeCoachMember.bmr || "۰ کالری");
+      setEditMemberFat(activeCoachMember.fatPercent || "۰٪");
+      setEditMemberArm(activeCoachMember.armSize || "۰");
+      setEditMemberChest(activeCoachMember.chestSize || "۰");
+      setEditMemberWaist(activeCoachMember.waistSize || "۰");
+      setEditMemberThigh(activeCoachMember.thighSize || "۰");
+      setEditMemberNotes(activeCoachMember.notes || "پرونده فیزیکی جدید تشکیل شده است.");
+    }
+  }, [selectedCoachMemberId, members]);
+
+  const handleUpdateBiometrics = () => {
+    if (!selectedCoachMemberId) return;
+    const updated = members.map(m => {
+      if (m.id === selectedCoachMemberId) {
+        return {
+          ...m,
+          bmi: editMemberBmi,
+          bmr: editMemberBmr,
+          fatPercent: editMemberFat,
+          armSize: editMemberArm,
+          chestSize: editMemberChest,
+          waistSize: editMemberWaist,
+          thighSize: editMemberThigh,
+          notes: editMemberNotes
+        };
+      }
+      return m;
+    });
+    setMembers(updated);
+    mysqlDb.saveMembers(updated);
+    alert(`🎉 پرونده پزشکی و آنالیز فیزیکی ورزشکار "${activeCoachMember?.name}" با موفقیت بروزرسانی شد و در دیتابیس MySQL ثبت گردید.`);
+  };
 
   // Landing page interactive features slider autoplay
   useEffect(() => {
@@ -605,12 +949,18 @@ export default function App() {
   const handleCreateTenant = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTenant.name || !newTenant.ownerName) return;
+    if (!newTenant.username || !newTenant.password) {
+      alert("لطفا نام کاربری و رمز عبور باشگاه جدید را تعیین کنید.");
+      return;
+    }
     const newlyCreated: Tenant = {
       id: `tenant_${Date.now()}`,
       name: newTenant.name,
       ownerName: newTenant.ownerName,
       email: newTenant.email || "info@gym.ir",
       phone: newTenant.phone || "09120000000",
+      username: newTenant.username.trim().toLowerCase(),
+      password: newTenant.password.trim(),
       status: "ACTIVE",
       planName: newTenant.planName,
       expiresAt: "1406/04/01",
@@ -620,7 +970,8 @@ export default function App() {
       createdAt: "1405/04/01"
     };
     setTenants([...tenants, newlyCreated]);
-    setNewTenant({ name: "", ownerName: "", email: "", phone: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
+    setNewTenant({ name: "", ownerName: "", email: "", phone: "", username: "", password: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
+    alert(`باشگاه "${newlyCreated.name}" با موفقیت تعریف شد.\nنام کاربری: ${newlyCreated.username}\nکلمه عبور: ${newlyCreated.password}`);
   };
 
   // Add new booking
@@ -1235,8 +1586,61 @@ export default function App() {
             </div>
 
 
-            {/* 3D Gym Space Visualization Section */}
-            <ThreeGymCanvas />
+
+            {/* Visual illustration of two athletes comparison */}
+            <div className="bg-gradient-to-br from-indigo-950/20 via-slate-900/40 to-slate-950/80 p-6 md:p-8 rounded-[2.5rem] border border-white/5 space-y-8 mb-8">
+              <div className="text-center space-y-2">
+                <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">تجربه واقعی ورزشکاران</span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white">تحول شیوه تمرین در باشگاه</h2>
+                <p className="text-slate-400 text-xs max-w-xl mx-auto">تفاوت ملموس بین روش سنتی کاغذی کلافه‌کننده و تمرین هوشمند و پرانرژی با اسمارت جیم</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+                {/* Traditional paper athlete card */}
+                <div className="bg-slate-950/60 border border-red-500/15 p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between space-y-4">
+                  <div className="absolute top-3 left-3 bg-red-500/10 text-red-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold">روش سنتی کاغذی</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">🤯</span>
+                      <div>
+                        <h4 className="text-sm font-black text-white">امیر - کلافه با برنامه کاغذی چروکیده</h4>
+                        <span className="text-[10px] text-red-400">سردرگم و بی‌انگیزه در شلوغی باشگاه</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      امیر با یک برگ کاغذ مچاله شده در دست در باشگاه چرخ می‌زند. مربی او نام حرکات را با دست‌خط ناخوانا نوشته است. امیر مدام فراموش می‌کند کدام ست را انجام داده، وزنه‌های قبلی‌اش چقدر بوده و زمان استراحت چقدر است. او کلافه و بی‌انگیزه است و تمریناتش اثربخشی لازم را ندارند.
+                    </p>
+                  </div>
+                  <div className="border-t border-white/5 pt-3 text-[10px] space-y-2 text-slate-500">
+                    <div className="flex items-center gap-1.5"><span className="text-red-500">✗</span> گم شدن یا خیس شدن مکرر کاغذ برنامه</div>
+                    <div className="flex items-center gap-1.5"><span className="text-red-500">✗</span> عدم اطلاع از نحوه صحیح اجرای حرکت</div>
+                    <div className="flex items-center gap-1.5"><span className="text-red-500">✗</span> نداشتن زمان‌سنج استراحت و بی‌نظمی تمرین</div>
+                  </div>
+                </div>
+
+                {/* SmartGym athlete card */}
+                <div className="bg-slate-950/60 border border-emerald-500/20 p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between space-y-4">
+                  <div className="absolute top-3 left-3 bg-emerald-500/15 text-emerald-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold">روش اسمارت جیم</div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">😎</span>
+                      <div>
+                        <h4 className="text-sm font-black text-emerald-400">آرش - ورزش آسان و هوشمند با اسمارت جیم</h4>
+                        <span className="text-[10px] text-emerald-400">شاداب، باانگیزه و متمرکز روی هدف</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      آرش با آرامش کامل و با گوشی همراه خود ورزش می‌کند. برنامه تمرینی او به صورت گام‌به‌گام با انیمیشن‌های سه بعدی متحرک راهنمایی‌اش می‌کند. زمان‌سنج خودکار به محض پایان هر ست شروع به شمارش معکوس می‌کند. نام تمرین، تعداد رپ‌ها و وزنه‌ها با وضوح بالا پیش روی اوست و باانگیزه تمرین می‌کند.
+                    </p>
+                  </div>
+                  <div className="border-t border-emerald-500/10 pt-3 text-[10px] space-y-2 text-slate-400">
+                    <div className="flex items-center gap-1.5"><span className="text-emerald-400">✓</span> انیمیشن راهنمای اجرای صحیح حرکات</div>
+                    <div className="flex items-center gap-1.5"><span className="text-emerald-400">✓</span> استپ‌بای‌استپ همراه با زمان‌سنج استراحت</div>
+                    <div className="flex items-center gap-1.5"><span className="text-emerald-400">✓</span> ذخیره سوابق وزنه‌ها و نمودار پیشرفت اتوماتیک</div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
 
             {/* Comparison Module Table */}
@@ -1529,9 +1933,34 @@ export default function App() {
                     </select>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3 bg-blue-950/10 p-3 rounded-2xl border border-blue-500/10">
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">نام کاربری ورود *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newTenant.username}
+                        onChange={(e) => setNewTenant({ ...newTenant, username: e.target.value })}
+                        placeholder="مثلا: pars_gym"
+                        className="w-full bg-slate-950 border border-blue-500/30 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">رمز عبور ورود *</label>
+                      <input 
+                        type="text"
+                        required
+                        value={newTenant.password}
+                        onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })}
+                        placeholder="مثلا: 123456"
+                        className="w-full bg-slate-950 border border-blue-500/30 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono text-center"
+                      />
+                    </div>
+                  </div>
+
                   <button 
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition-all"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl transition-all cursor-pointer"
                   >
                     ثبت و فعال‌سازی فوری در دیتابیس کلاود
                   </button>
@@ -1558,6 +1987,11 @@ export default function App() {
                         <div>
                           <h4 className="font-bold text-slate-200 text-sm">{tenant.name}</h4>
                           <span className="text-slate-500 block text-[10px] mt-0.5">مالک: {tenant.ownerName} | تلفن: {tenant.phone}</span>
+                          {tenant.username && (
+                            <div className="mt-1.5 inline-block bg-blue-950/20 border border-blue-500/10 px-2 py-0.5 rounded text-[9px] font-mono text-blue-400">
+                              کاربری: {tenant.username} | رمز: {tenant.password}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1968,15 +2402,29 @@ export default function App() {
                 const u = tenantUsernameInput.trim();
                 const p = tenantPasswordInput.trim();
                 
+                // Find dynamically created tenants matching the user/pass
+                const matchedTenant = tenants.find(
+                  (t) => t.username && t.username.toLowerCase() === u.toLowerCase() && t.password === p
+                );
+
                 // Match dynamically generated or demo credentials
                 if ((u === "oxygen" && p === "123") || 
-                    (generatedClubCredentials && u === generatedClubCredentials.username && p === generatedClubCredentials.password)) {
-                  setLoggedInTenant({
+                    (generatedClubCredentials && u === generatedClubCredentials.username && p === generatedClubCredentials.password) ||
+                    matchedTenant) {
+                  
+                  const tenantToLog = matchedTenant || {
                     id: u === "oxygen" ? "oxygen" : u,
-                    username: u,
-                    clubName: u === "oxygen" ? "باشگاه مدرن اکسیژن" : generatedClubCredentials?.clubName,
-                    planName: u === "oxygen" ? "طلایی سالانه" : purchasedPlan?.name,
+                    name: u === "oxygen" ? "باشگاه مدرن اکسیژن" : generatedClubCredentials?.clubName || "باشگاه فیتنس",
+                    planName: u === "oxygen" ? "طلایی سالانه" : purchasedPlan?.name || "پلن پایه",
                     features: u === "oxygen" ? ["کاربران نامحدود", "پشتیبانی تیکتی VIP", "آنالیز فیزیکی هوشمند", "اتصال درگاه پرداخت اختصاصی"] : (purchasedPlan?.features || [])
+                  };
+
+                  setLoggedInTenant({
+                    id: tenantToLog.id,
+                    username: u,
+                    clubName: tenantToLog.name || (tenantToLog as any).clubName || "باشگاه فیتنس",
+                    planName: tenantToLog.planName || "پلن حرفه‌ای (نقره‌ای)",
+                    features: tenantToLog.features || ["کاربران نامحدود", "پشتیبانی تیکتی VIP"]
                   });
                   setTenantLoginError("");
                 } else {
@@ -2461,6 +2909,124 @@ export default function App() {
                 <span className="text-xl font-bold text-violet-400">۱۲ کلاس گروهی</span>
                 <span className="text-[9px] block text-violet-400 mt-1">ساعت ۱۷:۰۰ الی ۲۲:۰۰</span>
               </div>
+            </div>
+
+            {/* Membership & Subscription Approval Requests Panel */}
+            <div className="glass-panel p-6 rounded-3xl border border-emerald-500/10 space-y-4 bg-gradient-to-br from-slate-900/80 to-slate-950/80 text-right" dir="rtl">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2">
+                  <Award className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-white">درخواست‌های عضویت و تمدید شهریه در انتظار تایید باشگاه</h3>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+                  {toPersianNums(String(membershipRequests.filter(r => r.status === "PENDING").length))} درخواست در انتظار
+                </span>
+              </div>
+
+              {membershipRequests.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-xs">
+                  هیچ درخواستی برای عضویت یا تمدید شهریه در سیستم ثبت نشده است.
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto">
+                  {membershipRequests.map((req) => (
+                    <div key={req.id} className="bg-slate-950 p-4 rounded-2xl border border-white/5 flex flex-col justify-between gap-3 text-xs">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-bold text-white text-sm">{req.memberName}</span>
+                          <span className="text-[10px] text-slate-400 block mt-1">بسته انتخابی: {req.planName}</span>
+                          <span className="text-[10px] text-slate-400 block">مدت اضافه اعتبار: {toPersianNums(String(req.days))} روز</span>
+                        </div>
+                        <div className="text-left font-mono">
+                          <span className="text-emerald-400 font-bold block">{toPersianNums(req.priceToman.toLocaleString())} تومان</span>
+                          <span className="text-[9px] text-slate-500 mt-1 block">{req.date}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                        <div>
+                          {req.status === "PENDING" && (
+                            <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full text-[9px]">
+                              🔄 منتظر تایید باشگاه
+                            </span>
+                          )}
+                          {req.status === "APPROVED" && (
+                            <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full text-[9px]">
+                              ✅ تایید و فعال شده
+                            </span>
+                          )}
+                          {req.status === "REJECTED" && (
+                            <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full text-[9px]">
+                              ❌ رد شده
+                            </span>
+                          )}
+                        </div>
+
+                        {req.status === "PENDING" && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Approve request
+                                const updatedRequests = membershipRequests.map(r => {
+                                  if (r.id === req.id) return { ...r, status: "APPROVED" as const };
+                                  return r;
+                                });
+                                setMembershipRequests(updatedRequests);
+                                mysqlDb.saveMembershipRequests(updatedRequests);
+
+                                // Update member remaining days
+                                const updatedMembers = members.map(m => {
+                                  if (m.id === req.memberId) {
+                                    return { ...m, remainingDays: (m.remainingDays || 0) + req.days };
+                                  }
+                                  return m;
+                                });
+                                setMembers(updatedMembers);
+                                mysqlDb.saveMembers(updatedMembers);
+
+                                // Add revenue to club
+                                setClubRevenue(prev => prev + req.priceToman);
+
+                                // Add to invoices
+                                const newInvoice = {
+                                  id: `inv_renewal_${Date.now()}`,
+                                  memberName: req.memberName,
+                                  planName: req.planName,
+                                  amount: `${toPersianNums(req.priceToman.toLocaleString())} تومان`,
+                                  date: "1405/04/04",
+                                  status: "PAID"
+                                };
+                                setInvoices([newInvoice, ...invoices]);
+
+                                alert(`✅ درخواست تمدید شهریه "${req.memberName}" با موفقیت تایید و مبلغ به صندوق اضافه شد. اعتبار وی ${toPersianNums(String(req.days))} روز تمدید گردید.`);
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[10px] transition-all cursor-pointer"
+                            >
+                              تایید و فعال‌سازی
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updatedRequests = membershipRequests.map(r => {
+                                  if (r.id === req.id) return { ...r, status: "REJECTED" as const };
+                                  return r;
+                                });
+                                setMembershipRequests(updatedRequests);
+                                mysqlDb.saveMembershipRequests(updatedRequests);
+                                alert(`❌ درخواست تمدید شهریه "${req.memberName}" رد شد.`);
+                              }}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-[10px] transition-all cursor-pointer"
+                            >
+                              رد کردن
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Two column interactive grid: Booking & Supplements Shop */}
@@ -2979,6 +3545,13 @@ export default function App() {
                 <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse animate-duration-1000" />
                 طراحی برنامه هوشمند با هوش مصنوعی (AI Coach)
               </button>
+              <button 
+                onClick={() => setCoachSubView("earnings")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${coachSubView === "earnings" ? "bg-amber-600 text-white shadow-lg shadow-amber-900/30" : "bg-slate-900/50 text-slate-400 hover:text-slate-200 border border-white/5"}`}
+              >
+                <TrendingUp className="w-4 h-4 text-amber-400" />
+                درآمدها و گزارش مالی مربی
+              </button>
             </div>
 
             {coachSubView === "directory" && (
@@ -3011,47 +3584,121 @@ export default function App() {
             <div className="grid lg:grid-cols-2 gap-8">
               
               {/* Biometrics & Body Analytics Measurements */}
-              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
-                <div className="flex items-center gap-2 border-b border-white/5 pb-3">
-                  <Activity className="w-5 h-5 text-violet-400" />
-                  <h3 className="text-sm font-bold">پرونده پزشکی و آنالیز فیزیکی شاگرد: آرش احمدی</h3>
+              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 text-right" dir="rtl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-violet-400" />
+                    <h3 className="text-sm font-bold text-white">پرونده پزشکی و آنالیز فیزیکی شاگردان</h3>
+                  </div>
+                  
+                  {/* Athlete Selector Dropdown */}
+                  <div>
+                    <select
+                      value={selectedCoachMemberId}
+                      onChange={(e) => setSelectedCoachMemberId(e.target.value)}
+                      className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-xl text-slate-200 text-[11px] focus:outline-none focus:border-violet-500"
+                    >
+                      {members.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Simulated measurements logs */}
                 <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-4 text-xs">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div className="p-2 bg-white/5 rounded-xl">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-2 bg-white/5 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block">شاخص توده بدنی (BMI)</span>
-                      <span className="text-sm font-bold text-white">۲۴.۱ (سالم)</span>
+                      <input
+                        type="text"
+                        value={editMemberBmi}
+                        onChange={(e) => setEditMemberBmi(e.target.value)}
+                        className="w-full bg-slate-900 text-center border border-white/5 rounded px-1.5 py-0.5 text-xs text-white font-bold"
+                      />
                     </div>
-                    <div className="p-2 bg-white/5 rounded-xl">
+                    <div className="p-2 bg-white/5 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block">متابولیسم پایه (BMR)</span>
-                      <span className="text-sm font-bold text-white">۱,۷۸۰ کالری</span>
+                      <input
+                        type="text"
+                        value={editMemberBmr}
+                        onChange={(e) => setEditMemberBmr(e.target.value)}
+                        className="w-full bg-slate-900 text-center border border-white/5 rounded px-1.5 py-0.5 text-xs text-white font-bold"
+                      />
                     </div>
-                    <div className="p-2 bg-white/5 rounded-xl">
+                    <div className="p-2 bg-white/5 rounded-xl space-y-1">
                       <span className="text-[9px] text-slate-400 block">درصد چربی بدن</span>
-                      <span className="text-sm font-bold text-emerald-400">۱۳.۵٪</span>
+                      <input
+                        type="text"
+                        value={editMemberFat}
+                        onChange={(e) => setEditMemberFat(e.target.value)}
+                        className="w-full bg-slate-900 text-center border border-white/5 rounded px-1.5 py-0.5 text-xs text-emerald-400 font-bold"
+                      />
                     </div>
                   </div>
 
                   {/* Body tape measurements details */}
                   <div className="space-y-2">
-                    <span className="font-bold text-slate-300 block">سایز دور تا دور عضلات (سانتی‌متر)</span>
+                    <span className="font-bold text-slate-300 block">اندازه‌گیری دور تا دور عضلات (سایزها به سانتی‌متر)</span>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-[10px]">
-                      <div className="bg-slate-900 p-1.5 rounded-lg">دور بازو: ۴۱ سانتی‌متر</div>
-                      <div className="bg-slate-900 p-1.5 rounded-lg">دور سینه: ۱۱۲ سانتی‌متر</div>
-                      <div className="bg-slate-900 p-1.5 rounded-lg">دور کمر: ۸۲ سانتی‌متر</div>
-                      <div className="bg-slate-900 p-1.5 rounded-lg">دور ران: ۶۲ سانتی‌متر</div>
+                      <div className="bg-slate-900 p-2 rounded-lg space-y-1">
+                        <span className="text-slate-400 block">دور بازو:</span>
+                        <input
+                          type="text"
+                          value={editMemberArm}
+                          onChange={(e) => setEditMemberArm(e.target.value)}
+                          className="w-full bg-slate-950 text-center border border-white/5 rounded text-white text-[10px]"
+                        />
+                      </div>
+                      <div className="bg-slate-900 p-2 rounded-lg space-y-1">
+                        <span className="text-slate-400 block">دور سینه:</span>
+                        <input
+                          type="text"
+                          value={editMemberChest}
+                          onChange={(e) => setEditMemberChest(e.target.value)}
+                          className="w-full bg-slate-950 text-center border border-white/5 rounded text-white text-[10px]"
+                        />
+                      </div>
+                      <div className="bg-slate-900 p-2 rounded-lg space-y-1">
+                        <span className="text-slate-400 block">دور کمر:</span>
+                        <input
+                          type="text"
+                          value={editMemberWaist}
+                          onChange={(e) => setEditMemberWaist(e.target.value)}
+                          className="w-full bg-slate-950 text-center border border-white/5 rounded text-white text-[10px]"
+                        />
+                      </div>
+                      <div className="bg-slate-900 p-2 rounded-lg space-y-1">
+                        <span className="text-slate-400 block">دور ران:</span>
+                        <input
+                          type="text"
+                          value={editMemberThigh}
+                          onChange={(e) => setEditMemberThigh(e.target.value)}
+                          className="w-full bg-slate-950 text-center border border-white/5 rounded text-white text-[10px]"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* Body Comparison Note */}
-                  <div className="p-3 bg-blue-950/40 border border-blue-900/30 rounded-xl">
-                    <span className="font-bold text-blue-300 block mb-1">یادداشت مربی برای آرش احمدی:</span>
-                    <p className="text-slate-400 leading-relaxed text-[10px]">
-                      نسبت به ماه گذشته دور کمر ۲ سانتی‌متر کاهش و دور بازو ۱ سانتی‌متر افزایش یافته است. این یعنی کاهش چربی همراه با افزایش همزمان حجم خشک عضله. برنامه غذایی کات به خوبی عمل کرده است.
-                    </p>
+                  <div className="p-3 bg-violet-950/40 border border-violet-900/30 rounded-xl space-y-1.5">
+                    <span className="font-bold text-violet-300 block">یادداشت مربی برای پرونده {activeCoachMember?.name}:</span>
+                    <textarea
+                      rows={2}
+                      value={editMemberNotes}
+                      onChange={(e) => setEditMemberNotes(e.target.value)}
+                      className="w-full bg-slate-900 border border-white/10 px-2.5 py-1.5 rounded-lg text-slate-200 text-[10px] leading-relaxed focus:outline-none focus:border-violet-500"
+                    />
                   </div>
+
+                  {/* Save button */}
+                  <button
+                    type="button"
+                    onClick={handleUpdateBiometrics}
+                    className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    💾 ذخیره نهایی و ثبت در پرونده پزشکی {activeCoachMember?.name}
+                  </button>
                 </div>
               </div>
 
@@ -3060,8 +3707,89 @@ export default function App() {
                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
                   <div className="flex items-center gap-2">
                     <Dumbbell className="w-5 h-5 text-blue-400" />
-                    <h3 className="text-sm font-bold">بانک اطلاعاتی و کتابخانه حرکات (Exercises Database)</h3>
+                    <h3 className="text-sm font-bold text-white">بانک اطلاعاتی و کتابخانه حرکات</h3>
                   </div>
+                </div>
+
+                {/* Form to add a brand new exercise */}
+                <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-3">
+                  <span className="text-[11px] font-black text-blue-400 block">➕ تعریف حرکت ورزشی جدید به سامانه</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] text-slate-500 block mb-0.5">نام حرکت *</label>
+                      <input 
+                        type="text"
+                        value={newExName}
+                        onChange={(e) => setNewExName(e.target.value)}
+                        placeholder="مانند: جلو بازو اسپایدر"
+                        className="w-full bg-slate-900 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-500 block mb-0.5">گروه عضلانی</label>
+                      <select 
+                        value={newExGroup}
+                        onChange={(e) => setNewExGroup(e.target.value)}
+                        className="w-full bg-slate-900 border border-white/10 rounded px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="سینه">سینه</option>
+                        <option value="پشت">پشت / زیربغل</option>
+                        <option value="سرشانه">سرشانه</option>
+                        <option value="جلو بازو">جلو بازو</option>
+                        <option value="پشت بازو">پشت بازو</option>
+                        <option value="پا">پا / چهارسر</option>
+                        <option value="شکم">شکم و فیله</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] text-slate-500 block mb-0.5">فرم صحیح اجرا</label>
+                      <input 
+                        type="text"
+                        value={newExCorrect}
+                        onChange={(e) => setNewExCorrect(e.target.value)}
+                        placeholder="آرنج‌ها را ثابت نگه دارید..."
+                        className="w-full bg-slate-900 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-500 block mb-0.5">اشتباه رایج</label>
+                      <input 
+                        type="text"
+                        value={newExWrong}
+                        onChange={(e) => setNewExWrong(e.target.value)}
+                        placeholder="تاب دادن کمر و بدن..."
+                        className="w-full bg-slate-900 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-200 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newExName.trim()) {
+                        alert("لطفا نام حرکت ورزشی را وارد کنید.");
+                        return;
+                      }
+                      const newItem = {
+                        id: `custom_ex_${Date.now()}`,
+                        name: newExName.trim(),
+                        muscleGroup: newExGroup,
+                        correctForm: newExCorrect.trim() || "فرم استاندارد اجرا با دامنه حرکتی کامل",
+                        wrongForm: newExWrong.trim() || "انجام با عجله و ضربه زدن به مفصل"
+                      };
+                      const updated = [...exercisesList, newItem];
+                      setExercisesList(updated);
+                      // Reset
+                      setNewExName("");
+                      setNewExCorrect("");
+                      setNewExWrong("");
+                      alert(`حرکت جدید "${newItem.name}" با موفقیت تعریف شد و به کتابخانه حرکات باشگاه اضافه گردید!`);
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 rounded-lg text-[9px] transition-all cursor-pointer"
+                  >
+                    💾 ثبت و اضافه کردن حرکت به دیتابیس
+                  </button>
                 </div>
 
                 <div className="relative">
@@ -3070,15 +3798,15 @@ export default function App() {
                     type="text"
                     value={globalSearch}
                     onChange={(e) => setGlobalSearch(e.target.value)}
-                    placeholder="جستجو در بین هزاران حرکت بدنسازی..."
+                    placeholder="جستجو در بین کل کتابخانه حرکات..."
                     className="w-full bg-slate-950 border border-white/10 rounded-xl pr-9 pl-3 py-2 text-xs focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 {/* Simulated list of search results */}
-                <div className="space-y-3 max-h-[220px] overflow-y-auto">
-                  {EXERCISES.filter(ex => 
-                    ex.name.includes(globalSearch) || 
+                <div className="space-y-3 max-h-[200px] overflow-y-auto">
+                  {exercisesList.filter(ex => 
+                    ex.name.toLowerCase().includes(globalSearch.toLowerCase()) || 
                     ex.muscleGroup.includes(globalSearch)
                   ).map((ex) => (
                     <div key={ex.id} className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-2 text-xs">
@@ -3331,8 +4059,8 @@ export default function App() {
                     <p className="text-xs text-slate-400">اطلاعات کلی برنامه و ساختار روزهای تمرین را مشخص کنید.</p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
                       <label className="text-xs text-slate-400 block mb-1 font-medium">عنوان برنامه تمرینی *</label>
                       <input 
                         type="text"
@@ -3344,15 +4072,28 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 block mb-1 font-medium">خلاصه و تمرکز اصلی برنامه</label>
-                      <input 
-                        type="text"
-                        value={mWorkoutSummary}
-                        onChange={(e) => setMWorkoutSummary(e.target.value)}
-                        placeholder="مانند: افزایش حجم تفکیکی عضلات بالاتنه به همراه کات ملایم"
+                      <label className="text-xs text-slate-400 block mb-1 font-medium">انتخاب ورزشکار هدف (تخصیص مستقیم)</label>
+                      <select 
+                        value={selectedTargetMemberId}
+                        onChange={(e) => setSelectedTargetMemberId(e.target.value)}
                         className="w-full bg-slate-950 border border-white/10 px-4 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500 text-xs"
-                      />
+                      >
+                        <option value="">-- برنامه عمومی (بدون انتساب مستقیم) --</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
+                        ))}
+                      </select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1 font-medium">خلاصه و تمرکز اصلی برنامه</label>
+                    <input 
+                      type="text"
+                      value={mWorkoutSummary}
+                      onChange={(e) => setMWorkoutSummary(e.target.value)}
+                      placeholder="مانند: افزایش حجم تفکیکی عضلات بالاتنه به همراه کات ملایم"
+                      className="w-full bg-slate-950 border border-white/10 px-4 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500 text-xs"
+                    />
                   </div>
 
                   {/* Days builder */}
@@ -3458,7 +4199,7 @@ export default function App() {
                               className="w-full bg-slate-950 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500 text-xs"
                             >
                               <option value="">-- انتخاب حرکت از بانک اطلاعاتی --</option>
-                              {EXERCISES.map(e => (
+                              {exercisesList.map(e => (
                                 <option key={e.id} value={e.id}>{e.name} ({e.muscleGroup})</option>
                               ))}
                             </select>
@@ -3492,7 +4233,7 @@ export default function App() {
                                 alert("لطفا یک حرکت بدنسازی را از لیست انتخاب کنید.");
                                 return;
                               }
-                              const selectedObj = EXERCISES.find(e => e.id === mExId);
+                              const selectedObj = exercisesList.find(e => e.id === mExId);
                               if (!selectedObj) return;
 
                               setMDayExercises([...mDayExercises, {
@@ -3580,28 +4321,42 @@ export default function App() {
                         }
 
                         const newId = `prog_custom_${Date.now()}`;
+                        const targetMemberName = selectedTargetMemberId ? (members.find(m => m.id === selectedTargetMemberId)?.name || "ورزشکار منتخب") : "همه ورزشکاران";
                         const finalObj = {
                           id: newId,
                           title: mWorkoutTitle,
                           summary: mWorkoutSummary || "برنامه بدنسازی تمرینی طراحی شده دستی",
                           createdBy: "پوریا کریمی",
-                          assignedTo: "ورزشکاران منتخب",
+                          assignedTo: targetMemberName,
                           schedule: mWorkoutDays
                         };
 
                         setWorkoutPrograms([finalObj, ...workoutPrograms]);
+
+                        if (selectedTargetMemberId) {
+                          const updatedMembers = members.map(m => {
+                            if (m.id === selectedTargetMemberId) {
+                              return { ...m, assignedProgramId: newId };
+                            }
+                            return m;
+                          });
+                          setMembers(updatedMembers);
+                          mysqlDb.saveMembers(updatedMembers);
+                        }
+
                         setCoachSubView("directory");
                         
                         // Clear inputs
                         setMWorkoutTitle("");
                         setMWorkoutSummary("");
                         setMWorkoutDays([]);
+                        setSelectedTargetMemberId("");
 
-                        alert(`برنامه تمرینی "${finalObj.title}" با موفقیت ذخیره شد و در بانک برنامه‌های باشگاه جهت تخصیص قرار گرفت!`);
+                        alert(`برنامه تمرینی "${finalObj.title}" با موفقیت ذخیره شد و به صورت مستقیم به "${targetMemberName}" اختصاص داده شد!`);
                       }}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-6 py-3 rounded-xl text-xs transition-all shadow-lg shadow-indigo-950"
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-6 py-3 rounded-xl text-xs transition-all shadow-lg shadow-indigo-950 cursor-pointer"
                     >
-                      💾 ذخیره و انتشار سراسری برنامه تمرینی بدنسازی
+                      💾 ذخیره و انتساب مستقیم برنامه تمرینی بدنسازی
                     </button>
                     <button 
                       onClick={() => setCoachSubView("directory")}
@@ -3649,7 +4404,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs text-slate-400 block mb-1 font-medium">عنوان برنامه غذایی *</label>
                       <input 
@@ -3670,6 +4425,19 @@ export default function App() {
                         onChange={(e) => setMNutCalories(Number(e.target.value))}
                         className="w-full bg-slate-950 border border-white/10 px-4 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 text-xs font-mono"
                       />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1 font-medium">انتخاب ورزشکار هدف (تخصیص مستقیم)</label>
+                      <select 
+                        value={selectedTargetMemberId}
+                        onChange={(e) => setSelectedTargetMemberId(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 px-4 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 text-xs"
+                      >
+                        <option value="">-- رژیم عمومی (بدون انتساب مستقیم) --</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
@@ -3870,6 +4638,18 @@ export default function App() {
               </div>
             )}
 
+            {coachSubView === "earnings" && (
+              <div className="space-y-6 animate-fade-in text-right" dir="rtl">
+                <CoachEarningsPanel
+                  isDarkMode={isDarkMode}
+                  loggedInCoach={loggedInCoach}
+                  members={members}
+                  coachSales={coachSales}
+                  setCoachSales={setCoachSales}
+                />
+              </div>
+            )}
+
             {selectedDetailedMember && (
               <CoachMemberDetail
                 member={selectedDetailedMember}
@@ -3988,6 +4768,13 @@ export default function App() {
                 onAddClubRevenue={(amount) => setClubRevenue((prev) => prev + amount)}
                 onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
                 clubInfo={loggedInTenant}
+                subscriptionPlans={subscriptionPlans}
+                membershipRequests={membershipRequests}
+                onSubmitMembershipRequest={(req) => {
+                  const updated = [req, ...membershipRequests];
+                  setMembershipRequests(updated);
+                  mysqlDb.saveMembershipRequests(updated);
+                }}
               />
             </div>
 

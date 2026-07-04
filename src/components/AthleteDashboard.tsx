@@ -21,6 +21,8 @@ import {
   Zap,
   Compass
 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { toPersianNums } from "../types";
 import ExerciseAnimation from "./ExerciseAnimation";
 
 interface AthleteDashboardProps {
@@ -36,6 +38,9 @@ interface AthleteDashboardProps {
   onAddClubRevenue?: (amount: number) => void;
   onToggleDarkMode?: () => void;
   clubInfo?: any;
+  subscriptionPlans?: any[];
+  membershipRequests?: any[];
+  onSubmitMembershipRequest?: (req: any) => void;
 }
 
 export default function AthleteDashboard({
@@ -50,7 +55,10 @@ export default function AthleteDashboard({
   tenantBrandText = "اسمارت جیم",
   onAddClubRevenue,
   onToggleDarkMode = () => {},
-  clubInfo
+  clubInfo,
+  subscriptionPlans = [],
+  membershipRequests = [],
+  onSubmitMembershipRequest
 }: AthleteDashboardProps) {
   // Mobile Sub Tab: "workout" | "nutrition" | "stats" | "profile"
   const [subTab, setSubTab] = useState<"workout" | "nutrition" | "stats" | "profile">("workout");
@@ -62,7 +70,15 @@ export default function AthleteDashboard({
   const [athleteAvatarEmoji, setAthleteAvatarEmoji] = useState("🦁");
   const [athleteThemeColor, setAthleteThemeColor] = useState(tenantCustomColor);
   const [showMembershipModal, setShowMembershipModal] = useState(false);
-  const [memberRemainingDays, setMemberRemainingDays] = useState(24);
+  const [memberRemainingDays, setMemberRemainingDays] = useState(member.remainingDays !== undefined ? member.remainingDays : 24);
+  const [completedDays, setCompletedDays] = useState<number[]>([]);
+
+  // Synchronize remaining days with parent prop
+  useEffect(() => {
+    if (member && member.remainingDays !== undefined) {
+      setMemberRemainingDays(member.remainingDays);
+    }
+  }, [member]);
 
   // Local Stats Loggers
   const [waterCups, setWaterCups] = useState(4); // default 4 cups of 250ml = 1.0 Liter
@@ -126,6 +142,9 @@ export default function AthleteDashboard({
       } else {
         // Workout fully completed!
         setWorkoutFinished(true);
+        if (!completedDays.includes(selectedDayIndex)) {
+          setCompletedDays(prev => [...prev, selectedDayIndex]);
+        }
         // Register successful check-in
         const newRecord = {
           id: `att_m_${Date.now()}`,
@@ -298,33 +317,76 @@ export default function AthleteDashboard({
               <div className="space-y-2.5">
                 <span className="font-bold text-[10px] text-slate-300 block">🛍️ یکی از بسته‌های تمدید شهریه باشگاه را انتخاب کنید:</span>
                 
-                {[
+                {(subscriptionPlans && subscriptionPlans.length > 0 ? subscriptionPlans.map(plan => ({
+                  id: plan.id,
+                  label: plan.name,
+                  days: (plan.durationMonths || 1) * 30,
+                  price: `${toPersianNums((plan.priceToman || 0).toLocaleString())} تومان`,
+                  val: plan.priceToman || 0
+                })) : [
                   { id: "1month", label: "اشتراک ۱ ماهه طلایی", days: 30, price: "۴۵۰,۰۰۰ تومان", val: 450000 },
                   { id: "3month", label: "اشتراک ۳ ماهه نقره‌ای (۱۰٪ تخفیف)", days: 90, price: "۱,۲۱۵,۰۰۰ تومان", val: 1215000 },
                   { id: "12month", label: "اشتراک سالانه پلاتینیوم (۲۵٪ تخفیف)", days: 365, price: "۴,۰۵۰,۰۰۰ تومان", val: 4050000 },
-                ].map((pack) => (
+                ]).map((pack) => (
                   <button
                     key={pack.id}
                     type="button"
                     onClick={() => {
-                      if (confirm(`آیا تمایل دارید وجه ${pack.price} را برای تمدید ${pack.days} روزه شهریه باشگاه ${tenantBrandText} از درگاه بانکی متصل شتابی پرداخت کنید؟`)) {
-                        setMemberRemainingDays(prev => prev + pack.days);
-                        if (onAddClubRevenue) {
-                          onAddClubRevenue(pack.val);
+                      if (confirm(`آیا تمایل دارید وجه ${pack.price} را برای تمدید ${toPersianNums(String(pack.days))} روزه شهریه باشگاه ${tenantBrandText} پرداخت کرده و درخواست فعال‌سازی ثبت کنید؟`)) {
+                        if (onSubmitMembershipRequest) {
+                          onSubmitMembershipRequest({
+                            id: `req_${Date.now()}`,
+                            memberId: member.id,
+                            memberName: member.name,
+                            planName: pack.label,
+                            days: pack.days,
+                            priceToman: pack.val,
+                            status: "PENDING",
+                            date: "1405/04/04"
+                          });
+                          alert(`🎉 درخواست تمدید شهریه شما ثبت شد!\n\nاین درخواست جهت فعال‌سازی به پنل مدیریت باشگاه ${tenantBrandText} فرستاده شد و پس از تایید توسط مدیریت، شهریه شما به طور خودکار فعال خواهد شد.`);
+                        } else {
+                          // Fallback local updates if parent callback not passed
+                          setMemberRemainingDays(prev => prev + pack.days);
+                          if (onAddClubRevenue) {
+                            onAddClubRevenue(pack.val);
+                          }
+                          alert(`🎉 پرداخت شما با موفقیت انجام شد!\n\nبسته تمدید ${toPersianNums(String(pack.days))} روزه روی کارت عضویت شما فعال گردید.`);
                         }
-                        alert(`🎉 پرداخت شما با موفقیت انجام شد!\n\nبسته تمدید ${pack.days} روزه روی کارت عضویت شما فعال گردید. تراکنش به حساب شبا باشگاه ${tenantBrandText} ارسال شد.`);
                       }
                     }}
                     className="w-full bg-slate-950 hover:bg-slate-900 border border-white/5 p-3.5 rounded-2xl flex items-center justify-between text-right hover:border-emerald-500 transition-all cursor-pointer"
                   >
                     <div>
                       <h5 className="font-black text-white text-xs">{pack.label}</h5>
-                      <span className="text-[9px] text-slate-400">مدت: {pack.days} روز اضافه به اعتبار فعلی</span>
+                      <span className="text-[9px] text-slate-400">مدت: {toPersianNums(String(pack.days))} روز اضافه به اعتبار فعلی</span>
                     </div>
                     <span className="text-emerald-400 font-black font-mono text-xs">{pack.price}</span>
                   </button>
                 ))}
               </div>
+
+              {/* User Renewal Requests History */}
+              {membershipRequests.filter(r => r.memberId === member.id).length > 0 && (
+                <div className="space-y-2 bg-slate-950/40 border border-white/5 p-4 rounded-2xl text-right" dir="rtl">
+                  <span className="font-bold text-[10px] text-slate-300 block">📊 سوابق درخواست‌های اخیر تمدید شهریه:</span>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {membershipRequests.filter(r => r.memberId === member.id).map((req) => (
+                      <div key={req.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 text-[10px]">
+                        <div>
+                          <span className="font-bold text-white block">{req.planName}</span>
+                          <span className="text-[9px] text-slate-500">{req.date} | {toPersianNums(req.priceToman.toLocaleString())} تومان</span>
+                        </div>
+                        <div>
+                          {req.status === "PENDING" && <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full">در انتظار تایید باشگاه</span>}
+                          {req.status === "APPROVED" && <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full">تایید و فعال شد ✓</span>}
+                          {req.status === "REJECTED" && <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full">رد شد</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="bg-emerald-500/5 border border-emerald-500/10 p-3.5 rounded-2xl text-[10px] text-slate-400 leading-relaxed">
                 ℹ️ تراکنش‌ها به صورت مستقیم به حساب شبای متصل باشگاه {tenantBrandText} در بانک سپه یا ملت واریز شده و فاکتور چاپی در سیستم صندوقدار ثبت می‌گردد.
@@ -418,6 +480,7 @@ export default function AthleteDashboard({
               <div className="grid grid-cols-3 gap-2" dir="rtl">
                 {myProgram.schedule.map((dayItem: any, idx: number) => {
                   const isActive = selectedDayIndex === idx;
+                  const isCompleted = completedDays.includes(idx);
                   return (
                     <button
                       key={idx}
@@ -432,11 +495,21 @@ export default function AthleteDashboard({
                       className={`px-2 py-2 rounded-xl text-[10px] font-black transition-all border text-center flex flex-col justify-center items-center gap-1 cursor-pointer ${
                         isActive 
                           ? "bg-green-500/10 border-green-500 text-green-500 font-bold scale-[1.02] shadow-sm shadow-green-950/10" 
-                          : `${isDarkMode ? "bg-slate-900/60 border-white/5 text-slate-400 hover:bg-slate-800" : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"}`
+                          : isCompleted
+                            ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-400"
+                            : `${isDarkMode ? "bg-slate-900/60 border-white/5 text-slate-400 hover:bg-slate-800" : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"}`
                       }`}
                     >
-                      <span className="opacity-75">روز {idx + 1}</span>
+                      <span className="opacity-75 flex items-center gap-1">
+                        روز {toPersianNums(idx + 1)}
+                        {isCompleted && (
+                          <span className="bg-emerald-500 text-slate-950 rounded-full px-1 py-0.2 font-black text-[8px]">✓</span>
+                        )}
+                      </span>
                       <span className="truncate w-full font-bold">{dayItem.day.split(" (")[0].replace("روز اول: ", "").replace("روز دوم: ", "").replace("روز سوم: ", "")}</span>
+                      {isCompleted && (
+                        <span className="text-[8px] text-emerald-400 font-bold">انجام شده</span>
+                      )}
                     </button>
                   );
                 })}
@@ -584,12 +657,12 @@ export default function AthleteDashboard({
                 {/* Exercise current info (TOP of animation card) */}
                 <div className="text-center space-y-1 bg-slate-900/40 p-3 rounded-2xl border border-white/5">
                   <span className="text-[10px] text-green-500 font-extrabold uppercase tracking-widest bg-green-500/10 px-3 py-1 rounded-full inline-block">
-                    حرکت {currentExIndex + 1} از {currentDay.exercises.length}
+                    حرکت {toPersianNums(String(currentExIndex + 1))} از {toPersianNums(String(currentDay.exercises.length))}
                   </span>
                   <h3 className={`text-xl sm:text-2xl font-black ${titleColor} tracking-tight`}>
                     {currentDay.exercises[currentExIndex]?.name}
                   </h3>
-                  <p className="text-xs text-slate-400">ست جاری: {currentSetIndex + 1} از {currentDay.exercises[currentExIndex]?.sets?.length || 4}</p>
+                  <p className="text-xs text-slate-400">ست جاری: {toPersianNums(String(currentSetIndex + 1))} از {toPersianNums(String(currentDay.exercises[currentExIndex]?.sets?.length || 4))}</p>
                 </div>
 
                 {/* Exercise Animation widget simulation */}
@@ -605,7 +678,7 @@ export default function AthleteDashboard({
                 <div className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 text-center space-y-1">
                   <span className="text-slate-500 text-[10px] uppercase font-bold block">تعداد انجام و مشخصات ست فعلی</span>
                   <span className="text-xl font-black text-green-400">
-                    {currentDay.exercises[currentExIndex]?.sets?.[currentSetIndex]?.reps || 12} تکرار با وزنه {currentDay.exercises[currentExIndex]?.sets?.[currentSetIndex]?.weightKg || 40} کیلوگرم
+                    {toPersianNums(String(currentDay.exercises[currentExIndex]?.sets?.[currentSetIndex]?.reps || 12))} تکرار با وزنه {toPersianNums(String(currentDay.exercises[currentExIndex]?.sets?.[currentSetIndex]?.weightKg || 40))} کیلوگرم
                   </span>
                 </div>
 
@@ -632,10 +705,10 @@ export default function AthleteDashboard({
                                   ? "bg-green-500/20 text-green-400 border-2 border-green-400 animate-pulse" 
                                   : "bg-slate-900 text-slate-500 border border-slate-800"
                             }`}>
-                              {isSetCompleted ? "✓" : `${idx + 1}`}
+                              {isSetCompleted ? "✓" : toPersianNums(String(idx + 1))}
                             </div>
                             <span className={`text-[9px] font-bold ${isSetActive ? "text-green-400" : isSetCompleted ? "text-green-500/80" : "text-slate-500"}`}>
-                              ست {idx + 1}
+                              ست {toPersianNums(String(idx + 1))}
                             </span>
                           </div>
 
@@ -667,15 +740,15 @@ export default function AthleteDashboard({
                   <div className="bg-indigo-600/10 border border-indigo-500/20 p-6 rounded-3xl space-y-5 text-center">
                     <span className="text-xs text-indigo-400 font-extrabold block">زمان استراحت طلایی (ریکاوری قلبی)</span>
                     <span className="font-mono text-5xl font-black text-indigo-400 animate-pulse block">
-                      {restTimer} <span className="text-lg">ثانیه</span>
+                      {toPersianNums(String(restTimer))} <span className="text-lg">ثانیه</span>
                     </span>
                     <button 
                       onClick={() => {
                         handleFinishRest();
                       }}
-                      className="w-full bg-gradient-to-l from-indigo-600 to-indigo-500 text-white font-extrabold py-4 px-8 rounded-2xl shadow-xl shadow-indigo-900/30 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-base font-black tracking-wide cursor-pointer"
+                      className="w-full py-5 px-10 text-base md:text-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-indigo-500 text-white font-black rounded-[2rem] shadow-2xl shadow-indigo-500/30 active:scale-[0.97] transition-all flex items-center justify-center gap-3 tracking-wider cursor-pointer border border-white/10 animate-pulse"
                     >
-                      رد کردن استراحت و شروع ست بعدی ⏭️
+                      ⏭️ رد کردن استراحت و شروع ست بعدی (بزرگ و کشیده)
                     </button>
                   </div>
                 ) : (
@@ -686,7 +759,7 @@ export default function AthleteDashboard({
                     className="w-full bg-gradient-to-l from-green-600 to-green-500 text-white font-extrabold py-4 rounded-2xl shadow-xl shadow-green-900/20 transition-all flex items-center justify-center gap-2.5 text-sm cursor-pointer"
                   >
                     <Check className="w-5 h-5" />
-                    پایان ست {currentSetIndex + 1} و شروع استراحت
+                    پایان ست {toPersianNums(String(currentSetIndex + 1))} و شروع استراحت
                   </button>
                 )}
 
@@ -791,18 +864,50 @@ export default function AthleteDashboard({
             <div className={`p-5 rounded-[2rem] border ${borderColor} ${innerCardBg} space-y-4`}>
               <span className={`font-black text-xs ${titleColor} block`}>📈 نمودار و ثبت وزن هفتگی</span>
               
-              {/* Weight list visualization bar chart */}
-              <div className="h-28 flex items-end justify-between px-2 pt-2 gap-2">
-                {weightLogs.map((log, idx) => (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                    <span className="text-[9px] font-bold text-green-500 font-mono">{log.weight}</span>
-                    <div 
-                      className="w-full bg-gradient-to-t from-green-600 to-green-400 rounded-md transition-all duration-300"
-                      style={{ height: `${(log.weight - 60) * 4}%` }}
-                    ></div>
-                    <span className={`text-[9px] ${labelColor}`}>{log.date}</span>
-                  </div>
-                ))}
+              {/* Weight list visualization with Recharts and horizontal scrolling after 6 items */}
+              <div className="w-full overflow-x-auto py-2 scrollbar-thin scrollbar-thumb-emerald-600">
+                <div style={{ minWidth: weightLogs.length > 6 ? `${weightLogs.length * 70}px` : "100%", height: 160 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weightLogs} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fontSize: 9, fill: isDarkMode ? "#94a3b8" : "#475569" }} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 9, fill: isDarkMode ? "#94a3b8" : "#475569" }} 
+                        domain={['dataMin - 3', 'dataMax + 3']}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', 
+                          borderColor: isDarkMode ? '#1e293b' : '#cbd5e1', 
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          color: isDarkMode ? '#f8fafc' : '#0f172a'
+                        }}
+                        formatter={(value: any) => [`${toPersianNums(String(value))} کیلوگرم`, 'وزن']}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="weight" 
+                        stroke="#10b981" 
+                        strokeWidth={2}
+                        fillOpacity={1} 
+                        fill="url(#weightGrad)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
 
               {/* Logger form */}

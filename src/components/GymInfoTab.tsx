@@ -266,14 +266,36 @@ export default function GymInfoTab({ isDarkMode, tenantName, onUpdateTenantName 
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1">آدرس لوگوی اختصاصی (URL)</label>
-                  <input 
-                    type="text"
-                    value={editedInfo.logoUrl}
-                    onChange={(e) => setEditedInfo({ ...editedInfo, logoUrl: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-xl focus:outline-none focus:border-green-500 ${inputBg}`}
-                    required
-                  />
+                  <label className="block text-slate-400 mb-1">لوگوی باشگاه (آپلود فایل یا آدرس تصویر)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={editedInfo.logoUrl}
+                      onChange={(e) => setEditedInfo({ ...editedInfo, logoUrl: e.target.value })}
+                      className={`flex-1 px-3 py-2 rounded-xl focus:outline-none focus:border-green-500 ${inputBg}`}
+                      placeholder="آدرس URL لوگو"
+                    />
+                    <label className="cursor-pointer bg-green-600 hover:bg-green-500 text-white font-bold text-[11px] px-3 py-2 rounded-xl flex items-center shrink-0">
+                      <span>آپلود فایل</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              if (event.target?.result) {
+                                setEditedInfo({ ...editedInfo, logoUrl: event.target.result as string });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -449,41 +471,31 @@ export default function GymInfoTab({ isDarkMode, tenantName, onUpdateTenantName 
                 </div>
 
                 {/* Map Active Canvas Element */}
-                <div className="relative h-64 rounded-2xl overflow-hidden border border-white/10 cursor-crosshair" onClick={handleMapClick}>
-                  {/* Map Graphic background representation */}
-                  <div className="absolute inset-0 bg-slate-900 select-none overflow-hidden">
-                    {/* Simulated Map Streets & Waterway */}
-                    <div className="absolute top-10 left-0 w-full h-8 bg-slate-800 rotate-6 flex items-center justify-center text-[9px] text-slate-600 font-bold uppercase tracking-wider">بزرگراه شهید صدر</div>
-                    <div className="absolute top-0 left-1/4 w-10 h-full bg-slate-800 -rotate-12 flex items-center justify-center text-[9px] text-slate-600 font-bold uppercase tracking-wider">خیابان شریعتی</div>
-                    <div className="absolute bottom-12 left-0 w-full h-6 bg-slate-800 -rotate-3 flex items-center justify-center text-[9px] text-slate-600 font-bold uppercase tracking-wider">خیابان اندرزگو</div>
-                    <div className="absolute top-0 right-12 w-6 h-full bg-slate-800 rotate-3 flex items-center justify-center text-[9px] text-slate-600 font-bold uppercase tracking-wider">اتوبان باقری</div>
-                    
-                    {/* Rivers & Parks */}
-                    <div className="absolute top-1/2 left-20 w-16 h-12 bg-emerald-500/10 rounded-full border border-emerald-500/20 flex items-center justify-center text-[8px] text-emerald-400 font-bold">پارک قیطریه</div>
-                    <div className="absolute top-4 right-1/4 w-20 h-10 bg-emerald-500/10 rounded-full border border-emerald-500/20 flex items-center justify-center text-[8px] text-emerald-400 font-bold">بوستان جمشیدیه</div>
-                    <div className="absolute bottom-4 left-1/3 w-32 h-14 bg-emerald-500/10 rounded-full border border-emerald-500/20 flex items-center justify-center text-[8px] text-emerald-400 font-bold">مجموعه ورزشی مجهز</div>
-
-                    {/* Coordinates Grid */}
-                    <div className="absolute inset-0 grid grid-cols-12 grid-rows-8 opacity-25 pointer-events-none">
-                      {Array.from({ length: 96 }).map((_, i) => (
-                        <div key={i} className="border border-slate-700/30"></div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="relative h-64 rounded-2xl overflow-hidden border border-white/10">
+                  <iframe
+                    title="Google Maps"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    scrolling="no"
+                    marginHeight={0}
+                    marginWidth={0}
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(editedInfo.address)}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                    className="absolute inset-0 w-full h-full border-0"
+                  ></iframe>
 
                   {/* Red pulsing PIN indicator positioned on the map bounds */}
-                  <div 
-                    className="absolute z-20 -translate-x-1/2 -translate-y-1/2 transition-all duration-300"
-                    style={{ left: `${pinPos.x}%`, top: `${pinPos.y}%` }}
-                  >
+                  <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                     <div className="relative">
                       <span className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[9px] px-2 py-0.5 rounded shadow-lg font-bold whitespace-nowrap">
-                        مکان باشگاه
+                        موقعیت دقیق باشگاه
                       </span>
                       <div className="w-12 h-12 bg-red-500/20 border border-red-500/40 rounded-full animate-ping absolute -top-3 -left-3"></div>
                       <MapPin className="w-7 h-7 text-red-500 drop-shadow-[0_3px_6px_rgba(0,0,0,0.6)]" />
                     </div>
                   </div>
+
+
 
                   {/* Compass HUD */}
                   <div className="absolute bottom-3 left-3 z-15 bg-slate-950/80 border border-white/10 backdrop-blur px-2.5 py-1 rounded-xl text-[9px] font-mono text-slate-400 flex items-center gap-1.5 select-none">

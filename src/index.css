@@ -109,7 +109,6 @@
 }
 
 /* Text elements compatibility in light mode */
-.min-h-screen:not(.dark-theme-vars) .text-white,
 .min-h-screen:not(.dark-theme-vars) .text-slate-100,
 .min-h-screen:not(.dark-theme-vars) .text-slate-200 {
   color: #0F172A !important;

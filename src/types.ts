@@ -20,6 +20,8 @@ export interface Tenant {
   ownerName: string;
   email: string;
   phone: string;
+  username?: string;
+  password?: string;
   domain?: string;
   logoUrl?: string;
   status: "ACTIVE" | "SUSPENDED" | "TRIAL";
@@ -204,3 +206,11 @@ export interface StoreProduct {
   minStockAlert: number;
   barcode: string;
 }
+
+export function toPersianNums(num: any): string {
+  if (num === null || num === undefined) return "";
+  const str = String(num);
+  const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+  return str.replace(/[0-9]/g, (w) => persianDigits[parseInt(w, 10)]);
+}
+
