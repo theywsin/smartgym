@@ -7,6 +7,7 @@ interface GymLogoProps {
   isDark?: boolean;
   brandText?: string;
   themeColor?: string; // e.g. "emerald", "blue", "rose", "violet", "amber"
+  logoUrl?: string; // Custom uploaded branding logo
 }
 
 export default function GymLogo({ 
@@ -15,7 +16,8 @@ export default function GymLogo({
   showText = true, 
   isDark = true,
   brandText,
-  themeColor = "emerald"
+  themeColor = "emerald",
+  logoUrl
 }: GymLogoProps) {
   const sizeMap = {
     sm: { svg: "w-8 h-8", text: "text-base" },
@@ -59,49 +61,60 @@ export default function GymLogo({
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`} dir="rtl">
       {/* Dynamic Athletic Logo */}
-      <div className={`relative shrink-0 ${selectedSize.svg} transition-transform duration-300 hover:scale-105`}>
-        {/* Glow effect */}
-        <div className="absolute inset-0 bg-current opacity-20 blur-lg rounded-full" style={{ color: grads.start }}></div>
-        <svg 
-          viewBox="0 0 100 100" 
-          fill="none" 
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full"
-        >
-          <defs>
-            <linearGradient id={`logo-grad-${themeColor}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={grads.start} />
-              <stop offset="100%" stopColor={grads.end} />
-            </linearGradient>
-            <linearGradient id={`logo-accent-grad-${themeColor}`} x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor={grads.accentStart} />
-              <stop offset="100%" stopColor={grads.accentEnd} />
-            </linearGradient>
-          </defs>
-
-          {/* Minimal Ring */}
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="38" 
-            stroke={`url(#logo-grad-${themeColor})`} 
-            strokeWidth="7" 
-            strokeLinecap="round"
-            strokeDasharray="180 50"
+      <div className={`relative shrink-0 ${selectedSize.svg} transition-transform duration-300 hover:scale-105 flex items-center justify-center`}>
+        {logoUrl ? (
+          <img 
+            src={logoUrl} 
+            alt={brandText || "Logo"} 
+            className="w-full h-full object-contain rounded-xl max-h-full max-w-full"
+            referrerPolicy="no-referrer"
           />
+        ) : (
+          <>
+            {/* Glow effect */}
+            <div className="absolute inset-0 bg-current opacity-20 blur-lg rounded-full" style={{ color: grads.start }}></div>
+            <svg 
+              viewBox="0 0 100 100" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-full h-full"
+            >
+              <defs>
+                <linearGradient id={`logo-grad-${themeColor}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={grads.start} />
+                  <stop offset="100%" stopColor={grads.end} />
+                </linearGradient>
+                <linearGradient id={`logo-accent-grad-${themeColor}`} x1="100%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={grads.accentStart} />
+                  <stop offset="100%" stopColor={grads.accentEnd} />
+                </linearGradient>
+              </defs>
 
-          {/* Minimal Dumbbell */}
-          <path 
-            d="M38 50H62 M38 42V58 M62 42V58" 
-            stroke={`url(#logo-accent-grad-${themeColor})`} 
-            strokeWidth="9" 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-          />
+              {/* Minimal Ring */}
+              <circle 
+                cx="50" 
+                cy="50" 
+                r="38" 
+                stroke={`url(#logo-grad-${themeColor})`} 
+                strokeWidth="7" 
+                strokeLinecap="round"
+                strokeDasharray="180 50"
+              />
 
-          {/* Tech dot */}
-          <circle cx="50" cy="50" r="3" fill="#FFFFFF" />
-        </svg>
+              {/* Minimal Dumbbell */}
+              <path 
+                d="M38 50H62 M38 42V58 M62 42V58" 
+                stroke={`url(#logo-accent-grad-${themeColor})`} 
+                strokeWidth="9" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+
+              {/* Tech dot */}
+              <circle cx="50" cy="50" r="3" fill="#FFFFFF" />
+            </svg>
+          </>
+        )}
       </div>
 
       {showText && (

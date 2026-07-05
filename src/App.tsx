@@ -58,7 +58,7 @@ import {
 } from "./data";
 import { UserRole, Tenant, Booking, StoreProduct, toPersianNums } from "./types";
 import { mysqlDb } from "./lib/mysqlSim";
-import { db, collection, doc, setDoc, getDocs } from "./lib/firebase";
+import { db, collection, doc, setDoc, getDocs, getDoc, OperationType, handleFirestoreError } from "./lib/firebase";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
@@ -71,11 +71,28 @@ import AICoachProgramGenerator from "./components/AICoachProgramGenerator";
 import TicketSystem from "./components/TicketSystem";
 import CoachEarningsPanel from "./components/CoachEarningsPanel";
 
+// @ts-ignore
+import mascotSmart from "./assets/images/mascot_smart_1783248774021.jpg";
+// @ts-ignore
+import mascotSmartLaptop from "./assets/images/mascot_smart_laptop_1783249875312.jpg";
+
+const SYSTEM_FEATURES = [
+  { id: "coaches", label: "🏋️‍♂️ مدیریت مربیان و برنامه‌ها", desc: "مدیریت امور مربیان، دستمزدها و برنامه‌نویسی تمرینی" },
+  { id: "support", label: "🎫 پشتیبانی و تیکت ابری", desc: "سیستم ارسال تیکت مستقیم بین مدیر باشگاه و پشتیبانی پلتفرم" },
+  { id: "info", label: "🕒 ساعت کاری و موقعیت باشگاه", desc: "مدیریت روزها، ساعت کاری و نمایش نقشه گوگل و آدرس باشگاه" },
+  { id: "ai_coach", label: "🤖 دستیار هوش مصنوعی (AI Coach)", desc: "دستیار فوق هوشمند هوش مصنوعی مربیان برای طراحی برنامه‌های اتوماتیک" },
+  { id: "white_label", label: "⚙️ شخصی‌سازی برند و لوگو (White-Label)", desc: "امکان تغییر نام وب‌اپلیکیشن، لوگو و پالت رنگی توسط باشگاه" },
+  { id: "payment_gateway", label: "💳 اتصال درگاه پرداخت اختصاصی باشگاه", desc: "اتصال به شبکه شتاب و بانک‌ها برای تسویه‌حساب فاکتورها" },
+  { id: "buffet", label: "🛍️ بوفه هوشمند و انبارداری بوفه", desc: "بخش مدیریت و بوفه باشگاه، بارکدخوان، محصولات مکمل" },
+  { id: "attendance", label: "⏱️ حضور و غیاب هوشمند با QR Code", desc: "کنترل پنل ثبت ورود و خروج ورزشکاران" }
+];
+
 export default function App() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [activePlanFeaturesEditId, setActivePlanFeaturesEditId] = useState<string | null>(null);
 
   // New Unified Design System States & Gateways
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
@@ -88,7 +105,7 @@ export default function App() {
   });
   
   const [tenantSubTab, setTenantSubTab] = useState<"dashboard" | "info" | "support" | "coaches">("dashboard");
-  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings">("dashboard");
+  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings" | "smart_chat">("dashboard");
   const [selectedDetailedMember, setSelectedDetailedMember] = useState<any | null>(null);
 
   // Iranian Payment Gateway flow states
@@ -99,6 +116,75 @@ export default function App() {
   const [footerDocView, setFooterDocView] = useState<"terms" | "privacy" | "support" | "sla" | null>(null);
   const [tenantCustomColor, setTenantCustomColor] = useState("emerald");
   const [tenantBrandText, setTenantBrandText] = useState("");
+
+  // Mascot Smart Assistant states
+  const [showSmartAssistant, setShowSmartAssistant] = useState(false);
+  const [smartActiveTip, setSmartActiveTip] = useState<string>("سلام قهرمان! من اسمارْت هستم، مسکات رسمی پلتفرم اسمارت جیم. چه کمکی می‌تونم بهت بکنم؟ روی دکمه‌های زیر کلیک کن تا با هم گپ بزنیم! 😊");
+  const [smartLandingQuoteIndex, setSmartLandingQuoteIndex] = useState(0);
+
+  // Mascot Live Chat State Variables (SaaS & Landing)
+  const [smartChatSession, setSmartChatSession] = useState<{ id: string; userName: string; userPhone: string } | null>(null);
+  const [smartChatMessages, setSmartChatMessages] = useState<any[]>([]);
+  const [smartChatUserName, setSmartChatUserName] = useState<string>("");
+  const [smartChatUserPhone, setSmartChatUserPhone] = useState<string>("");
+  const [isSmartChatSubmittingName, setIsSmartChatSubmittingName] = useState<boolean>(false);
+  const [smartChatInputText, setSmartChatInputText] = useState<string>("");
+  const [allSmartChats, setAllSmartChats] = useState<any[]>([]);
+  const [activeAdminChatId, setActiveAdminChatId] = useState<string>("");
+  const [adminReplyText, setAdminReplyText] = useState<string>("");
+
+  // Helper to check if a system feature is enabled for the logged-in tenant (or tenant context of a coach/member)
+  const isTenantFeatureActive = (featureId: string): boolean => {
+    let activeTenant = loggedInTenant;
+    
+    if (!activeTenant) {
+      if (loggedInCoach) {
+        // Find tenant by coach's clubId
+        activeTenant = tenants.find(t => t.id === loggedInCoach.clubId);
+      } else if (loggedInMember) {
+        // Find tenant by member's clubId
+        activeTenant = tenants.find(t => t.id === loggedInMember.clubId);
+      }
+    }
+    
+    // Fallback: if we still don't have an active tenant, but we have some tenants in the list, use the first one
+    if (!activeTenant && tenants && tenants.length > 0) {
+      activeTenant = tenants[0];
+    }
+    
+    if (!activeTenant) return false;
+    
+    // Find matching plan in subscriptionPlans by name or ID
+    const activePlan = subscriptionPlans.find(
+      p => p.name === activeTenant.planName || p.id === activeTenant.planId
+    );
+    
+    if (activePlan) {
+      if (activePlan.unlockedFeatureIds) {
+        return activePlan.unlockedFeatureIds.includes(featureId);
+      }
+      // Fallback configuration if unlockedFeatureIds is not yet populated
+      const pName = activePlan.name || "";
+      if (pName.includes("برنزی") || pName.includes("پایه")) {
+        return ["info", "buffet", "attendance"].includes(featureId);
+      }
+      if (pName.includes("نقره‌ای") || pName.includes("حرفه‌ای")) {
+        return ["info", "buffet", "attendance", "support", "ai_coach", "white_label"].includes(featureId);
+      }
+      return ["info", "buffet", "attendance", "support", "ai_coach", "white_label", "coaches", "payment_gateway"].includes(featureId);
+    }
+    
+    // Fallback check for demo/pre-existing plan names
+    const pName = activeTenant.planName || "";
+    if (pName.includes("برنزی") || pName.includes("پایه")) {
+      return ["info", "buffet", "attendance"].includes(featureId);
+    }
+    if (pName.includes("نقره‌ای") || pName.includes("حرفه‌ای")) {
+      return ["info", "buffet", "attendance", "support", "ai_coach", "white_label"].includes(featureId);
+    }
+    
+    return true;
+  };
 
 
   // Persistent States
@@ -143,8 +229,9 @@ export default function App() {
   const [landingSlide, setLandingSlide] = useState(0);
 
   // Platform Customization & General SaaS Settings
-  const [platformBrandLogo, setPlatformBrandLogo] = useState("SMART GYM");
-  const [platformTheme, setPlatformTheme] = useState("emerald"); // choices: emerald, blue, rose, violet, amber
+  const [platformBrandLogo, setPlatformBrandLogo] = useState(() => localStorage.getItem("platformBrandLogo") || "SMART GYM");
+  const [platformTheme, setPlatformTheme] = useState(() => localStorage.getItem("platformTheme") || "emerald"); // choices: emerald, blue, rose, violet, amber
+  const [platformLogoUrl, setPlatformLogoUrl] = useState(() => localStorage.getItem("platformLogoUrl") || "");
 
   // Map platformTheme state to actual CSS styling properties dynamically
   const getThemeAccent = () => {
@@ -220,14 +307,14 @@ export default function App() {
 
   const themeAccent = getThemeAccent();
 
-  const [platformLandingTitle, setPlatformLandingTitle] = useState("مدیریت باشگاه را هوشمند، سریع و بدون دردسر انجام دهید");
-  const [platformLandingSubtitle, setPlatformLandingSubtitle] = useState("از ساخت خودکار برنامه‌های تمرینی و غذایی با هوش مصنوعی گرفته تا حضور و غیاب پیشرفته، درگاه مستقیم بانکی، کلوپ وفاداری، انبارداری و بوفه، و مدیریت یکپارچه بی‌نهایت شعبه؛ همه و همه در یک بستر مدرن و شیشه‌ای (Glassmorphism).");
+  const [platformLandingTitle, setPlatformLandingTitle] = useState(() => localStorage.getItem("platformLandingTitle") || "مدیریت باشگاه را هوشمند، سریع و بدون دردسر انجام دهید");
+  const [platformLandingSubtitle, setPlatformLandingSubtitle] = useState(() => localStorage.getItem("platformLandingSubtitle") || "از ساخت خودکار برنامه‌های تمرینی و غذایی با هوش مصنوعی گرفته تا حضور و غیاب پیشرفته، درگاه مستقیم بانکی، کلوپ وفاداری، انبارداری و بوفه، و مدیریت یکپارچه بی‌نهایت شعبه؛ همه و همه در یک بستر مدرن و شیشه‌ای (Glassmorphism).");
   
   // Payment Gateways Settings (SuperAdmin Configured)
-  const [gatewayZarinpalEnabled, setGatewayZarinpalEnabled] = useState(true);
-  const [gatewayZarinpalMerchant, setGatewayZarinpalMerchant] = useState("zarinpal_merchant_889900");
-  const [gatewaySepEnabled, setGatewaySepEnabled] = useState(true);
-  const [gatewaySepTerminalId, setGatewaySepTerminalId] = useState("sep_terminal_998811");
+  const [gatewayZarinpalEnabled, setGatewayZarinpalEnabled] = useState(() => localStorage.getItem("gatewayZarinpalEnabled") !== "false");
+  const [gatewayZarinpalMerchant, setGatewayZarinpalMerchant] = useState(() => localStorage.getItem("gatewayZarinpalMerchant") || "zarinpal_merchant_889900");
+  const [gatewaySepEnabled, setGatewaySepEnabled] = useState(() => localStorage.getItem("gatewaySepEnabled") !== "false");
+  const [gatewaySepTerminalId, setGatewaySepTerminalId] = useState(() => localStorage.getItem("gatewaySepTerminalId") || "sep_terminal_998811");
 
   // Club / Tenant Subscription Details
   const [subscriptionDaysLeft, setSubscriptionDaysLeft] = useState(24); // default 24 days left
@@ -461,12 +548,21 @@ export default function App() {
         console.log("Connecting to live Firestore database...");
 
         // 1. Tenants
-        const tenantsSnap = await getDocs(collection(db, "tenants"));
+        let tenantsSnap;
+        try {
+          tenantsSnap = await getDocs(collection(db, "tenants"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "tenants");
+        }
         let loadedTenants: any[] = [];
         if (tenantsSnap.empty) {
           console.log("Seeding initial tenants into Firestore...");
           for (const t of MOCK_TENANTS) {
-            await setDoc(doc(db, "tenants", t.id), t);
+            try {
+              await setDoc(doc(db, "tenants", t.id), t);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `tenants/${t.id}`);
+            }
           }
           loadedTenants = [...MOCK_TENANTS];
         } else {
@@ -475,13 +571,22 @@ export default function App() {
         setTenants(loadedTenants);
 
         // 2. Members (Athletes)
-        const membersSnap = await getDocs(collection(db, "members"));
+        let membersSnap;
+        try {
+          membersSnap = await getDocs(collection(db, "members"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "members");
+        }
         let loadedMembers: any[] = [];
         if (membersSnap.empty) {
           console.log("Seeding initial members into Firestore...");
           const initialMembers = mysqlDb.getMembers();
           for (const m of initialMembers) {
-            await setDoc(doc(db, "members", m.id), m);
+            try {
+              await setDoc(doc(db, "members", m.id), m);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `members/${m.id}`);
+            }
           }
           loadedMembers = [...initialMembers];
         } else {
@@ -490,13 +595,22 @@ export default function App() {
         setMembers(loadedMembers);
 
         // 3. Coaches
-        const coachesSnap = await getDocs(collection(db, "coaches"));
+        let coachesSnap;
+        try {
+          coachesSnap = await getDocs(collection(db, "coaches"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "coaches");
+        }
         let loadedCoaches: any[] = [];
         if (coachesSnap.empty) {
           console.log("Seeding initial coaches into Firestore...");
           const initialCoaches = mysqlDb.getCoaches();
           for (const c of initialCoaches) {
-            await setDoc(doc(db, "coaches", c.id), c);
+            try {
+              await setDoc(doc(db, "coaches", c.id), c);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `coaches/${c.id}`);
+            }
           }
           loadedCoaches = [...initialCoaches];
         } else {
@@ -505,13 +619,22 @@ export default function App() {
         setCoaches(loadedCoaches);
 
         // 4. Membership Requests (Invoices)
-        const requestsSnap = await getDocs(collection(db, "membership_requests"));
+        let requestsSnap;
+        try {
+          requestsSnap = await getDocs(collection(db, "membership_requests"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "membership_requests");
+        }
         let loadedRequests: any[] = [];
         if (requestsSnap.empty) {
           console.log("Seeding initial membership requests into Firestore...");
           const initialRequests = mysqlDb.getMembershipRequests();
           for (const r of initialRequests) {
-            await setDoc(doc(db, "membership_requests", r.id), r);
+            try {
+              await setDoc(doc(db, "membership_requests", r.id), r);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `membership_requests/${r.id}`);
+            }
           }
           loadedRequests = [...initialRequests];
         } else {
@@ -520,12 +643,21 @@ export default function App() {
         setMembershipRequests(loadedRequests);
 
         // 5. Workout Programs
-        const programsSnap = await getDocs(collection(db, "workout_programs"));
+        let programsSnap;
+        try {
+          programsSnap = await getDocs(collection(db, "workout_programs"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "workout_programs");
+        }
         let loadedPrograms: any[] = [];
         if (programsSnap.empty) {
           console.log("Seeding initial workout programs into Firestore...");
           for (const p of MOCK_WORKOUT_PROGRAMS) {
-            await setDoc(doc(db, "workout_programs", p.id), p);
+            try {
+              await setDoc(doc(db, "workout_programs", p.id), p);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `workout_programs/${p.id}`);
+            }
           }
           loadedPrograms = [...MOCK_WORKOUT_PROGRAMS];
         } else {
@@ -534,12 +666,21 @@ export default function App() {
         setWorkoutPrograms(loadedPrograms);
 
         // 6. Nutrition Plans
-        const nutritionSnap = await getDocs(collection(db, "nutrition_plans"));
+        let nutritionSnap;
+        try {
+          nutritionSnap = await getDocs(collection(db, "nutrition_plans"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "nutrition_plans");
+        }
         let loadedNutrition: any[] = [];
         if (nutritionSnap.empty) {
           console.log("Seeding initial nutrition plans into Firestore...");
           for (const n of MOCK_NUTRITION_PLANS) {
-            await setDoc(doc(db, "nutrition_plans", n.id), n);
+            try {
+              await setDoc(doc(db, "nutrition_plans", n.id), n);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `nutrition_plans/${n.id}`);
+            }
           }
           loadedNutrition = [...MOCK_NUTRITION_PLANS];
         } else {
@@ -548,12 +689,21 @@ export default function App() {
         setNutritionPlans(loadedNutrition);
 
         // 7. Store Products
-        const productsSnap = await getDocs(collection(db, "store_products"));
+        let productsSnap;
+        try {
+          productsSnap = await getDocs(collection(db, "store_products"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "store_products");
+        }
         let loadedProducts: any[] = [];
         if (productsSnap.empty) {
           console.log("Seeding initial store products into Firestore...");
           for (const p of MOCK_PRODUCTS) {
-            await setDoc(doc(db, "store_products", p.id), p);
+            try {
+              await setDoc(doc(db, "store_products", p.id), p);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `store_products/${p.id}`);
+            }
           }
           loadedProducts = [...MOCK_PRODUCTS];
         } else {
@@ -562,12 +712,21 @@ export default function App() {
         setStoreProducts(loadedProducts);
 
         // 8. Bookings
-        const bookingsSnap = await getDocs(collection(db, "bookings"));
+        let bookingsSnap;
+        try {
+          bookingsSnap = await getDocs(collection(db, "bookings"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "bookings");
+        }
         let loadedBookings: any[] = [];
         if (bookingsSnap.empty) {
           console.log("Seeding initial bookings into Firestore...");
           for (const b of MOCK_BOOKINGS) {
-            await setDoc(doc(db, "bookings", b.id), b);
+            try {
+              await setDoc(doc(db, "bookings", b.id), b);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `bookings/${b.id}`);
+            }
           }
           loadedBookings = [...MOCK_BOOKINGS];
         } else {
@@ -576,12 +735,21 @@ export default function App() {
         setBookings(loadedBookings);
 
         // 9. Tickets
-        const ticketsSnap = await getDocs(collection(db, "tickets"));
+        let ticketsSnap;
+        try {
+          ticketsSnap = await getDocs(collection(db, "tickets"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "tickets");
+        }
         let loadedTickets: any[] = [];
         if (ticketsSnap.empty) {
           console.log("Seeding initial tickets into Firestore...");
           for (const t of MOCK_TICKETS) {
-            await setDoc(doc(db, "tickets", t.id), t);
+            try {
+              await setDoc(doc(db, "tickets", t.id), t);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `tickets/${t.id}`);
+            }
           }
           loadedTickets = [...MOCK_TICKETS];
         } else {
@@ -590,12 +758,21 @@ export default function App() {
         setTickets(loadedTickets);
 
         // 10. Attendance Records
-        const attendanceSnap = await getDocs(collection(db, "attendance_records"));
+        let attendanceSnap;
+        try {
+          attendanceSnap = await getDocs(collection(db, "attendance_records"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "attendance_records");
+        }
         let loadedAttendance: any[] = [];
         if (attendanceSnap.empty) {
           console.log("Seeding initial attendance records into Firestore...");
           for (const a of MOCK_ATTENDANCE) {
-            await setDoc(doc(db, "attendance_records", a.id), a);
+            try {
+              await setDoc(doc(db, "attendance_records", a.id), a);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `attendance_records/${a.id}`);
+            }
           }
           loadedAttendance = [...MOCK_ATTENDANCE];
         } else {
@@ -604,12 +781,21 @@ export default function App() {
         setAttendanceRecords(loadedAttendance);
 
         // 11. Exercises List
-        const exercisesSnap = await getDocs(collection(db, "exercises_database"));
+        let exercisesSnap;
+        try {
+          exercisesSnap = await getDocs(collection(db, "exercises_database"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "exercises_database");
+        }
         let loadedExercises: any[] = [];
         if (exercisesSnap.empty) {
           console.log("Seeding initial exercises database into Firestore...");
           for (const ex of EXERCISES) {
-            await setDoc(doc(db, "exercises_database", ex.id), ex);
+            try {
+              await setDoc(doc(db, "exercises_database", ex.id), ex);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `exercises_database/${ex.id}`);
+            }
           }
           loadedExercises = [...EXERCISES];
         } else {
@@ -618,7 +804,12 @@ export default function App() {
         setExercisesList(loadedExercises);
 
         // 12. Coach Sales & Package Earnings List
-        const salesSnap = await getDocs(collection(db, "coach_sales"));
+        let salesSnap;
+        try {
+          salesSnap = await getDocs(collection(db, "coach_sales"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "coach_sales");
+        }
         let loadedSales: any[] = [];
         const initialSales = [
           { id: "s_1", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "برنامه تمرینی پیشرفته ۲۴ جلسه‌ای", price: 1200000, date: "1405/04/01", month: "تیر" },
@@ -630,7 +821,11 @@ export default function App() {
         if (salesSnap.empty) {
           console.log("Seeding initial coach sales into Firestore...");
           for (const s of initialSales) {
-            await setDoc(doc(db, "coach_sales", s.id), s);
+            try {
+              await setDoc(doc(db, "coach_sales", s.id), s);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `coach_sales/${s.id}`);
+            }
           }
           loadedSales = [...initialSales];
         } else {
@@ -722,6 +917,207 @@ export default function App() {
       mysqlDb.saveCoachSales(coachSales);
     }
   }, [coachSales, isDbReady]);
+
+  // Mascot Live Chat support functions
+  const fetchSmartMessages = async (sessionId: string) => {
+    try {
+      const chatDocRef = doc(db, "smart_support_chats", sessionId);
+      let docSnap;
+      try {
+        docSnap = await getDoc(chatDocRef);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `smart_support_chats/${sessionId}`);
+      }
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setSmartChatMessages(data.messages || []);
+      } else {
+        const initialMsg = {
+          id: `m_init_${Date.now()}`,
+          sender: "smart_ai",
+          text: "سلام قهرمان! من اسمارْت هستم، مربی همراه و مسکات رسمی پلتفرم اسمارت جیم. چه کمکی می‌تونم بهت بکنم؟ هر سوالی داری بنویس تا با هم گپ بزنیم! 😊🦾",
+          timestamp: new Date().toISOString()
+        };
+        try {
+          await setDoc(chatDocRef, {
+            id: sessionId,
+            userName: localStorage.getItem("smart_chat_user_name") || "کاربر مهمان",
+            userPhone: localStorage.getItem("smart_chat_user_phone") || "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messages: [initialMsg]
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${sessionId}`);
+        }
+        setSmartChatMessages([initialMsg]);
+      }
+    } catch (e) {
+      console.error("Error fetching smart chat messages:", e);
+    }
+  };
+
+  const startNewSmartChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!smartChatUserName.trim()) return;
+    setIsSmartChatSubmittingName(true);
+    const newSessionId = `sc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    localStorage.setItem("smart_chat_session_id", newSessionId);
+    localStorage.setItem("smart_chat_user_name", smartChatUserName);
+    localStorage.setItem("smart_chat_user_phone", smartChatUserPhone);
+    
+    setSmartChatSession({ id: newSessionId, userName: smartChatUserName, userPhone: smartChatUserPhone });
+    await fetchSmartMessages(newSessionId);
+    setIsSmartChatSubmittingName(false);
+  };
+
+  const sendSmartChatMessage = async () => {
+    if (!smartChatInputText.trim() || !smartChatSession) return;
+    const userMsg = {
+      id: `msg_${Date.now()}`,
+      sender: "user",
+      text: smartChatInputText.trim(),
+      timestamp: new Date().toISOString()
+    };
+    const updatedMessages = [...smartChatMessages, userMsg];
+    setSmartChatMessages(updatedMessages);
+    setSmartChatInputText("");
+
+    try {
+      const chatDocRef = doc(db, "smart_support_chats", smartChatSession.id);
+      try {
+        await setDoc(chatDocRef, {
+          id: smartChatSession.id,
+          userName: smartChatSession.userName,
+          userPhone: smartChatSession.userPhone,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: updatedMessages
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${smartChatSession.id}`);
+      }
+
+      // After 2.5 seconds, trigger a smart auto response acknowledging receipt if last msg is still user's
+      setTimeout(async () => {
+        const smartReply = {
+          id: `msg_auto_${Date.now()}`,
+          sender: "smart_ai",
+          text: `پیام شما به مربیان و مدیران ارشد اسمارت جیم ارسال شد! 🦾 من به عنوان مسکات پلتفرم اونو تو بخش جدید پنل سوپر ادمین ثبت کردم و به زودی همکارانم مستقیم جوابتو میدن. دم تلاشت گرم!`,
+          timestamp: new Date().toISOString()
+        };
+        let freshSnap;
+        try {
+          freshSnap = await getDoc(chatDocRef);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `smart_support_chats/${smartChatSession.id}`);
+        }
+        if (freshSnap.exists()) {
+          const freshData = freshSnap.data();
+          const currentMsgs = freshData.messages || [];
+          if (currentMsgs.length > 0 && currentMsgs[currentMsgs.length - 1].sender === "user") {
+            const withReply = [...currentMsgs, smartReply];
+            setSmartChatMessages(withReply);
+            try {
+              await setDoc(chatDocRef, {
+                messages: withReply,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${smartChatSession.id}`);
+            }
+          }
+        }
+      }, 2500);
+
+    } catch (e) {
+      console.error("Error sending smart chat message:", e);
+    }
+  };
+
+  const fetchAllSmartChats = async () => {
+    try {
+      const q = collection(db, "smart_support_chats");
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, "smart_support_chats");
+      }
+      const chatsList: any[] = [];
+      querySnapshot.forEach((docSnap) => {
+        chatsList.push(docSnap.data());
+      });
+      chatsList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      setAllSmartChats(chatsList);
+    } catch (e) {
+      console.error("Error fetching all smart chats:", e);
+    }
+  };
+
+  const sendAdminReply = async (chatId: string) => {
+    if (!adminReplyText.trim()) return;
+    const adminMsg = {
+      id: `msg_admin_${Date.now()}`,
+      sender: "admin",
+      text: adminReplyText.trim(),
+      timestamp: new Date().toISOString()
+    };
+    
+    try {
+      const chatDocRef = doc(db, "smart_support_chats", chatId);
+      let docSnap;
+      try {
+        docSnap = await getDoc(chatDocRef);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `smart_support_chats/${chatId}`);
+      }
+      if (docSnap.exists()) {
+        const chat = docSnap.data();
+        const updatedMessages = [...(chat.messages || []), adminMsg];
+        try {
+          await setDoc(chatDocRef, {
+            messages: updatedMessages,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${chatId}`);
+        }
+
+        setAdminReplyText("");
+        fetchAllSmartChats();
+      }
+    } catch (e) {
+      console.error("Error sending admin reply:", e);
+    }
+  };
+
+  // Initialize and poll Mascot Chat
+  useEffect(() => {
+    const savedSessionId = localStorage.getItem("smart_chat_session_id");
+    const savedName = localStorage.getItem("smart_chat_user_name") || "";
+    const savedPhone = localStorage.getItem("smart_chat_user_phone") || "";
+    if (savedSessionId) {
+      setSmartChatSession({ id: savedSessionId, userName: savedName, userPhone: savedPhone });
+      setSmartChatUserName(savedName);
+      setSmartChatUserPhone(savedPhone);
+      fetchSmartMessages(savedSessionId);
+
+      const userInterval = setInterval(() => {
+        fetchSmartMessages(savedSessionId);
+      }, 5000);
+      return () => clearInterval(userInterval);
+    }
+  }, []);
+
+  // Poll for Admin Panel
+  useEffect(() => {
+    if (activeTab === "superadmin" && superAdminSubTab === "smart_chat") {
+      fetchAllSmartChats();
+      const adminInterval = setInterval(fetchAllSmartChats, 4000);
+      return () => clearInterval(adminInterval);
+    }
+  }, [activeTab, superAdminSubTab]);
 
   useEffect(() => {
     if (activeCoachMember) {
@@ -1186,7 +1582,7 @@ export default function App() {
         <header className="sticky top-0 z-50 glass-panel border-b border-white/10 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab("landing")}>
-              <GymLogo showText={true} size="md" isDark={isDarkMode} brandText={platformBrandLogo} themeColor={platformTheme} />
+              <GymLogo showText={true} size="md" isDark={isDarkMode} brandText={platformBrandLogo} themeColor={platformTheme} logoUrl={platformLogoUrl} />
             </div>
 
             {/* Desktop Navigation Link Tabs */}
@@ -1516,76 +1912,53 @@ export default function App() {
 
               <div className="grid md:grid-cols-3 gap-6">
                 
-                {/* Card 1 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-blue-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400">
-                    <Dumbbell className="w-6 h-6" />
+                {/* Feature Card 1: AI Coach Engine */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-emerald-500/30 transition-all hover:translate-y-[-2px] text-right" dir="rtl">
+                  <div className="w-12 h-12 bg-emerald-600/20 rounded-2xl flex items-center justify-center text-emerald-400 text-2xl font-black">
+                    🧠
                   </div>
-                  <h3 className="text-lg font-bold">پلیر هوشمند تمرین اعضا</h3>
+                  <h3 className="text-base font-black text-white">طراحی برنامه با هوش مصنوعی (AI Coach Engine)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    ورزشکار در حین تمرین زنده، انیمیشن اجرای حرکت، عضلات درگیر، تایمر ست و تایمر استراحت را با قابلیت سوئیچ خودکار مشاهده می‌کند. تجربه‌ای فراتر از کاغذ و فایل PDF.
+                    ایجاد خودکار برنامه‌های ورزشی و رژیم‌های غذایی کاملاً علمی منطبق بر تیپ بدنی، سطح سابقه و بیومتریک اعضا با تکیه بر مدل نوین هوش مصنوعی Gemini 3.5 در کمتر از ۳ ثانیه.
                   </p>
+                  <div className="border-t border-white/5 pt-3 flex items-center justify-between text-[10px] text-emerald-400">
+                    <span>ثبت اتوماتیک رکوردهای بدنی</span>
+                    <span>Gemini 3.5 • فعال</span>
+                  </div>
                 </div>
 
-                {/* Card 2 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-emerald-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-emerald-600/20 rounded-2xl flex items-center justify-center text-emerald-400">
-                    <Sparkles className="w-6 h-6" />
+                {/* Feature Card 2: Smart QR Attendance */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-blue-500/30 transition-all hover:translate-y-[-2px] text-right" dir="rtl">
+                  <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 text-2xl font-black">
+                    ⚡
                   </div>
-                  <h3 className="text-lg font-bold">دستیار و مربی هوش مصنوعی</h3>
+                  <h3 className="text-base font-black text-white">اتوماسیون کلوپ و گیت هوشمند (Smart QR Gateway)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    با وارد کردن اطلاعات پایه‌ای ورزشکار، مربی می‌تواند برنامه‌های تمرینی هفتگی و برنامه‌های غذایی بهینه‌شده به همراه لیست خرید را در چند ثانیه از هوش مصنوعی دریافت کند.
+                    حضور و غیاب پیشرفته ورزشکاران با بارکدخوان و کد QR پویا در اپلیکیشن، متصل به کمدها و ثبت سوابق تردد به صورت زنده در پنل مدیریت شعبه با نظارت تصویری.
                   </p>
+                  <div className="border-t border-white/5 pt-3 flex items-center justify-between text-[10px] text-blue-400">
+                    <span>کاهش ترافیک پذیرش کلوپ</span>
+                    <span>شناسه QR پویا • هوشمند</span>
+                  </div>
                 </div>
 
-                {/* Card 3 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-purple-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-purple-600/20 rounded-2xl flex items-center justify-center text-purple-400">
-                    <Layers className="w-6 h-6" />
+                {/* Feature Card 3: White-label SaaS Platform */}
+                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-violet-500/30 transition-all hover:translate-y-[-2px] text-right" dir="rtl">
+                  <div className="w-12 h-12 bg-violet-600/20 rounded-2xl flex items-center justify-center text-violet-400 text-2xl font-black">
+                    🌐
                   </div>
-                  <h3 className="text-lg font-bold">وایت لیبل کامل و اختصاصی</h3>
+                  <h3 className="text-base font-black text-white">پورتال اختصاصی وایت‌لیبل (White-Label App)</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    امکان شخصی‌سازی کامل لوگو، تغییر رنگ‌های داشبورد، اتصال ساب‌دامین اختصاصی و فرم‌های ثبت‌نام برای هر یک از مدیران باشگاه به صورت کاملاً مستقل و مجزا.
+                    ارائه آدرس دامنه شخصی، آپلود لوگو، رنگ‌بندی دلخواه کلوپ و اپلیکیشن وب شیشه‌ای (PWA) بدون نیاز به نصب ویژه برای نمایش برنامه‌ها، پرداخت‌ها و فاکتورها.
                   </p>
-                </div>
-
-                {/* Card 4 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-orange-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-orange-600/20 rounded-2xl flex items-center justify-center text-orange-400">
-                    <Users className="w-6 h-6" />
+                  <div className="border-t border-white/5 pt-3 flex items-center justify-between text-[10px] text-violet-400">
+                    <span>اتصال دامنه دلخواه</span>
+                    <span>برندسازی اختصاصی • پیشرفته</span>
                   </div>
-                  <h3 className="text-lg font-bold">مدیریت شعب و پرسنل</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    بخش مدیریت دسترسی‌ها برای سوپروایزر، منشی پذیرش، مدیر مالی، مربی ارشد و متخصص تغذیه با سطوح دسترسی پیشرفته و تفکیک‌شده.
-                  </p>
-                </div>
-
-                {/* Card 5 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-pink-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-pink-600/20 rounded-2xl flex items-center justify-center text-pink-400">
-                    <ShoppingBag className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold">فروشگاه بوفه و انبارداری</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    مدیریت مکمل‌ها، نوشیدنی‌ها و تجهیزات ورزشی به همراه بارکد اختصاصی، نوتیفیکیشن هشدار اتمام موجودی انبار و پرداخت از کیف پول اعضا.
-                  </p>
-                </div>
-
-                {/* Card 6 */}
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4 hover:border-cyan-500/30 transition-all hover:translate-y-[-2px]">
-                  <div className="w-12 h-12 bg-cyan-600/20 rounded-2xl flex items-center justify-center text-cyan-400">
-                    <CheckCircle className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold">حضوروغیاب با کد QR هوشمند</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    ورزشکار به محض ورود، کد QR اختصاصی پنل خود را جلو رسیور یا منشی قرار داده و سیستم به صورت خودکار زمان ورود، خروج و مانده جلسات را محاسبه می‌کند.
-                  </p>
                 </div>
 
               </div>
             </div>
-
-
 
             {/* Visual illustration of two athletes comparison */}
             <div className="bg-gradient-to-br from-indigo-950/20 via-slate-900/40 to-slate-950/80 p-6 md:p-8 rounded-[2.5rem] border border-white/5 space-y-8 mb-8">
@@ -1836,6 +2209,12 @@ export default function App() {
               >
                 ⚙️ تنظیمات پلتفرم و درگاه بانکی
               </button>
+              <button
+                onClick={() => setSuperAdminSubTab("smart_chat")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "smart_chat" ? "bg-green-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                💬 گفتگوهای زنده اسمارْت
+              </button>
             </div>
 
             {superAdminSubTab === "dashboard" && (
@@ -2066,13 +2445,19 @@ export default function App() {
                   <button 
                     onClick={() => {
                       const newId = `plan_${Date.now()}`;
+                      const defaultFeatureIds = ["info", "buffet", "attendance"];
+                      const defaultFeaturesList = defaultFeatureIds.map(id => {
+                        const feat = SYSTEM_FEATURES.find(f => f.id === id);
+                        return feat ? feat.label : id;
+                      });
                       const customPlan = {
                         id: newId,
                         name: "پلن جدید سفارشی اسمارت جیم",
                         priceToman: 4500000,
                         priceIrr: 45000000,
                         durationMonths: 6,
-                        features: ["کاربران نامحدود", "پشتیبانی تیکتی VIP", "آنالیز فیزیکی هوشمند", "اتصال درگاه پرداخت اختصاصی"],
+                        features: defaultFeaturesList,
+                        unlockedFeatureIds: defaultFeatureIds,
                         isPopular: false
                       };
                       setSubscriptionPlans([...subscriptionPlans, customPlan]);
@@ -2133,18 +2518,97 @@ export default function App() {
                               className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-lg text-emerald-400 w-28 text-xs font-mono text-center font-bold"
                             />
                           </td>
-                          <td className="py-4 text-slate-400 text-right">
-                            <input
-                              type="text"
-                              value={plan.features.join(", ")}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                const featuresList = val.split(",").map(f => f.trim()).filter(Boolean);
-                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, features: featuresList } : p));
-                              }}
-                              className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-lg text-slate-200 w-full text-xs font-bold text-right"
-                              placeholder="مطلب ۱، مطلب ۲، مطلب ۳"
-                            />
+                           <td className="py-4 text-slate-400 text-right min-w-[320px]">
+                            <div className="relative">
+                              {/* Selection triggers dropdown/popover */}
+                              <div 
+                                onClick={() => setActivePlanFeaturesEditId(activePlanFeaturesEditId === plan.id ? null : plan.id)}
+                                className="bg-slate-950 border border-white/10 p-2.5 rounded-2xl cursor-pointer hover:border-emerald-500/30 transition-all space-y-1.5 min-h-[44px]"
+                              >
+                                <div className="flex flex-wrap gap-1">
+                                  {(!plan.unlockedFeatureIds || plan.unlockedFeatureIds.length === 0) ? (
+                                    <span className="text-[10px] text-slate-500">❌ هیچ امکانی برای این طرح فعال نشده است</span>
+                                  ) : (
+                                    plan.unlockedFeatureIds.map((fid: string) => {
+                                      const feat = SYSTEM_FEATURES.find(f => f.id === fid);
+                                      return (
+                                        <span key={fid} className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-500/10 flex items-center gap-1">
+                                          {feat ? feat.label.split(" ")[0] : "⚙️"} {feat ? feat.label.replace(/^[^a-zA-Z0-9\s]*\s*/, '') : fid}
+                                        </span>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                                <div className="text-[9px] text-slate-400 font-bold flex items-center justify-between">
+                                  <span className="text-emerald-500 hover:underline">📥 کلیک کنید تا امکانات را انتخاب کنید</span>
+                                  <span>{plan.unlockedFeatureIds?.length || 0} مورد انتخاب شده</span>
+                                </div>
+                              </div>
+                              
+                              {/* Popover list of features */}
+                              {activePlanFeaturesEditId === plan.id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setActivePlanFeaturesEditId(null)}></div>
+                                  <div className="absolute right-0 top-full mt-2 w-80 bg-slate-950 border border-white/15 rounded-3xl shadow-2xl p-4 space-y-3 z-40 animate-scale-up text-right" dir="rtl">
+                                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                                      <span className="text-xs font-black text-white">انتخاب هوشمند امکانات لایسنس</span>
+                                      <button 
+                                        onClick={() => setActivePlanFeaturesEditId(null)}
+                                        className="text-[10px] text-slate-400 hover:text-white font-bold bg-white/5 px-2 py-1 rounded-md"
+                                      >
+                                        بستن
+                                      </button>
+                                    </div>
+                                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                      {SYSTEM_FEATURES.map((feat) => {
+                                        const isSelected = (plan.unlockedFeatureIds || []).includes(feat.id);
+                                        return (
+                                          <div 
+                                            key={feat.id} 
+                                            onClick={() => {
+                                              const currentIds = plan.unlockedFeatureIds || [];
+                                              let nextIds: string[];
+                                              if (isSelected) {
+                                                nextIds = currentIds.filter(id => id !== feat.id);
+                                              } else {
+                                                nextIds = [...currentIds, feat.id];
+                                              }
+                                              
+                                              // Synchronize textual description list as requested ("به امکانات اون اشتراک اضافه شود")
+                                              const nextTextFeatures = nextIds.map(id => {
+                                                const item = SYSTEM_FEATURES.find(f => f.id === id);
+                                                return item ? item.label : id;
+                                              });
+
+                                              setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { 
+                                                ...p, 
+                                                unlockedFeatureIds: nextIds,
+                                                features: nextTextFeatures
+                                              } : p));
+                                            }}
+                                            className={`flex items-start gap-2.5 p-2 rounded-2xl cursor-pointer transition-all border ${isSelected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-slate-900/40 border-transparent hover:bg-white/5"}`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isSelected}
+                                              readOnly
+                                              className="mt-1 rounded border-white/10 bg-slate-950 text-emerald-500 focus:ring-emerald-500/50 w-3.5 h-3.5"
+                                            />
+                                            <div className="text-right">
+                                              <span className="text-xs font-extrabold text-slate-200 block">{feat.label}</span>
+                                              <span className="text-[9px] text-slate-400 block mt-0.5 leading-tight">{feat.desc}</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 text-center pt-2 border-t border-white/5">
+                                      تغییرات به صورت زنده ذخیره می‌شوند.
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 text-center">
                             <button
@@ -2187,6 +2651,218 @@ export default function App() {
                 setTickets={setTickets}
                 currentUserLabel="پشتیبانی سراسری اسمارت جیم"
               />
+            )}
+
+            {superAdminSubTab === "smart_chat" && (
+              <div className="grid lg:grid-cols-12 gap-8 animate-fade-in text-right text-xs font-sans" dir="rtl">
+                
+                {/* 1. Chats List Column */}
+                <div className="lg:col-span-4 bg-slate-900/40 border border-white/5 p-5 rounded-3xl space-y-4 self-start">
+                  <div className="border-b border-white/5 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      💬 گفتگوهای فعال با اسمارْت ({allSmartChats.length})
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-1">لیست تمام پیام‌های ورودی از طرف کاربران لندینگ پلتفرم</p>
+                  </div>
+
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                    {allSmartChats.length === 0 ? (
+                      <p className="text-slate-500 text-center py-8">هیچ گفتگوی فعالی ثبت نشده است.</p>
+                    ) : (
+                      allSmartChats.map((chat) => {
+                        const lastMsg = chat.messages && chat.messages.length > 0 
+                          ? chat.messages[chat.messages.length - 1] 
+                          : null;
+                        const needsReply = lastMsg && lastMsg.sender === "user";
+                        const isSelected = activeAdminChatId === chat.id;
+
+                        return (
+                          <div
+                            key={chat.id}
+                            onClick={() => {
+                              setActiveAdminChatId(chat.id);
+                              // Load messages of this selected chat
+                              setSmartChatMessages(chat.messages || []);
+                            }}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
+                              isSelected
+                                ? "bg-green-600/10 border-green-500/40"
+                                : needsReply
+                                  ? "bg-slate-900 border-yellow-500/30 hover:border-white/20"
+                                  : "bg-slate-950/60 border-white/5 hover:bg-slate-900"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-extrabold text-[10px]">
+                                  {chat.userName ? chat.userName.charAt(0) : "ک"}
+                                </div>
+                                <div className="text-right">
+                                  <h4 className="font-bold text-white">{chat.userName || "کاربر مهمان"}</h4>
+                                  {chat.userPhone && (
+                                    <span className="text-[9px] text-slate-400 font-mono block">{chat.userPhone}</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {needsReply && (
+                                <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[8px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                                  نیاز به پاسخ
+                                </span>
+                              )}
+                            </div>
+
+                            {lastMsg && (
+                              <p className="text-slate-400 text-[10px] truncate leading-relaxed">
+                                <span className="text-slate-500 font-bold">آخرین پیام:</span> {lastMsg.text}
+                              </p>
+                            )}
+
+                            <span className="text-[8px] text-slate-600 font-mono self-start">
+                              بروزرسانی: {new Date(chat.updatedAt || chat.createdAt).toLocaleTimeString('fa-IR')}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Active Chat Panel Column */}
+                <div className="lg:col-span-8 bg-slate-900/20 border border-white/5 p-6 rounded-3xl min-h-[480px] flex flex-col justify-between">
+                  {activeAdminChatId ? (
+                    (() => {
+                      const selectedChat = allSmartChats.find(c => c.id === activeAdminChatId);
+                      if (!selectedChat) return null;
+
+                      return (
+                        <div className="flex flex-col h-full justify-between gap-4">
+                          {/* Header */}
+                          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                            <div>
+                              <span className="text-emerald-400 font-bold text-[10px] block">در حال پاسخگویی به نوبت:</span>
+                              <h3 className="text-sm font-black text-white">{selectedChat.userName || "کاربر مهمان"}</h3>
+                              {selectedChat.userPhone && (
+                                <p className="text-[9px] text-slate-500 font-mono mt-0.5">تلفن: {selectedChat.userPhone}</p>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={async () => {
+                                if (confirm("آیا مایل به حذف این گفتگو و تاریخچه آن هستید؟")) {
+                                  try {
+                                    const { deleteDoc, doc } = await import("./lib/firebase");
+                                    await deleteDoc(doc(db, "smart_support_chats", selectedChat.id));
+                                    setActiveAdminChatId("");
+                                    fetchAllSmartChats();
+                                  } catch (e) {
+                                    console.error("Error deleting chat:", e);
+                                  }
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-400 font-bold text-[10px] bg-red-500/5 px-3 py-1.5 rounded-xl border border-red-500/10 transition-colors"
+                            >
+                              🗑️ حذف گفتگو
+                            </button>
+                          </div>
+
+                          {/* Messages Window */}
+                          <div className="bg-slate-950/80 p-4 rounded-2xl border border-white/5 space-y-3 overflow-y-auto flex-1 max-h-[350px] min-h-[240px] flex flex-col">
+                            {(selectedChat.messages || []).map((msg: any) => {
+                              const isUser = msg.sender === "user";
+                              const isAI = msg.sender === "smart_ai";
+                              return (
+                                <div
+                                  key={msg.id}
+                                  className={`flex flex-col max-w-[70%] ${isUser ? "self-end text-left" : "self-start text-right"}`}
+                                >
+                                  <span className="text-[8px] text-slate-500 mb-0.5 px-1 font-mono">
+                                    {isUser ? "کاربر" : isAI ? "هوش مصنوعی اسمارْت (بات)" : "شما (ادمین/پشتیبان)"}
+                                  </span>
+                                  <div
+                                    className={`p-3 rounded-2xl leading-relaxed text-[11px] ${
+                                      isUser
+                                        ? "bg-slate-900 text-slate-100 rounded-tl-none border border-white/5"
+                                        : isAI
+                                          ? "bg-green-600/10 text-green-400 border border-green-500/20 rounded-tr-none font-medium"
+                                          : "bg-green-600 text-slate-950 font-black rounded-tr-none"
+                                    }`}
+                                  >
+                                    {msg.text}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Pre-saved templates quick buttons */}
+                          <div className="space-y-1.5">
+                            <span className="text-[9px] text-slate-500">پاسخ‌های سریع پیش‌فرض:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                onClick={() => setAdminReplyText("سلام قهرمان عزیز! چطور می‌توانم در مورد پلتفرم اسمارت جیم راهنمایی‌تان کنم؟ 🦾")}
+                                className="bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg px-2.5 py-1 text-[9px] border border-white/5"
+                              >
+                                📋 خوش‌آمدگویی
+                              </button>
+                              <button
+                                onClick={() => setAdminReplyText("پلن‌های اشتراکی اسمارت جیم در بخش سوپر ادمین به صورت پویا قابل ویرایش و خریداری هستند و ویژگی‌های متعددی دارند. 😊")}
+                                className="bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg px-2.5 py-1 text-[9px] border border-white/5"
+                              >
+                                💳 توضیح پلن‌ها
+                              </button>
+                              <button
+                                onClick={() => setAdminReplyText("شماره تماس شما دریافت شد. یکی از مربیان یا پشتیبانان فنی ما به زودی با شما تماس خواهند گرفت. 📞")}
+                                className="bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg px-2.5 py-1 text-[9px] border border-white/5"
+                              >
+                                📞 پیگیری تماس
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Input Area */}
+                          <div className="flex gap-2.5">
+                            <input
+                              type="text"
+                              value={adminReplyText}
+                              onChange={(e) => setAdminReplyText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  sendAdminReply(selectedChat.id);
+                                }
+                              }}
+                              placeholder="پاسخ خود را بنویسید..."
+                              className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-green-500 text-xs"
+                            />
+                            <button
+                              onClick={() => sendAdminReply(selectedChat.id)}
+                              className="bg-green-600 hover:bg-green-500 text-slate-950 font-black px-6 rounded-xl transition-all text-xs"
+                            >
+                              ارسال پاسخ زنده
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    /* Default Intro State when no chat is selected */
+                    <div className="flex flex-col items-center justify-center space-y-4 my-auto py-12 text-center">
+                      <img
+                        src={mascotSmartLaptop}
+                        alt="Smart"
+                        className="w-24 h-24 rounded-full border-2 border-green-500/30 object-cover shadow-xl animate-pulse"
+                      />
+                      <div className="space-y-1 max-w-sm">
+                        <h4 className="font-black text-white text-sm">محیط مدیریت و پاسخگویی اسمارْت</h4>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          جهت مشاهده گفتگوها، پیگیری کاربران لندینگ پلتفرم و ارسال پاسخ‌های زنده، لطفاً یکی از گفتگوها را از منوی سمت راست انتخاب کنید.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
             )}
 
             {superAdminSubTab === "settings" && (
@@ -2235,6 +2911,54 @@ export default function App() {
                             <span className="text-[9px] text-slate-400">{preset.label}</span>
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 border-t border-white/5 pt-4">
+                      <label className="text-xs text-slate-300 block mb-2 font-bold">📤 بارگذاری لوگوی اختصاصی سایت (تصویر PNG یا JPG)</label>
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative overflow-hidden bg-slate-950 border border-white/10 hover:border-emerald-500/50 p-4 rounded-xl flex items-center gap-3 cursor-pointer transition-all w-full sm:w-auto">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  if (typeof reader.result === "string") {
+                                    setPlatformLogoUrl(reader.result);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <span className="text-2xl">📤</span>
+                          <div className="text-right">
+                            <span className="text-xs font-bold text-white block">انتخاب فایل لوگوی جدید...</span>
+                            <span className="text-[9px] text-slate-500 block">فایل مناسب با پس‌زمینه شفاف ترجیح داده می‌شود</span>
+                          </div>
+                        </div>
+
+                        {platformLogoUrl ? (
+                          <div className="flex items-center gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-white/10 w-full sm:w-auto justify-between sm:justify-start">
+                            <div className="flex items-center gap-2">
+                              <img src={platformLogoUrl} alt="Logo Preview" className="w-10 h-10 object-contain rounded-lg bg-slate-900 border border-white/5 p-1" />
+                              <span className="text-[10px] text-emerald-400 font-bold">✔ لوگو با موفقیت لود شد</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPlatformLogoUrl("")}
+                              className="text-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                              حذف و استفاده از لوگوی پیش‌فرض
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">لوگویی بارگذاری نشده است؛ در حال حاضر لوگوی پیش‌فرض نمایش داده می‌شود.</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2360,7 +3084,18 @@ export default function App() {
                 <div className="flex justify-end pt-2">
                   <button
                     type="button"
-                    onClick={() => alert("تمامی تنظیمات برندینگ، متون صفحه فرود و درگاه‌های زرین‌پال و سپ با موفقیت ذخیره شدند و روی کل پلتفرم اعمال گردیدند.")}
+                    onClick={() => {
+                      localStorage.setItem("platformBrandLogo", platformBrandLogo);
+                      localStorage.setItem("platformTheme", platformTheme);
+                      localStorage.setItem("platformLogoUrl", platformLogoUrl);
+                      localStorage.setItem("platformLandingTitle", platformLandingTitle);
+                      localStorage.setItem("platformLandingSubtitle", platformLandingSubtitle);
+                      localStorage.setItem("gatewayZarinpalEnabled", String(gatewayZarinpalEnabled));
+                      localStorage.setItem("gatewayZarinpalMerchant", gatewayZarinpalMerchant);
+                      localStorage.setItem("gatewaySepEnabled", String(gatewaySepEnabled));
+                      localStorage.setItem("gatewaySepTerminalId", gatewaySepTerminalId);
+                      alert("💾 تمامی تنظیمات برندینگ، بارگذاری لوگو، تم رنگ، متون صفحه فرود و درگاه‌های پرداخت با موفقیت در فضای ابری محلی ذخیره شدند و به صورت آنی در کل پلتفرم اعمال گردیدند!");
+                    }}
                     className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-3 rounded-2xl text-xs transition-all shadow-lg shadow-emerald-950/20"
                   >
                     💾 ذخیره نهایی و اعمال تنظیمات عمومی
@@ -2520,10 +3255,16 @@ export default function App() {
                   🔋 شارژ و تمدید اشتراک
                 </button>
                 <button 
-                  onClick={() => setShowTenantBrandModal(true)}
-                  className="bg-white/5 hover:bg-white/10 text-slate-300 text-xs px-3 py-1.5 rounded-xl border border-white/10"
+                  onClick={() => {
+                    if (!isTenantFeatureActive("white_label")) {
+                      alert("❌ قابلیت 'شخصی‌سازی برند و لوگو (White-Label)' در لایسنس فعلی باشگاه شما فعال نیست. لطفاً برای دسترسی به این ابزار نسبت به ارتقای اشتراک خود اقدام فرمایید.");
+                    } else {
+                      setShowTenantBrandModal(true);
+                    }
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-xl border transition-all ${isTenantFeatureActive("white_label") ? "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10" : "bg-red-500/10 text-red-400 border-red-500/20 opacity-60"}`}
                 >
-                  ⚙️ شخصی‌سازی برند باشگاه
+                  ⚙️ شخصی‌سازی برند باشگاه {!isTenantFeatureActive("white_label") && "🔒"}
                 </button>
                 <button 
                   onClick={() => {
@@ -2794,11 +3535,15 @@ export default function App() {
                   </div>
                   <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
                     <span className="text-[9px] text-slate-500 block">آدرس و نقشه تعاملی</span>
-                    <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                    {isTenantFeatureActive("info") ? (
+                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
+                    ) : (
+                      <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به ارتقا)</span>
+                    )}
                   </div>
                   <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
                     <span className="text-[9px] text-slate-500 block">پشتیبانی و تیکت ابری</span>
-                    {!(loggedInTenant.planName && loggedInTenant.planName.includes("برنزی")) ? (
+                    {isTenantFeatureActive("support") ? (
                       <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
                     ) : (
                       <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به ارتقا)</span>
@@ -2806,10 +3551,10 @@ export default function App() {
                   </div>
                   <div className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1">
                     <span className="text-[9px] text-slate-500 block">مدیریت مربیان و امور مالی</span>
-                    {(loggedInTenant.planName && (loggedInTenant.planName.includes("طلایی") || loggedInTenant.planName.includes("سالانه"))) ? (
+                    {isTenantFeatureActive("coaches") ? (
                       <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">🟢 فعال در لایسنس</span>
                     ) : (
-                      <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به طلایی)</span>
+                      <span className="text-xs text-red-400 font-bold flex items-center gap-1">🔒 غیرفعال (نیاز به ارتقا)</span>
                     )}
                   </div>
                 </div>
@@ -2828,39 +3573,43 @@ export default function App() {
                 onClick={() => {
                   if (subscriptionDaysLeft === 0) {
                     alert("🚨 اشتراک باشگاه شما منقضی شده است! لطفاً جهت دسترسی به تنظیمات ساعت و نقشه ابتدا اشتراک خود را شارژ نمایید.");
+                  } else if (!isTenantFeatureActive("info")) {
+                    alert("❌ قابلیت 'ساعت کاری و آدرس باشگاه' در اشتراک فعلی شما فعال نیست. لطفاً برای استفاده از این امکان اشتراک خود را ارتقا دهید.");
                   } else {
                     setTenantSubTab("info");
                   }
                 }}
-                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "info" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${subscriptionDaysLeft === 0 ? "opacity-40" : ""}`}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "info" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${(subscriptionDaysLeft === 0 || !isTenantFeatureActive("info")) ? "opacity-40" : ""}`}
               >
-                🕒 ساعت کاری و آدرس باشگاه {subscriptionDaysLeft === 0 && "🔒"}
+                🕒 ساعت کاری و آدرس باشگاه {(subscriptionDaysLeft === 0 || !isTenantFeatureActive("info")) && "🔒"}
               </button>
               <button
                 onClick={() => {
                   if (subscriptionDaysLeft === 0) {
                     alert("🚨 اشتراک باشگاه شما منقضی شده است! لطفاً ابتدا اشتراک خود را تمدید کنید.");
-                  } else if (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی")) {
-                    alert("❌ قابلیت پشتیبانی و تیکت ابری در لایسنس پایه (برنزی) شما فعال نیست. لطفاً اشتراک خود را به پلن نقره‌ای یا طلایی ارتقا دهید.");
+                  } else if (!isTenantFeatureActive("support")) {
+                    alert("❌ قابلیت 'پشتیبانی و تیکت ابری' در لایسنس فعلی شما فعال نیست. لطفاً اشتراک خود را به پلن مجهز به این ویژگی ارتقا دهید.");
                   } else {
                     setTenantSubTab("support");
                   }
                 }}
-                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "support" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${(subscriptionDaysLeft === 0 || (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی"))) ? "opacity-40" : ""}`}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "support" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${(subscriptionDaysLeft === 0 || !isTenantFeatureActive("support")) ? "opacity-40" : ""}`}
               >
-                🎫 تیکت و پشتیبانی ابری {(subscriptionDaysLeft === 0 || (loggedInTenant.planName && loggedInTenant.planName.includes("برنزی"))) && "🔒"}
+                🎫 تیکت و پشتیبانی ابری {(subscriptionDaysLeft === 0 || !isTenantFeatureActive("support")) && "🔒"}
               </button>
               <button
                 onClick={() => {
                   if (subscriptionDaysLeft === 0) {
                     alert("🚨 اشتراک باشگاه شما منقضی شده است! دسترسی به مدیریت مربیان تا زمان تمدید اشتراک مسدود است.");
+                  } else if (!isTenantFeatureActive("coaches")) {
+                    alert("❌ قابلیت 'مدیریت مربیان و ریز درآمد' در لایسنس فعلی شما فعال نیست. لطفاً اشتراک خود را ارتقا دهید.");
                   } else {
                     setTenantSubTab("coaches");
                   }
                 }}
-                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "coaches" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${subscriptionDaysLeft === 0 ? "opacity-40" : ""}`}
+                className={`px-6 py-3 font-bold text-xs transition-all border-b-2 shrink-0 ${tenantSubTab === "coaches" ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400 hover:text-slate-200"} ${(subscriptionDaysLeft === 0 || !isTenantFeatureActive("coaches")) ? "opacity-40" : ""}`}
               >
-                🏋️‍♂️ مدیریت مربیان و ریز درآمد {subscriptionDaysLeft === 0 && "🔒"}
+                🏋️‍♂️ مدیریت مربیان و ریز درآمد {(subscriptionDaysLeft === 0 || !isTenantFeatureActive("coaches")) && "🔒"}
               </button>
             </div>
 
@@ -2892,7 +3641,11 @@ export default function App() {
               <div className="bg-slate-900/40 border border-white/5 p-4 rounded-2xl">
                 <span className="text-[10px] text-slate-500 block mb-1">درآمد مالی ماه جاری باشگاه</span>
                 <span className="text-xl font-bold text-white">۴۸,۲۰۰,۰۰۰ تومان</span>
-                <span className="text-[9px] block text-emerald-400 mt-1">از درگاه پرداخت مستقیم</span>
+                {isTenantFeatureActive("payment_gateway") ? (
+                  <span className="text-[9px] block text-emerald-400 mt-1">🟢 متصل به درگاه پرداخت مستقیم شتاب</span>
+                ) : (
+                  <span className="text-[9px] block text-amber-400 mt-1">⚠️ بدون درگاه پرداخت فعال (نقدی / کارت‌به‌کارت)</span>
+                )}
               </div>
               <div className="bg-slate-900/40 border border-white/5 p-4 rounded-2xl">
                 <span className="text-[10px] text-slate-500 block mb-1">تعداد شاگردان فعال عضو</span>
@@ -3094,107 +3847,118 @@ export default function App() {
               </div>
 
               {/* Buffet Supplements Inventory Shop */}
-              <div className="glass-panel p-6 rounded-3xl border border-white/10 space-y-4">
-                <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-5 h-5 text-emerald-400" />
-                    <h3 className="text-sm font-bold">بوفه هوشمند و انبارداری فروشگاهی (Supplement Store)</h3>
+              <div className="relative overflow-hidden rounded-3xl">
+                <div className={`glass-panel p-6 border border-white/10 space-y-4 ${!isTenantFeatureActive("buffet") ? "blur-[2px] pointer-events-none opacity-40 select-none" : ""}`}>
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-5 h-5 text-emerald-400" />
+                      <h3 className="text-sm font-bold">بوفه هوشمند و انبارداری فروشگاهی (Supplement Store)</h3>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full">امکان پرداخت از کیف‌پول</span>
                   </div>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full">امکان پرداخت از کیف‌پول</span>
-                </div>
 
-                {/* Store Products List */}
-                <div className="space-y-3 max-h-[180px] overflow-y-auto">
-                  {storeProducts.map((p) => (
-                    <div key={p.id} className="bg-slate-950 p-2.5 rounded-2xl border border-white/5 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-slate-200 block">{p.name}</span>
-                        <span className="text-[10px] text-slate-500 mt-0.5 block">برند: {p.brand} | بارکد: {p.barcode || "ثبت نشده"}</span>
-                      </div>
-                      <div className="text-left flex items-center gap-3">
+                  {/* Store Products List */}
+                  <div className="space-y-3 max-h-[180px] overflow-y-auto">
+                    {storeProducts.map((p) => (
+                      <div key={p.id} className="bg-slate-950 p-2.5 rounded-2xl border border-white/5 flex items-center justify-between text-xs">
                         <div>
-                          <span className="text-emerald-400 font-bold block">{p.priceToman.toLocaleString()} تومان</span>
-                          <span className={`text-[10px] block mt-0.5 ${p.stock <= p.minStockAlert ? "text-red-400 font-bold" : "text-slate-400"}`}>
-                            موجودی: {p.stock} عدد {p.stock <= p.minStockAlert && "(هشدار شارژ)"}
-                          </span>
+                          <span className="font-bold text-slate-200 block">{p.name}</span>
+                          <span className="text-[10px] text-slate-500 mt-0.5 block">برند: {p.brand} | بارکد: {p.barcode || "ثبت نشده"}</span>
                         </div>
-                        <button 
-                          onClick={() => {
-                            alert(`فروش ۱ عدد "${p.name}" با موفقیت ثبت شد و از موجودی انبار کسر گردید.`);
-                            setStoreProducts(storeProducts.map(item => item.id === p.id ? { ...item, stock: item.stock - 1 } : item));
-                          }}
-                          className="bg-slate-800 hover:bg-slate-700 text-white p-1.5 rounded-lg"
-                        >
-                          فروش
-                        </button>
+                        <div className="text-left flex items-center gap-3">
+                          <div>
+                            <span className="text-emerald-400 font-bold block">{p.priceToman.toLocaleString()} تومان</span>
+                            <span className={`text-[10px] block mt-0.5 ${p.stock <= p.minStockAlert ? "text-red-400 font-bold" : "text-slate-400"}`}>
+                              موجودی: {p.stock} عدد {p.stock <= p.minStockAlert && "(هشدار شارژ)"}
+                            </span>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              alert(`فروش ۱ عدد "${p.name}" با موفقیت ثبت شد و از موجودی انبار کسر گردید.`);
+                              setStoreProducts(storeProducts.map(item => item.id === p.id ? { ...item, stock: item.stock - 1 } : item));
+                            }}
+                            className="bg-slate-800 hover:bg-slate-700 text-white p-1.5 rounded-lg"
+                          >
+                            فروش
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Create product form */}
+                  <form onSubmit={handleCreateProduct} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 space-y-3 text-xs">
+                    <span className="font-bold block text-slate-300">افزودن آیتم جدید به انبار بوفه</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-400 block mb-0.5">نام محصول</label>
+                        <input 
+                          type="text" 
+                          value={newProduct.name}
+                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          placeholder="پروتئین وی..."
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-0.5">برند تولیدی</label>
+                        <input 
+                          type="text" 
+                          value={newProduct.brand}
+                          onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                        />
                       </div>
                     </div>
-                  ))}
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-slate-400 block mb-0.5">قیمت (تومان)</label>
+                        <input 
+                          type="number" 
+                          value={newProduct.priceToman}
+                          onChange={(e) => setNewProduct({ ...newProduct, priceToman: Number(e.target.value) })}
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-0.5">موجودی اولیه</label>
+                        <input 
+                          type="number" 
+                          value={newProduct.stock}
+                          onChange={(e) => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-0.5">بارکد کالا</label>
+                        <input 
+                          type="text" 
+                          value={newProduct.barcode}
+                          onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2 rounded-xl transition-all"
+                    >
+                      افزودن و ثبت کالا
+                    </button>
+                  </form>
                 </div>
-
-                {/* Create product form */}
-                <form onSubmit={handleCreateProduct} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 space-y-3 text-xs">
-                  <span className="font-bold block text-slate-300">افزودن آیتم جدید به انبار بوفه</span>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-slate-400 block mb-0.5">نام محصول</label>
-                      <input 
-                        type="text" 
-                        value={newProduct.name}
-                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                        placeholder="پروتئین وی..."
-                        className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-slate-400 block mb-0.5">برند تولیدی</label>
-                      <input 
-                        type="text" 
-                        value={newProduct.brand}
-                        onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                        className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
-                      />
-                    </div>
+                {!isTenantFeatureActive("buffet") && (
+                  <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10" dir="rtl">
+                    <span className="text-3xl mb-2">🔒</span>
+                    <h4 className="text-sm font-black text-white">بوفه هوشمند و انبارداری در لایسنس شما فعال نیست</h4>
+                    <p className="text-[10px] text-slate-300 max-w-xs mt-1.5 leading-relaxed">
+                      این قابلیت لایسنس پلتفرم در اشتراک فعلی شما فعال نشده است. برای دسترسی فوری لطفاً از طریق دکمه ارتقای لایسنس، اشتراک خود را تغییر دهید.
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-slate-400 block mb-0.5">قیمت (تومان)</label>
-                      <input 
-                        type="number" 
-                        value={newProduct.priceToman}
-                        onChange={(e) => setNewProduct({ ...newProduct, priceToman: Number(e.target.value) })}
-                        className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-slate-400 block mb-0.5">موجودی اولیه</label>
-                      <input 
-                        type="number" 
-                        value={newProduct.stock}
-                        onChange={(e) => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
-                        className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-slate-400 block mb-0.5">بارکد کالا</label>
-                      <input 
-                        type="text" 
-                        value={newProduct.barcode}
-                        onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                        className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2 rounded-xl transition-all"
-                  >
-                    افزودن و ثبت کالا
-                  </button>
-                </form>
+                )}
               </div>
 
             </div>
@@ -3539,11 +4303,17 @@ export default function App() {
                 طراحی برنامه غذایی جدید (دستی)
               </button>
               <button 
-                onClick={() => setCoachSubView("ai_generation")}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${coachSubView === "ai_generation" ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg shadow-emerald-950/40" : "bg-slate-900/50 text-slate-400 hover:text-slate-200 border border-white/5"}`}
+                onClick={() => {
+                  if (!isTenantFeatureActive("ai_coach")) {
+                    alert("❌ قابلیت 'دستیار هوش مصنوعی (AI Coach)' در اشتراک فعلی این باشگاه فعال نیست. لطفاً از مدیریت باشگاه درخواست کنید تا اشتراک خود را ارتقا دهند.");
+                  } else {
+                    setCoachSubView("ai_generation");
+                  }
+                }}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${coachSubView === "ai_generation" ? "bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg shadow-emerald-950/40" : "bg-slate-900/50 text-slate-400 hover:text-slate-200 border border-white/5"} ${!isTenantFeatureActive("ai_coach") ? "opacity-60" : ""}`}
               >
                 <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse animate-duration-1000" />
-                طراحی برنامه هوشمند با هوش مصنوعی (AI Coach)
+                طراحی برنامه هوشمند با هوش مصنوعی (AI Coach) {!isTenantFeatureActive("ai_coach") && "🔒"}
               </button>
               <button 
                 onClick={() => setCoachSubView("earnings")}
@@ -6029,6 +6799,200 @@ export default function App() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* Floating Mascot Smart Assistant (Not displayed inside athlete mobile view) */}
+      {!(activeTab === "member" && loggedInMember) && (
+        <div className="fixed bottom-6 left-6 z-50 text-right font-sans" dir="rtl">
+          {/* Active dialogue bubble (if open) */}
+          {showSmartAssistant && (
+            <div id="smart-chat-floating-container" className="glass-panel w-85 p-5 rounded-[2rem] border border-green-500/20 mb-3 shadow-2xl animate-scale-up text-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                <div className="flex items-center gap-3">
+                  <img 
+                    src={mascotSmartLaptop} 
+                    alt="Smart Avatar" 
+                    className="w-10 h-10 rounded-full object-cover border border-green-400"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div>
+                    <h4 className="font-black text-white text-sm">گپ با اسمارْت (Mascot Support)</h4>
+                    <p className="text-[10px] text-green-400">پشتیبان و مربی زنده پلتفرم</p>
+                  </div>
+                </div>
+                {smartChatSession && (
+                  <button 
+                    onClick={() => {
+                      if(confirm("آیا می‌خواهید نشست فعلی چت را بازنشانی کنید؟")) {
+                        localStorage.removeItem("smart_chat_session_id");
+                        localStorage.removeItem("smart_chat_user_name");
+                        localStorage.removeItem("smart_chat_user_phone");
+                        setSmartChatSession(null);
+                        setSmartChatMessages([]);
+                      }
+                    }}
+                    title="شروع مجدد چت"
+                    className="text-slate-500 hover:text-red-400 font-bold px-2 py-1 rounded"
+                  >
+                    🔄 بازنشانی
+                  </button>
+                )}
+              </div>
+
+              {!smartChatSession ? (
+                /* Session Initiation Form */
+                <form onSubmit={startNewSmartChat} className="space-y-3.5 py-2">
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    سلام قهرمان! برای شروع گپ مستقیم با اسمارْت و ارسال پیام به پنل ادمین، لطفاً اطلاعات زیر را وارد کنید:
+                  </p>
+                  
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-bold">نام و نام خانوادگی:</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={smartChatUserName}
+                      onChange={(e) => setSmartChatUserName(e.target.value)}
+                      placeholder="مثلا: علی محمدی"
+                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-bold">شماره تماس (جهت پیگیری بعدی):</label>
+                    <input 
+                      type="text" 
+                      value={smartChatUserPhone}
+                      onChange={(e) => setSmartChatUserPhone(e.target.value)}
+                      placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    disabled={isSmartChatSubmittingName}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:brightness-110 text-slate-950 font-black py-2.5 rounded-xl transition-all"
+                  >
+                    {isSmartChatSubmittingName ? "در حال اتصال..." : "⚡ ورود به محیط گفت‌وگو"}
+                  </button>
+                </form>
+              ) : (
+                /* Live Conversation Screen */
+                <div className="space-y-3">
+                  {/* Message Log */}
+                  <div className="bg-slate-950/60 p-3 rounded-2xl border border-white/5 max-h-56 overflow-y-auto space-y-2.5 min-h-[160px] flex flex-col">
+                    {smartChatMessages.length === 0 ? (
+                      <div className="text-center text-slate-500 my-auto">در حال دریافت گفتگو...</div>
+                    ) : (
+                      smartChatMessages.map((msg) => {
+                        const isUser = msg.sender === "user";
+                        const isAI = msg.sender === "smart_ai";
+                        return (
+                          <div 
+                            key={msg.id} 
+                            className={`flex flex-col max-w-[85%] ${isUser ? "self-start text-right" : "self-end text-left"}`}
+                          >
+                            <span className="text-[8px] text-slate-500 mb-0.5 px-1 font-mono">
+                              {isUser ? "شما" : isAI ? "هوش مصنوعی اسمارْت" : "پشتیبان پلتفرم"}
+                            </span>
+                            <div 
+                              className={`p-2.5 rounded-2xl text-[11px] leading-relaxed ${
+                                isUser 
+                                  ? "bg-emerald-600 text-slate-950 rounded-tr-none font-bold" 
+                                  : isAI 
+                                    ? "bg-slate-900 text-green-400 border border-green-500/10 rounded-tl-none font-medium" 
+                                    : "bg-blue-600/20 text-blue-300 border border-blue-500/20 rounded-tl-none font-bold"
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Suggestion Tags */}
+                  <div className="flex gap-1 overflow-x-auto pb-1 text-[9px] scrollbar-none">
+                    <button 
+                      onClick={() => setSmartChatInputText("تعرفه اشتراک‌های پلتفرم چقدره؟")}
+                      className="bg-slate-900 hover:bg-slate-800 text-slate-400 border border-white/5 rounded-full px-2.5 py-1 whitespace-nowrap"
+                    >
+                      💳 تعرفه پلتفرم
+                    </button>
+                    <button 
+                      onClick={() => setSmartChatInputText("یک راهنمایی بدنسازی یا راز فیتنس بم بگو")}
+                      className="bg-slate-900 hover:bg-slate-800 text-slate-400 border border-white/5 rounded-full px-2.5 py-1 whitespace-nowrap"
+                    >
+                      🏋️‍♂️ رازهای فیتنس
+                    </button>
+                    <button 
+                      onClick={() => setSmartChatInputText("چگونه مربی استخدام کنم در باشگاه؟")}
+                      className="bg-slate-900 hover:bg-slate-800 text-slate-400 border border-white/5 rounded-full px-2.5 py-1 whitespace-nowrap"
+                    >
+                      🤝 امور مربیان
+                    </button>
+                  </div>
+
+                  {/* Message Input Form */}
+                  <div className="flex gap-1.5 pt-1">
+                    <input 
+                      type="text"
+                      value={smartChatInputText}
+                      onChange={(e) => setSmartChatInputText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          sendSmartChatMessage();
+                        }
+                      }}
+                      placeholder="پیامی به اسمارْت بنویسید..."
+                      className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-green-500 text-[11px]"
+                    />
+                    <button 
+                      onClick={sendSmartChatMessage}
+                      className="bg-green-600 hover:bg-green-500 text-slate-950 font-black px-3.5 rounded-xl transition-all text-[11px]"
+                    >
+                      ارسال
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center text-[9px] text-slate-500 pt-1 border-t border-white/5">
+                <span>اسمارت جیم • گپ مستقیم آنلاین</span>
+                <button 
+                  onClick={() => setShowSmartAssistant(false)}
+                  className="text-red-500 hover:underline font-bold"
+                >
+                  بستن گفتگو
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Glowing Float Action Button with Mascot Image */}
+          <button
+            onClick={() => {
+              setShowSmartAssistant(!showSmartAssistant);
+            }}
+            className="group relative flex items-center gap-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-black py-3 px-4 rounded-full shadow-2xl shadow-green-950/50 hover:brightness-110 active:scale-95 transition-all border border-green-400/30"
+          >
+            {/* Glowing effect */}
+            <div className="absolute inset-0 bg-green-500 opacity-20 blur-xl rounded-full animate-pulse"></div>
+
+            <span className="text-xs tracking-wider relative z-10 hidden sm:inline">گپ زنده با اسمارْت (مسکات)</span>
+            
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/20">
+              <img 
+                src={mascotSmartLaptop} 
+                alt="Smart" 
+                className="w-full h-full object-cover scale-110 transition-transform group-hover:scale-125"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </button>
         </div>
       )}
 

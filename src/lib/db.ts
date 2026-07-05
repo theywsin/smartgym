@@ -9,7 +9,9 @@ import {
   addDoc, 
   query, 
   where, 
-  deleteDoc 
+  deleteDoc,
+  OperationType,
+  handleFirestoreError
 } from "./firebase";
 
 // Types

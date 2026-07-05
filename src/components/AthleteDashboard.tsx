@@ -23,6 +23,9 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { toPersianNums } from "../types";
+
+// @ts-ignore
+import mascotSmart from "../assets/images/mascot_smart_1783248774021.jpg";
 import ExerciseAnimation from "./ExerciseAnimation";
 
 interface AthleteDashboardProps {
@@ -468,6 +471,42 @@ export default function AthleteDashboard({
                 <Clock className="w-5 h-5 text-blue-500 mb-1" />
                 <span className={`text-[8px] ${labelColor}`}>جلسات باقیمانده</span>
                 <span className={`text-xs font-black text-green-500`}>{member.remainingSessions} جلسه</span>
+              </div>
+            </div>
+
+            {/* Mascot Smart Daily Motivation Card */}
+            <div className={`p-4 rounded-2xl ${innerCardBg} border border-green-500/20 relative overflow-hidden flex items-center gap-4 text-right animate-fade-in`}>
+              <div className="shrink-0 relative">
+                <div className="absolute -inset-1 bg-gradient-to-tr from-green-500 to-indigo-500 rounded-xl blur opacity-30"></div>
+                <img 
+                  src={mascotSmart} 
+                  alt="Smart Mascot" 
+                  className="w-16 h-16 rounded-xl object-cover relative z-10 border border-white/10"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <span className="text-[9px] text-green-400 font-black block">💡 مربی همراه تو، «اسمارْت»</span>
+                <p className={`text-[11px] leading-relaxed font-bold ${titleColor}`}>
+                  «امروز نوبت درخشش توست، قهرمان! هر یک تکرار پرس یا اسکات که امروز می‌زنی، تو رو یک گام به رؤیاهات نزدیک‌تر می‌کنه. بعد تمرین یادت نره پروتئین کافی به عضلاتت برسونی!»
+                </p>
+                <div className="flex justify-end pt-1">
+                  <button 
+                    onClick={() => {
+                      const athleteTips = [
+                        "آب خوردن حین تمرین رو جدی بگیر! کم‌آبی حتی به مقدار کم، قدرت عضلاتت رو تا ۱۰٪ کاهش می‌ده. 💧",
+                        "فرم درست حرکت همیشه از سنگینی وزنه مهم‌تره. آسیب‌دیدگی تو رو ماه‌ها عقب می‌اندازه! 🏋️‍♂️",
+                        "پروتئین بعد از تمرین مثل آجر برای ساختن دیوار عضلاته. بوفه باشگاه منتظرته! 🥛",
+                        "تداوم و پیوستگی راز واقعی بدست آوردن کات عضلانیه. خسته نشو و ادامه بده! 🔥",
+                        "کشش عضلات بعد از اتمام تمرین، ریکاوری رو سریع‌تر می‌کنه و گرفتگی عضلانی فردا رو کاهش می‌ده! 🧘‍♂️"
+                      ];
+                      alert(`اسمارْت می‌گه: ${athleteTips[Math.floor(Math.random() * athleteTips.length)]}`);
+                    }}
+                    className="text-[9px] text-green-500 font-bold hover:underline"
+                  >
+                    💡 دریافت نکته ورزشی جدید از اسمارْت
+                  </button>
+                </div>
               </div>
             </div>
 

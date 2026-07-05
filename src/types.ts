@@ -48,6 +48,7 @@ export interface SubscriptionPlan {
   priceToman: number; // Price in Tomans
   features: string[];
   isPopular?: boolean;
+  unlockedFeatureIds?: string[];
 }
 
 export interface Exercise {

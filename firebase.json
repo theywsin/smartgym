@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-smartgymsaasplat-b45b1cbf-2992-4ae1-9fa1-2f2b5aa492cf",
+      "rules": "firestore.rules"
+    }
+  ]
+}

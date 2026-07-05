@@ -13,6 +13,9 @@ import {
   Trash
 } from "lucide-react";
 
+// @ts-ignore
+import mascotSmart from "../assets/images/mascot_smart_1783248774021.jpg";
+
 interface AICoachProgramGeneratorProps {
   isDarkMode: boolean;
   members: any[];
@@ -298,14 +301,25 @@ export default function AICoachProgramGenerator({
     <div className="space-y-8 animate-fade-in text-xs text-right" dir="rtl">
       
       {/* Dynamic Intro Card */}
-      <div className="bg-gradient-to-l from-green-950/40 via-slate-900/60 to-emerald-950/40 p-6 rounded-[2rem] border border-green-500/20 flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
+      <div className="bg-gradient-to-l from-green-950/40 via-slate-900/60 to-emerald-950/40 p-6 rounded-[2rem] border border-green-500/20 flex flex-col md:flex-row items-center gap-6">
+        <div className="shrink-0 relative group">
+          <div className="absolute -inset-1 bg-gradient-to-tr from-green-500 to-emerald-400 rounded-2xl blur opacity-35 group-hover:opacity-50 transition duration-500"></div>
+          <img 
+            src={mascotSmart} 
+            alt="Mascot Smart" 
+            className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover border border-white/10 relative z-10"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <div className="space-y-2 flex-1 text-center md:text-right">
           <div className="inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full text-green-400 text-[10px] font-bold">
             <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-            سیستم مربیگری اختصاصی (محدود به پنل مربیان)
+            سیستم مربیگری اختصاصی • دستیار هوشمند اسمارْت (Smart)
           </div>
-          <h2 className={`text-xl font-black ${textPrimary}`}>بخش تولید هوشمند برنامه‌های ورزشی و تغذیه با هوش مصنوعی</h2>
-          <p className="text-slate-400">اطلاعات فیزیکی و بیولوژیکی شاگردان خود را وارد کنید تا هوش مصنوعی بر اساس آسیب‌شناسی مربیگری، برنامه‌های فوق‌حرفه‌ای ایجاد کند.</p>
+          <h2 className={`text-lg md:text-xl font-black ${textPrimary}`}>بخش تولید هوشمند برنامه‌های ورزشی و تغذیه با هوش مصنوعی</h2>
+          <p className="text-slate-400 text-xs leading-relaxed">
+            «مربی عزیز خوش آمدید! من اسمارْت هستم. اطلاعات بیومتریک و هدف شاگردتون رو در فرم زیر پر کنید تا با کمک الگوریتم‌های هوش مصنوعی پیشرفته، بهترین برنامه‌های تمرینی و رژیم غذایی ممکن رو در قالب چند روز کاملاً تفکیک‌شده و علمی براتون تولید کنم تا کیفیت مربیگری‌تون دوچندان بشه!»
+          </p>
         </div>
       </div>
 

@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Gym tenant / club owner registry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "domain": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "Gym member / athlete registered in a club",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Coach": {
+      "title": "Coach",
+      "description": "Gym coach",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "MembershipRequest": {
+      "title": "MembershipRequest",
+      "description": "Request to join a gym",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "WorkoutProgram": {
+      "title": "WorkoutProgram",
+      "description": "Workout plan for a member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "NutritionPlan": {
+      "title": "NutritionPlan",
+      "description": "Diet / nutrition plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "StoreProduct": {
+      "title": "StoreProduct",
+      "description": "Products in buffet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Class bookings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Support tickets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Gym attendance logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "ExerciseDatabase": {
+      "title": "ExerciseDatabase",
+      "description": "Standard exercises database",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "CoachSale": {
+      "title": "CoachSale",
+      "description": "Sales and salary records for coaches",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      }
+    },
+    "SmartSupportChat": {
+      "title": "SmartSupportChat",
+      "description": "Live mascot chat history with users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "messages": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "tenants": {
+      "schema": "Tenant",
+      "description": "Gym tenant collection"
+    },
+    "members": {
+      "schema": "Member",
+      "description": "Gym members collection"
+    },
+    "coaches": {
+      "schema": "Coach",
+      "description": "Gym coaches collection"
+    },
+    "membership_requests": {
+      "schema": "MembershipRequest",
+      "description": "Gym join requests"
+    },
+    "workout_programs": {
+      "schema": "WorkoutProgram",
+      "description": "Athletes workout plans"
+    },
+    "nutrition_plans": {
+      "schema": "NutritionPlan",
+      "description": "Athletes diets"
+    },
+    "store_products": {
+      "schema": "StoreProduct",
+      "description": "Buffet items list"
+    },
+    "bookings": {
+      "schema": "Booking",
+      "description": "Class bookings records"
+    },
+    "tickets": {
+      "schema": "Ticket",
+      "description": "Support tickets"
+    },
+    "attendance_records": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance history log"
+    },
+    "exercises_database": {
+      "schema": "ExerciseDatabase",
+      "description": "Global list of movements"
+    },
+    "coach_sales": {
+      "schema": "CoachSale",
+      "description": "Coach commission registries"
+    },
+    "smart_support_chats": {
+      "schema": "SmartSupportChat",
+      "description": "Smart mascot real-time live support chats"
+    }
+  }
+}

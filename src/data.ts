@@ -370,7 +370,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "گزارش‌های پایه حسابداری (درآمد و هزینه)",
       "پشتیبانی تیکتی و آنلاین (ساعات کاری)",
       "اپلیکیشن تحت وب PWA"
-    ]
+    ],
+    unlockedFeatureIds: ["info", "buffet", "attendance"]
   },
   {
     id: "sub_2",
@@ -388,7 +389,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "پشتیبانی تلفنی و تلگرامی ۲۴ ساعته اختصاصی",
       "ماژول پیشرفته آنالیز بدنی و نمودارهای پیشرفت"
     ],
-    isPopular: true
+    isPopular: true,
+    unlockedFeatureIds: ["info", "buffet", "attendance", "support", "ai_coach", "white_label"]
   },
   {
     id: "sub_3",
@@ -405,7 +407,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "پنل ارسال پیامک رایگان با خط خدماتی بدون بلک‌لیست",
       "نسخه اختصاصی اندروید و iOS خروجی مستقیم با نام شما",
       "مدیر فنی اختصاصی و بکاپ‌گیری خودکار روزانه ابری"
-    ]
+    ],
+    unlockedFeatureIds: ["info", "buffet", "attendance", "support", "ai_coach", "white_label", "coaches", "payment_gateway"]
   }
 ];
 
