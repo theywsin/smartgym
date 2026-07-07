@@ -54,9 +54,10 @@ import {
   MOCK_TICKETS, 
   MOCK_AUDIT_LOGS, 
   MOCK_PRODUCTS,
-  SUBSCRIPTION_PLANS
+  SUBSCRIPTION_PLANS,
+  MOCK_BLOG_POSTS
 } from "./data";
-import { UserRole, Tenant, Booking, StoreProduct, toPersianNums } from "./types";
+import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost } from "./types";
 import { mysqlDb } from "./lib/mysqlSim";
 import { db, collection, doc, setDoc, getDocs, getDoc, OperationType, handleFirestoreError } from "./lib/firebase";
 import ExerciseAnimation from "./components/ExerciseAnimation";
@@ -70,6 +71,8 @@ import CoachMemberDetail from "./components/CoachMemberDetail";
 import AICoachProgramGenerator from "./components/AICoachProgramGenerator";
 import TicketSystem from "./components/TicketSystem";
 import CoachEarningsPanel from "./components/CoachEarningsPanel";
+import BlogSection from "./components/BlogSection";
+import BlogSettingsPanel from "./components/BlogSettingsPanel";
 
 // @ts-ignore
 import mascotSmart from "./assets/images/mascot_smart_1783248774021.jpg";
@@ -91,7 +94,23 @@ export default function App() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem("isDarkMode");
+    if (saved !== null) {
+      return saved === "true";
+    }
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return true; // fallback default
+  });
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("isDarkMode", String(next));
+      return next;
+    });
+  };
   const [activePlanFeaturesEditId, setActivePlanFeaturesEditId] = useState<string | null>(null);
 
   // New Unified Design System States & Gateways
@@ -105,7 +124,7 @@ export default function App() {
   });
   
   const [tenantSubTab, setTenantSubTab] = useState<"dashboard" | "info" | "support" | "coaches">("dashboard");
-  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings" | "smart_chat">("dashboard");
+  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings" | "smart_chat" | "blog">("dashboard");
   const [selectedDetailedMember, setSelectedDetailedMember] = useState<any | null>(null);
 
   // Iranian Payment Gateway flow states
@@ -435,6 +454,7 @@ export default function App() {
   const [tickets, setTickets] = useState(MOCK_TICKETS);
   const [storeProducts, setStoreProducts] = useState(MOCK_PRODUCTS);
   const [attendanceRecords, setAttendanceRecords] = useState(MOCK_ATTENDANCE);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
 
   // Gym members state with username & password for secure member panel login
   const [members, setMembers] = useState<any[]>([
@@ -833,6 +853,30 @@ export default function App() {
         }
         setCoachSales(loadedSales);
 
+        // 13. Blog Posts List
+        let blogSnap;
+        try {
+          blogSnap = await getDocs(collection(db, "blog_posts"));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.LIST, "blog_posts");
+        }
+        let loadedBlogs: any[] = [];
+        if (blogSnap.empty) {
+          console.log("Seeding initial blog posts into Firestore...");
+          const initialBlogs = mysqlDb.getBlogPosts();
+          for (const b of initialBlogs) {
+            try {
+              await setDoc(doc(db, "blog_posts", b.id), b);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `blog_posts/${b.id}`);
+            }
+          }
+          loadedBlogs = [...initialBlogs];
+        } else {
+          blogSnap.forEach(d => loadedBlogs.push(d.data()));
+        }
+        setBlogPosts(loadedBlogs);
+
         console.log("Live Firestore cloud database successfully loaded and synchronized.");
         setIsDbReady(true);
         setIsDbLoading(false);
@@ -846,6 +890,12 @@ export default function App() {
   }, []);
 
   // Automated state synchronization to live cloud database
+  useEffect(() => {
+    if (isDbReady && blogPosts.length > 0) {
+      mysqlDb.saveBlogPosts(blogPosts);
+    }
+  }, [blogPosts, isDbReady]);
+
   useEffect(() => {
     if (isDbReady && tenants.length > 0) {
       mysqlDb.saveTenants(tenants);
@@ -1623,7 +1673,7 @@ export default function App() {
           {/* Action Controls & Dark Mode Toggle */}
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
+              onClick={toggleDarkMode} 
               className="p-2 rounded-lg bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
               title="تغییر تم رنگی"
             >
@@ -2162,6 +2212,21 @@ export default function App() {
               </div>
             </div>
 
+            {/* Dynamic Blog Section */}
+            <div className="border-t border-white/5 pt-16">
+              <BlogSection 
+                posts={blogPosts} 
+                onLike={(postId) => {
+                  setBlogPosts(prev => prev.map(post => {
+                    if (post.id === postId) {
+                      return { ...post, likes: post.likes + 1 };
+                    }
+                    return post;
+                  }));
+                }} 
+              />
+            </div>
+
           </div>
         )}
 
@@ -2214,6 +2279,12 @@ export default function App() {
                 className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "smart_chat" ? "bg-green-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
               >
                 💬 گفتگوهای زنده اسمارْت
+              </button>
+              <button
+                onClick={() => setSuperAdminSubTab("blog")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "blog" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+              >
+                📰 مدیریت وبلاگ و دانشنامه
               </button>
             </div>
 
@@ -2862,6 +2933,15 @@ export default function App() {
                   )}
                 </div>
 
+              </div>
+            )}
+
+            {superAdminSubTab === "blog" && (
+              <div className="animate-fade-in">
+                <BlogSettingsPanel 
+                  posts={blogPosts} 
+                  onSavePosts={(updatedPosts) => setBlogPosts(updatedPosts)} 
+                />
               </div>
             )}
 
@@ -5536,7 +5616,7 @@ export default function App() {
                 tenantCustomColor={tenantCustomColor}
                 tenantBrandText={tenantBrandText || (loggedInTenant && loggedInTenant.clubName) || "اسمارت جیم"}
                 onAddClubRevenue={(amount) => setClubRevenue((prev) => prev + amount)}
-                onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                onToggleDarkMode={toggleDarkMode}
                 clubInfo={loggedInTenant}
                 subscriptionPlans={subscriptionPlans}
                 membershipRequests={membershipRequests}

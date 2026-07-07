@@ -208,6 +208,20 @@ export interface StoreProduct {
   barcode: string;
 }
 
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  author: string;
+  category: string;
+  imageUrl?: string;
+  publishedDate: string;
+  readTime: string;
+  likes: number;
+}
+
 export function toPersianNums(num: any): string {
   if (num === null || num === undefined) return "";
   const str = String(num);

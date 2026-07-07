@@ -1,5 +1,6 @@
-import { toPersianNums } from "../types";
+import { toPersianNums, BlogPost } from "../types";
 import { db, collection, doc, setDoc } from "./firebase";
+import { MOCK_BLOG_POSTS } from "../data";
 
 // MySQL Database tables schemas & simulations
 
@@ -424,5 +425,27 @@ export const mysqlDb = {
     tenants.push(created);
     this.saveTenants(tenants);
     return created;
+  },
+
+  getBlogPosts(): BlogPost[] {
+    const data = localStorage.getItem("mysql_table_blog_posts");
+    if (!data) {
+      localStorage.setItem("mysql_table_blog_posts", JSON.stringify(MOCK_BLOG_POSTS));
+      return MOCK_BLOG_POSTS;
+    }
+    return JSON.parse(data);
+  },
+
+  async saveBlogPosts(posts: BlogPost[]) {
+    localStorage.setItem("mysql_table_blog_posts", JSON.stringify(posts));
+    try {
+      for (const p of posts) {
+        if (p && p.id) {
+          await setDoc(doc(db, "blog_posts", p.id), p);
+        }
+      }
+    } catch (e) {
+      console.error("Firestore Cloud DB Save Error (BlogPosts):", e);
+    }
   }
 };

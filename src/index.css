@@ -74,23 +74,32 @@
 
 /* Force Light Mode background and text overrides */
 .min-h-screen:not(.dark-theme-vars) .glass-panel {
-  background: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   border-color: rgba(15, 23, 42, 0.08) !important;
   color: #0F172A !important;
-  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
 }
 
-/* Adapt slate background containers in light mode */
+/* Adapt slate background containers in light mode to use a soft grey so they keep their depth */
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900\/40,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900\/50,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900\/60,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/80,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/90,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-900\/95,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-950,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/40,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-950\/50,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-950\/60,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-950\/80,
-.min-h-screen:not(.dark-theme-vars) .bg-black\/20 {
-  background-color: #FFFFFF !important;
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/90,
+.min-h-screen:not(.dark-theme-vars) .bg-slate-950\/95,
+.min-h-screen:not(.dark-theme-vars) .bg-black\/20,
+.min-h-screen:not(.dark-theme-vars) .bg-black\/40,
+.min-h-screen:not(.dark-theme-vars) .bg-black\/50,
+.min-h-screen:not(.dark-theme-vars) .bg-black\/60 {
+  background-color: #F1F5F9 !important;
   color: #0F172A !important;
   border-color: rgba(15, 23, 42, 0.06) !important;
 }
@@ -100,7 +109,7 @@
 .min-h-screen:not(.dark-theme-vars) select,
 .min-h-screen:not(.dark-theme-vars) textarea {
   background-color: #F8FAFC !important;
-  border-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
   color: #0F172A !important;
 }
 .min-h-screen:not(.dark-theme-vars) input::placeholder,
@@ -108,11 +117,14 @@
   color: #94A3B8 !important;
 }
 
-/* Text elements compatibility in light mode */
-.min-h-screen:not(.dark-theme-vars) .text-slate-100,
-.min-h-screen:not(.dark-theme-vars) .text-slate-200 {
+/* Light / White Mode text color adapters - protects white text on filled active buttons, but maps background texts to dark grey */
+.min-h-screen:not(.dark-theme-vars) .text-slate-50:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
+.min-h-screen:not(.dark-theme-vars) .text-slate-100:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
+.min-h-screen:not(.dark-theme-vars) .text-slate-200:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
+.min-h-screen:not(.dark-theme-vars) .text-white:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600) {
   color: #0F172A !important;
 }
+
 .min-h-screen:not(.dark-theme-vars) .text-slate-300,
 .min-h-screen:not(.dark-theme-vars) .text-slate-400 {
   color: #334155 !important;
@@ -121,19 +133,65 @@
   color: #64748B !important;
 }
 
-/* Border corrections */
+/* Border corrections for Light Mode */
 .min-h-screen:not(.dark-theme-vars) .border-white\/5,
-.min-h-screen:not(.dark-theme-vars) .border-white\/10 {
+.min-h-screen:not(.dark-theme-vars) .border-white\/10,
+.min-h-screen:not(.dark-theme-vars) .border-white\/15,
+.min-h-screen:not(.dark-theme-vars) .border-white\/20 {
   border-color: rgba(15, 23, 42, 0.08) !important;
 }
 
-/* Keep primary emerald accent and branding visible */
+/* Ensure color indicators / colorful texts are highly readable and rich on light backgrounds */
 .min-h-screen:not(.dark-theme-vars) .text-emerald-400 {
   color: #059669 !important;
 }
+.min-h-screen:not(.dark-theme-vars) .text-blue-400 {
+  color: #2563EB !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-violet-400 {
+  color: #7C3AED !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-amber-400 {
+  color: #D97706 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-rose-400 {
+  color: #E11D48 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-indigo-400 {
+  color: #4F46E5 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .text-cyan-400 {
+  color: #0891B2 !important;
+}
+
+/* Map colorful background badges to be rich yet readable in Light Mode */
 .min-h-screen:not(.dark-theme-vars) .bg-emerald-500\/10 {
-  background-color: rgba(16, 185, 129, 0.1) !important;
+  background-color: rgba(16, 185, 129, 0.12) !important;
   color: #059669 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-blue-500\/10 {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  color: #2563EB !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-indigo-500\/10 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  color: #4F46E5 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-violet-500\/10 {
+  background-color: rgba(124, 58, 237, 0.08) !important;
+  color: #7C3AED !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-rose-500\/10 {
+  background-color: rgba(225, 29, 72, 0.08) !important;
+  color: #E11D48 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-amber-500\/10 {
+  background-color: rgba(217, 119, 6, 0.08) !important;
+  color: #D97706 !important;
+}
+.min-h-screen:not(.dark-theme-vars) .bg-cyan-500\/10 {
+  background-color: rgba(8, 145, 178, 0.08) !important;
+  color: #0891B2 !important;
 }
 
 .text-gradient-cyan-blue {

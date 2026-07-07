@@ -113,6 +113,25 @@
         "userPhone": { "type": "string" },
         "messages": { "type": "array" }
       }
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "Gym blog post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "publishedDate": { "type": "string" },
+        "readTime": { "type": "string" },
+        "likes": { "type": "number" }
+      },
+      "required": ["id", "title", "content", "author", "category", "publishedDate"]
     }
   },
   "firestore": {
@@ -167,6 +186,10 @@
     "smart_support_chats": {
       "schema": "SmartSupportChat",
       "description": "Smart mascot real-time live support chats"
+    },
+    "blog_posts": {
+      "schema": "BlogPost",
+      "description": "Gym platform blog posts"
     }
   }
 }

@@ -1,67 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Default deny for safety
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Helper to validate document IDs against malicious injection
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    match /tenants/{tenantId} {
-      allow read, write: if isValidId(tenantId);
-    }
-
-    match /members/{memberId} {
-      allow read, write: if isValidId(memberId);
-    }
-
-    match /coaches/{coachId} {
-      allow read, write: if isValidId(coachId);
-    }
-
-    match /membership_requests/{requestId} {
-      allow read, write: if isValidId(requestId);
-    }
-
-    match /workout_programs/{programId} {
-      allow read, write: if isValidId(programId);
-    }
-
-    match /nutrition_plans/{planId} {
-      allow read, write: if isValidId(planId);
-    }
-
-    match /store_products/{productId} {
-      allow read, write: if isValidId(productId);
-    }
-
-    match /bookings/{bookingId} {
-      allow read, write: if isValidId(bookingId);
-    }
-
-    match /tickets/{ticketId} {
-      allow read, write: if isValidId(ticketId);
-    }
-
-    match /attendance_records/{recordId} {
-      allow read, write: if isValidId(recordId);
-    }
-
-    match /exercises_database/{exerciseId} {
-      allow read, write: if isValidId(exerciseId);
-    }
-
-    match /coach_sales/{saleId} {
-      allow read, write: if isValidId(saleId);
-    }
-
-    match /smart_support_chats/{chatId} {
-      allow read, write: if isValidId(chatId);
+      allow read, write: if true;
     }
   }
 }
