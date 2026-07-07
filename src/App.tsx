@@ -92,7 +92,7 @@ const SYSTEM_FEATURES = [
 
 export default function App() {
   // Navigation & Role states
-  const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs">("landing");
+  const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs" | "installer">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem("isDarkMode");
@@ -214,6 +214,30 @@ export default function App() {
   const [newExGroup, setNewExGroup] = useState("سینه");
   const [newExCorrect, setNewExCorrect] = useState("");
   const [newExWrong, setNewExWrong] = useState("");
+
+  // Super Admin Authentication States
+  const [isSuperAdminLoggedIn, setIsSuperAdminLoggedIn] = useState(() => {
+    return localStorage.getItem("isSuperAdminLoggedIn") === "true";
+  });
+  const [adminUsernameInput, setAdminUsernameInput] = useState("");
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [adminLoginError, setAdminLoginError] = useState("");
+  const [isAdminLoginLoading, setIsAdminLoginLoading] = useState(false);
+
+  // Installer State variables
+  const [installerStep, setInstallerStep] = useState(1);
+  const [installerDbHost, setInstallerDbHost] = useState("localhost");
+  const [installerDbPort, setInstallerDbPort] = useState("3306");
+  const [installerDbUser, setInstallerDbUser] = useState("");
+  const [installerDbPassword, setInstallerDbPassword] = useState("");
+  const [installerDbName, setInstallerDbName] = useState("");
+  const [installerMigrateDemo, setInstallerMigrateDemo] = useState(true);
+  const [installerAdminUser, setInstallerAdminUser] = useState("admin");
+  const [installerAdminPass, setInstallerAdminPass] = useState("");
+  const [installerBrandName, setInstallerBrandName] = useState("پلتفرم ابری اسمارت جیم");
+  const [installerLogs, setInstallerLogs] = useState<string[]>(["سیستم نصب هوشمند لود شد. آماده دریافت پیکربندی..."]);
+  const [isInstallerLoading, setIsInstallerLoading] = useState(false);
+  const [installerStatus, setInstallerStatus] = useState<any>(null);
 
   // Tenant Authentication States
   const [loggedInTenant, setLoggedInTenant] = useState<any | null>(null);
@@ -557,280 +581,109 @@ export default function App() {
   const activeCoachMember = members.find(m => m.id === selectedCoachMemberId) || members[0];
 
   // -------------------------------------------------------------
-  // Real Firestore Cloud Database Persistent Synchronizer
+  // Real cPanel MySQL Database Persistent Synchronizer via API
   // -------------------------------------------------------------
   const [isDbReady, setIsDbReady] = useState(false);
   const [isDbLoading, setIsDbLoading] = useState(true);
 
+  // Generic fetch and seed helper
+  const loadFromApi = async (table: string, seedData: any[]) => {
+    try {
+      const res = await fetch(`/api/db/${table}`);
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            return data;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Error loading table ${table} from API:`, e);
+    }
+    // Seed initial data if empty or API fetch failed
+    try {
+      await fetch(`/api/db/${table}/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(seedData)
+      });
+    } catch (e) {
+      console.error(`Error seeding ${table} to API:`, e);
+    }
+    return seedData;
+  };
+
+  // Dynamic URL / Hash router for separate panel entry points
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.replace("#", "");
+    const panel = params.get("panel") || hash;
+    
+    if (panel === "superadmin") {
+      setActiveTab("superadmin");
+    } else if (panel === "tenant") {
+      setActiveTab("tenant");
+    } else if (panel === "coach") {
+      setActiveTab("coach");
+    } else if (panel === "member") {
+      setActiveTab("member");
+    } else if (panel === "installer") {
+      setActiveTab("installer");
+    }
+  }, []);
+
   useEffect(() => {
     const initializeCloudDatabase = async () => {
       try {
-        console.log("Connecting to live Firestore database...");
+        console.log("Connecting to live cPanel REST API...");
 
         // 1. Tenants
-        let tenantsSnap;
-        try {
-          tenantsSnap = await getDocs(collection(db, "tenants"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "tenants");
-        }
-        let loadedTenants: any[] = [];
-        if (tenantsSnap.empty) {
-          console.log("Seeding initial tenants into Firestore...");
-          for (const t of MOCK_TENANTS) {
-            try {
-              await setDoc(doc(db, "tenants", t.id), t);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `tenants/${t.id}`);
-            }
-          }
-          loadedTenants = [...MOCK_TENANTS];
-        } else {
-          tenantsSnap.forEach(d => loadedTenants.push(d.data()));
-        }
+        const loadedTenants = await loadFromApi("tenants", MOCK_TENANTS);
         setTenants(loadedTenants);
 
         // 2. Members (Athletes)
-        let membersSnap;
-        try {
-          membersSnap = await getDocs(collection(db, "members"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "members");
-        }
-        let loadedMembers: any[] = [];
-        if (membersSnap.empty) {
-          console.log("Seeding initial members into Firestore...");
-          const initialMembers = mysqlDb.getMembers();
-          for (const m of initialMembers) {
-            try {
-              await setDoc(doc(db, "members", m.id), m);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `members/${m.id}`);
-            }
-          }
-          loadedMembers = [...initialMembers];
-        } else {
-          membersSnap.forEach(d => loadedMembers.push(d.data()));
-        }
+        const loadedMembers = await loadFromApi("members", mysqlDb.getMembers());
         setMembers(loadedMembers);
 
         // 3. Coaches
-        let coachesSnap;
-        try {
-          coachesSnap = await getDocs(collection(db, "coaches"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "coaches");
-        }
-        let loadedCoaches: any[] = [];
-        if (coachesSnap.empty) {
-          console.log("Seeding initial coaches into Firestore...");
-          const initialCoaches = mysqlDb.getCoaches();
-          for (const c of initialCoaches) {
-            try {
-              await setDoc(doc(db, "coaches", c.id), c);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `coaches/${c.id}`);
-            }
-          }
-          loadedCoaches = [...initialCoaches];
-        } else {
-          coachesSnap.forEach(d => loadedCoaches.push(d.data()));
-        }
+        const loadedCoaches = await loadFromApi("coaches", mysqlDb.getCoaches());
         setCoaches(loadedCoaches);
 
         // 4. Membership Requests (Invoices)
-        let requestsSnap;
-        try {
-          requestsSnap = await getDocs(collection(db, "membership_requests"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "membership_requests");
-        }
-        let loadedRequests: any[] = [];
-        if (requestsSnap.empty) {
-          console.log("Seeding initial membership requests into Firestore...");
-          const initialRequests = mysqlDb.getMembershipRequests();
-          for (const r of initialRequests) {
-            try {
-              await setDoc(doc(db, "membership_requests", r.id), r);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `membership_requests/${r.id}`);
-            }
-          }
-          loadedRequests = [...initialRequests];
-        } else {
-          requestsSnap.forEach(d => loadedRequests.push(d.data()));
-        }
+        const loadedRequests = await loadFromApi("membership_requests", mysqlDb.getMembershipRequests());
         setMembershipRequests(loadedRequests);
 
         // 5. Workout Programs
-        let programsSnap;
-        try {
-          programsSnap = await getDocs(collection(db, "workout_programs"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "workout_programs");
-        }
-        let loadedPrograms: any[] = [];
-        if (programsSnap.empty) {
-          console.log("Seeding initial workout programs into Firestore...");
-          for (const p of MOCK_WORKOUT_PROGRAMS) {
-            try {
-              await setDoc(doc(db, "workout_programs", p.id), p);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `workout_programs/${p.id}`);
-            }
-          }
-          loadedPrograms = [...MOCK_WORKOUT_PROGRAMS];
-        } else {
-          programsSnap.forEach(d => loadedPrograms.push(d.data()));
-        }
+        const loadedPrograms = await loadFromApi("workout_programs", MOCK_WORKOUT_PROGRAMS);
         setWorkoutPrograms(loadedPrograms);
 
         // 6. Nutrition Plans
-        let nutritionSnap;
-        try {
-          nutritionSnap = await getDocs(collection(db, "nutrition_plans"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "nutrition_plans");
-        }
-        let loadedNutrition: any[] = [];
-        if (nutritionSnap.empty) {
-          console.log("Seeding initial nutrition plans into Firestore...");
-          for (const n of MOCK_NUTRITION_PLANS) {
-            try {
-              await setDoc(doc(db, "nutrition_plans", n.id), n);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `nutrition_plans/${n.id}`);
-            }
-          }
-          loadedNutrition = [...MOCK_NUTRITION_PLANS];
-        } else {
-          nutritionSnap.forEach(d => loadedNutrition.push(d.data()));
-        }
+        const loadedNutrition = await loadFromApi("nutrition_plans", MOCK_NUTRITION_PLANS);
         setNutritionPlans(loadedNutrition);
 
         // 7. Store Products
-        let productsSnap;
-        try {
-          productsSnap = await getDocs(collection(db, "store_products"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "store_products");
-        }
-        let loadedProducts: any[] = [];
-        if (productsSnap.empty) {
-          console.log("Seeding initial store products into Firestore...");
-          for (const p of MOCK_PRODUCTS) {
-            try {
-              await setDoc(doc(db, "store_products", p.id), p);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `store_products/${p.id}`);
-            }
-          }
-          loadedProducts = [...MOCK_PRODUCTS];
-        } else {
-          productsSnap.forEach(d => loadedProducts.push(d.data()));
-        }
+        const loadedProducts = await loadFromApi("store_products", MOCK_PRODUCTS);
         setStoreProducts(loadedProducts);
 
         // 8. Bookings
-        let bookingsSnap;
-        try {
-          bookingsSnap = await getDocs(collection(db, "bookings"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "bookings");
-        }
-        let loadedBookings: any[] = [];
-        if (bookingsSnap.empty) {
-          console.log("Seeding initial bookings into Firestore...");
-          for (const b of MOCK_BOOKINGS) {
-            try {
-              await setDoc(doc(db, "bookings", b.id), b);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `bookings/${b.id}`);
-            }
-          }
-          loadedBookings = [...MOCK_BOOKINGS];
-        } else {
-          bookingsSnap.forEach(d => loadedBookings.push(d.data()));
-        }
+        const loadedBookings = await loadFromApi("bookings", MOCK_BOOKINGS);
         setBookings(loadedBookings);
 
         // 9. Tickets
-        let ticketsSnap;
-        try {
-          ticketsSnap = await getDocs(collection(db, "tickets"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "tickets");
-        }
-        let loadedTickets: any[] = [];
-        if (ticketsSnap.empty) {
-          console.log("Seeding initial tickets into Firestore...");
-          for (const t of MOCK_TICKETS) {
-            try {
-              await setDoc(doc(db, "tickets", t.id), t);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `tickets/${t.id}`);
-            }
-          }
-          loadedTickets = [...MOCK_TICKETS];
-        } else {
-          ticketsSnap.forEach(d => loadedTickets.push(d.data()));
-        }
+        const loadedTickets = await loadFromApi("tickets", MOCK_TICKETS);
         setTickets(loadedTickets);
 
         // 10. Attendance Records
-        let attendanceSnap;
-        try {
-          attendanceSnap = await getDocs(collection(db, "attendance_records"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "attendance_records");
-        }
-        let loadedAttendance: any[] = [];
-        if (attendanceSnap.empty) {
-          console.log("Seeding initial attendance records into Firestore...");
-          for (const a of MOCK_ATTENDANCE) {
-            try {
-              await setDoc(doc(db, "attendance_records", a.id), a);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `attendance_records/${a.id}`);
-            }
-          }
-          loadedAttendance = [...MOCK_ATTENDANCE];
-        } else {
-          attendanceSnap.forEach(d => loadedAttendance.push(d.data()));
-        }
+        const loadedAttendance = await loadFromApi("attendance_records", MOCK_ATTENDANCE);
         setAttendanceRecords(loadedAttendance);
 
         // 11. Exercises List
-        let exercisesSnap;
-        try {
-          exercisesSnap = await getDocs(collection(db, "exercises_database"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "exercises_database");
-        }
-        let loadedExercises: any[] = [];
-        if (exercisesSnap.empty) {
-          console.log("Seeding initial exercises database into Firestore...");
-          for (const ex of EXERCISES) {
-            try {
-              await setDoc(doc(db, "exercises_database", ex.id), ex);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `exercises_database/${ex.id}`);
-            }
-          }
-          loadedExercises = [...EXERCISES];
-        } else {
-          exercisesSnap.forEach(d => loadedExercises.push(d.data()));
-        }
+        const loadedExercises = await loadFromApi("exercises_database", EXERCISES);
         setExercisesList(loadedExercises);
 
         // 12. Coach Sales & Package Earnings List
-        let salesSnap;
-        try {
-          salesSnap = await getDocs(collection(db, "coach_sales"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "coach_sales");
-        }
-        let loadedSales: any[] = [];
         const initialSales = [
           { id: "s_1", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "برنامه تمرینی پیشرفته ۲۴ جلسه‌ای", price: 1200000, date: "1405/04/01", month: "تیر" },
           { id: "s_2", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "سهراب مرادی", packageName: "رژیم غذایی تفکیک عضلانی ۳۰ روزه", price: 850000, date: "1405/04/02", month: "تیر" },
@@ -838,50 +691,18 @@ export default function App() {
           { id: "s_4", coachId: "2", coachName: "سارا حسینی", studentName: "الناز شاکری", packageName: "برنامه پیشرفته فرم‌دهی و تغذیه", price: 1800000, date: "1405/04/01", month: "تیر" },
           { id: "s_5", coachId: "1", coachName: "استاد پوریا کریمی", studentName: "آرش احمدی", packageName: "تمدید عضویت ماهانه کلوپ قهرمانان", price: 950000, date: "1405/03/25", month: "خرداد" }
         ];
-        if (salesSnap.empty) {
-          console.log("Seeding initial coach sales into Firestore...");
-          for (const s of initialSales) {
-            try {
-              await setDoc(doc(db, "coach_sales", s.id), s);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `coach_sales/${s.id}`);
-            }
-          }
-          loadedSales = [...initialSales];
-        } else {
-          salesSnap.forEach(d => loadedSales.push(d.data()));
-        }
+        const loadedSales = await loadFromApi("coach_sales", initialSales);
         setCoachSales(loadedSales);
 
         // 13. Blog Posts List
-        let blogSnap;
-        try {
-          blogSnap = await getDocs(collection(db, "blog_posts"));
-        } catch (error) {
-          handleFirestoreError(error, OperationType.LIST, "blog_posts");
-        }
-        let loadedBlogs: any[] = [];
-        if (blogSnap.empty) {
-          console.log("Seeding initial blog posts into Firestore...");
-          const initialBlogs = mysqlDb.getBlogPosts();
-          for (const b of initialBlogs) {
-            try {
-              await setDoc(doc(db, "blog_posts", b.id), b);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `blog_posts/${b.id}`);
-            }
-          }
-          loadedBlogs = [...initialBlogs];
-        } else {
-          blogSnap.forEach(d => loadedBlogs.push(d.data()));
-        }
+        const loadedBlogs = await loadFromApi("blog_posts", mysqlDb.getBlogPosts());
         setBlogPosts(loadedBlogs);
 
-        console.log("Live Firestore cloud database successfully loaded and synchronized.");
+        console.log("Live MySQL database successfully loaded and synchronized via REST API.");
         setIsDbReady(true);
         setIsDbLoading(false);
       } catch (error) {
-        console.error("Firestore database failed to synchronize:", error);
+        console.error("MySQL REST database failed to synchronize:", error);
         setIsDbLoading(false);
       }
     };
@@ -893,115 +714,184 @@ export default function App() {
   useEffect(() => {
     if (isDbReady && blogPosts.length > 0) {
       mysqlDb.saveBlogPosts(blogPosts);
+      fetch("/api/db/blog_posts/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(blogPosts)
+      }).catch(err => console.error(err));
     }
   }, [blogPosts, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && tenants.length > 0) {
       mysqlDb.saveTenants(tenants);
+      fetch("/api/db/tenants/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tenants)
+      }).catch(err => console.error(err));
     }
   }, [tenants, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && members.length > 0) {
       mysqlDb.saveMembers(members);
+      fetch("/api/db/members/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(members)
+      }).catch(err => console.error(err));
     }
   }, [members, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && coaches.length > 0) {
       mysqlDb.saveCoaches(coaches);
+      fetch("/api/db/coaches/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(coaches)
+      }).catch(err => console.error(err));
     }
   }, [coaches, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && membershipRequests.length > 0) {
       mysqlDb.saveMembershipRequests(membershipRequests);
+      fetch("/api/db/membership_requests/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(membershipRequests)
+      }).catch(err => console.error(err));
     }
   }, [membershipRequests, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && workoutPrograms.length > 0) {
       mysqlDb.saveWorkoutPrograms(workoutPrograms);
+      fetch("/api/db/workout_programs/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workoutPrograms)
+      }).catch(err => console.error(err));
     }
   }, [workoutPrograms, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && nutritionPlans.length > 0) {
       mysqlDb.saveNutritionPlans(nutritionPlans);
+      fetch("/api/db/nutrition_plans/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nutritionPlans)
+      }).catch(err => console.error(err));
     }
   }, [nutritionPlans, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && storeProducts.length > 0) {
       mysqlDb.saveStoreProducts(storeProducts);
+      fetch("/api/db/store_products/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(storeProducts)
+      }).catch(err => console.error(err));
     }
   }, [storeProducts, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && bookings.length > 0) {
       mysqlDb.saveBookings(bookings);
+      fetch("/api/db/bookings/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookings)
+      }).catch(err => console.error(err));
     }
   }, [bookings, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && tickets.length > 0) {
       mysqlDb.saveTickets(tickets);
+      fetch("/api/db/tickets/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tickets)
+      }).catch(err => console.error(err));
     }
   }, [tickets, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && attendanceRecords.length > 0) {
       mysqlDb.saveAttendanceRecords(attendanceRecords);
+      fetch("/api/db/attendance_records/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(attendanceRecords)
+      }).catch(err => console.error(err));
     }
   }, [attendanceRecords, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && exercisesList.length > 0) {
       mysqlDb.saveExercisesList(exercisesList);
+      fetch("/api/db/exercises_database/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exercisesList)
+      }).catch(err => console.error(err));
     }
   }, [exercisesList, isDbReady]);
 
   useEffect(() => {
     if (isDbReady && coachSales.length > 0) {
       mysqlDb.saveCoachSales(coachSales);
+      fetch("/api/db/coach_sales/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(coachSales)
+      }).catch(err => console.error(err));
     }
   }, [coachSales, isDbReady]);
 
   // Mascot Live Chat support functions
   const fetchSmartMessages = async (sessionId: string) => {
     try {
-      const chatDocRef = doc(db, "smart_support_chats", sessionId);
-      let docSnap;
-      try {
-        docSnap = await getDoc(chatDocRef);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `smart_support_chats/${sessionId}`);
-      }
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSmartChatMessages(data.messages || []);
-      } else {
-        const initialMsg = {
-          id: `m_init_${Date.now()}`,
-          sender: "smart_ai",
-          text: "سلام قهرمان! من اسمارْت هستم، مربی همراه و مسکات رسمی پلتفرم اسمارت جیم. چه کمکی می‌تونم بهت بکنم؟ هر سوالی داری بنویس تا با هم گپ بزنیم! 😊🦾",
-          timestamp: new Date().toISOString()
-        };
-        try {
-          await setDoc(chatDocRef, {
-            id: sessionId,
-            userName: localStorage.getItem("smart_chat_user_name") || "کاربر مهمان",
-            userPhone: localStorage.getItem("smart_chat_user_phone") || "",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            messages: [initialMsg]
-          });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${sessionId}`);
+      const res = await fetch(`/api/db/smart_support_chats`);
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const chats = await res.json();
+          const found = chats.find((c: any) => c.id === sessionId);
+          if (found) {
+            setSmartChatMessages(found.messages || []);
+            return;
+          }
         }
-        setSmartChatMessages([initialMsg]);
       }
+
+      const initialMsg = {
+        id: `m_init_${Date.now()}`,
+        sender: "smart_ai",
+        text: "سلام قهرمان! من اسمارْت هستم، مربی همراه و مسکات رسمی پلتفرم اسمارت جیم. چه کمکی می‌تونم بهت بکنم؟ هر سوالی داری بنویس تا با هم گپ بزنیم! 😊🦾",
+        timestamp: new Date().toISOString()
+      };
+
+      const newChat = {
+        id: sessionId,
+        userName: localStorage.getItem("smart_chat_user_name") || "کاربر مهمان",
+        userPhone: localStorage.getItem("smart_chat_user_phone") || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [initialMsg]
+      };
+
+      await fetch(`/api/db/smart_support_chats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newChat)
+      });
+      setSmartChatMessages([initialMsg]);
     } catch (e) {
       console.error("Error fetching smart chat messages:", e);
     }
@@ -1034,21 +924,21 @@ export default function App() {
     setSmartChatInputText("");
 
     try {
-      const chatDocRef = doc(db, "smart_support_chats", smartChatSession.id);
-      try {
-        await setDoc(chatDocRef, {
-          id: smartChatSession.id,
-          userName: smartChatSession.userName,
-          userPhone: smartChatSession.userPhone,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          messages: updatedMessages
-        }, { merge: true });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${smartChatSession.id}`);
-      }
+      const chatData = {
+        id: smartChatSession.id,
+        userName: smartChatSession.userName,
+        userPhone: smartChatSession.userPhone,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: updatedMessages
+      };
 
-      // After 2.5 seconds, trigger a smart auto response acknowledging receipt if last msg is still user's
+      await fetch(`/api/db/smart_support_chats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(chatData)
+      });
+
       setTimeout(async () => {
         const smartReply = {
           id: `msg_auto_${Date.now()}`,
@@ -1056,25 +946,31 @@ export default function App() {
           text: `پیام شما به مربیان و مدیران ارشد اسمارت جیم ارسال شد! 🦾 من به عنوان مسکات پلتفرم اونو تو بخش جدید پنل سوپر ادمین ثبت کردم و به زودی همکارانم مستقیم جوابتو میدن. دم تلاشت گرم!`,
           timestamp: new Date().toISOString()
         };
-        let freshSnap;
-        try {
-          freshSnap = await getDoc(chatDocRef);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `smart_support_chats/${smartChatSession.id}`);
-        }
-        if (freshSnap.exists()) {
-          const freshData = freshSnap.data();
-          const currentMsgs = freshData.messages || [];
-          if (currentMsgs.length > 0 && currentMsgs[currentMsgs.length - 1].sender === "user") {
-            const withReply = [...currentMsgs, smartReply];
-            setSmartChatMessages(withReply);
-            try {
-              await setDoc(chatDocRef, {
-                messages: withReply,
-                updatedAt: new Date().toISOString()
-              }, { merge: true });
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${smartChatSession.id}`);
+        
+        const res = await fetch(`/api/db/smart_support_chats`);
+        if (res.ok) {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const chats = await res.json();
+            const found = chats.find((c: any) => c.id === smartChatSession.id);
+            if (found) {
+              const currentMsgs = found.messages || [];
+              if (currentMsgs.length > 0 && currentMsgs[currentMsgs.length - 1].sender === "user") {
+                const withReply = [...currentMsgs, smartReply];
+                setSmartChatMessages(withReply);
+                
+                const updatedChat = {
+                  ...found,
+                  messages: withReply,
+                  updatedAt: new Date().toISOString()
+                };
+
+                await fetch(`/api/db/smart_support_chats`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(updatedChat)
+                });
+              }
             }
           }
         }
@@ -1087,19 +983,15 @@ export default function App() {
 
   const fetchAllSmartChats = async () => {
     try {
-      const q = collection(db, "smart_support_chats");
-      let querySnapshot;
-      try {
-        querySnapshot = await getDocs(q);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, "smart_support_chats");
+      const res = await fetch(`/api/db/smart_support_chats`);
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const chatsList = await res.json();
+          chatsList.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          setAllSmartChats(chatsList);
+        }
       }
-      const chatsList: any[] = [];
-      querySnapshot.forEach((docSnap) => {
-        chatsList.push(docSnap.data());
-      });
-      chatsList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      setAllSmartChats(chatsList);
     } catch (e) {
       console.error("Error fetching all smart chats:", e);
     }
@@ -1115,27 +1007,30 @@ export default function App() {
     };
     
     try {
-      const chatDocRef = doc(db, "smart_support_chats", chatId);
-      let docSnap;
-      try {
-        docSnap = await getDoc(chatDocRef);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `smart_support_chats/${chatId}`);
-      }
-      if (docSnap.exists()) {
-        const chat = docSnap.data();
-        const updatedMessages = [...(chat.messages || []), adminMsg];
-        try {
-          await setDoc(chatDocRef, {
-            messages: updatedMessages,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `smart_support_chats/${chatId}`);
-        }
+      const res = await fetch(`/api/db/smart_support_chats`);
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const chats = await res.json();
+          const found = chats.find((c: any) => c.id === chatId);
+          if (found) {
+            const updatedMessages = [...(found.messages || []), adminMsg];
+            const updatedChat = {
+              ...found,
+              messages: updatedMessages,
+              updatedAt: new Date().toISOString()
+            };
 
-        setAdminReplyText("");
-        fetchAllSmartChats();
+            await fetch(`/api/db/smart_support_chats`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updatedChat)
+            });
+
+            setAdminReplyText("");
+            fetchAllSmartChats();
+          }
+        }
       }
     } catch (e) {
       console.error("Error sending admin reply:", e);
@@ -1635,38 +1530,21 @@ export default function App() {
               <GymLogo showText={true} size="md" isDark={isDarkMode} brandText={platformBrandLogo} themeColor={platformTheme} logoUrl={platformLogoUrl} />
             </div>
 
-            {/* Desktop Navigation Link Tabs */}
-            <nav className="hidden lg:flex items-center gap-1.5 bg-slate-900/50 p-1.5 rounded-full border border-white/5">
-              <button 
-                onClick={() => setActiveTab("landing")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "landing" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-900/30" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                لندینگ معرفی
-              </button>
-              <button 
-                onClick={() => setActiveTab("superadmin")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "superadmin" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                سوپر ادمین (SaaS)
-              </button>
-              <button 
-                onClick={() => setActiveTab("tenant")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "tenant" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                پنل مستأجر (باشگاه)
-              </button>
-              <button 
-                onClick={() => setActiveTab("coach")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "coach" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                پنل مربیان
-              </button>
-              <button 
-                onClick={() => setActiveTab("member")}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeTab === "member" ? "bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
-              >
-                پنل ورزشکار و پلیر
-              </button>
+            {/* Desktop Navigation - Hidden Role Selector with Clean Dynamic Badge */}
+            <nav className="hidden lg:flex items-center gap-1.5">
+              {activeTab === "landing" ? (
+                <span className="text-slate-500 text-xs font-medium">پلتفرم مدیریت هوشمند و اختصاصی باشگاه‌های ورزشی</span>
+              ) : activeTab === "superadmin" ? (
+                <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-1.5 rounded-full text-xs font-black">⚙️ محیط امن نظارت کلان (Super Admin)</span>
+              ) : activeTab === "tenant" ? (
+                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-4 py-1.5 rounded-full text-xs font-black">🏢 پنل اختصاصی مدیریت باشگاه</span>
+              ) : activeTab === "coach" ? (
+                <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 px-4 py-1.5 rounded-full text-xs font-black">🏋️‍♂️ پنل اختصاصی مربیان بدنسازی</span>
+              ) : activeTab === "member" ? (
+                <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-4 py-1.5 rounded-full text-xs font-black">👤 پرتال اختصاصی ورزشکاران</span>
+              ) : activeTab === "installer" ? (
+                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-4 py-1.5 rounded-full text-xs font-black">🛠️ سیستم نصب آسان پلتفرم (Easy Installer)</span>
+              ) : null}
             </nav>
           </div>
 
@@ -1714,32 +1592,17 @@ export default function App() {
             onClick={() => { setActiveTab("landing"); setIsMobileMenuOpen(false); }}
             className={`p-3 rounded-xl text-sm font-bold text-right transition-all ${activeTab === "landing" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"}`}
           >
-            صفحه اصلی لندینگ
+            صفحه اصلی لندینگ (اسمارت جیم)
           </button>
-          <button 
-            onClick={() => { setActiveTab("superadmin"); setIsMobileMenuOpen(false); }}
-            className={`p-3 rounded-xl text-sm font-bold text-right transition-all ${activeTab === "superadmin" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"}`}
-          >
-            پنل مدیریتی سوپر ادمین (SaaS)
-          </button>
-          <button 
-            onClick={() => { setActiveTab("tenant"); setIsMobileMenuOpen(false); }}
-            className={`p-3 rounded-xl text-sm font-bold text-right transition-all ${activeTab === "tenant" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"}`}
-          >
-            پنل مدیریت باشگاه (Tenant)
-          </button>
-          <button 
-            onClick={() => { setActiveTab("coach"); setIsMobileMenuOpen(false); }}
-            className={`p-3 rounded-xl text-sm font-bold text-right transition-all ${activeTab === "coach" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"}`}
-          >
-            پنل مربیان بدنسازی
-          </button>
-          <button 
-            onClick={() => { setActiveTab("member"); setIsMobileMenuOpen(false); }}
-            className={`p-3 rounded-xl text-sm font-bold text-right transition-all ${activeTab === "member" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-white/5"}`}
-          >
-            پنل اعضا و پلیر تمرین خودکار
-          </button>
+          {activeTab !== "landing" && (
+            <div className="p-3 bg-slate-900 border border-white/5 rounded-xl text-xs font-black text-center text-slate-400">
+              {activeTab === "superadmin" ? "⚙️ در حال نظارت در پنل سوپر ادمین" :
+               activeTab === "tenant" ? "🏢 در حال مدیریت در پنل باشگاه" :
+               activeTab === "coach" ? "🏋️‍♂️ در حال نظارت در پنل مربیان" :
+               activeTab === "member" ? "👤 در حال استفاده در پرتال ورزشکاران" :
+               activeTab === "installer" ? "🛠️ در حال پیکربندی در Easy Installer" : ""}
+            </div>
+          )}
         </div>
       )}
 
@@ -2231,8 +2094,93 @@ export default function App() {
         )}
 
 
-        {/* -------------------- TAB 2: SUPER ADMIN DASHBOARD -------------------- */}
-        {activeTab === "superadmin" && (
+        {/* -------------------- TAB 2: SUPER ADMIN LOGIN & DASHBOARD -------------------- */}
+        {activeTab === "superadmin" && !isSuperAdminLoggedIn && (
+          <div className="max-w-md mx-auto py-12 space-y-6 animate-fade-in text-right" dir="rtl">
+            <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -z-10"></div>
+              
+              <div className="w-16 h-16 bg-gradient-to-tr from-red-600 to-amber-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto shadow-lg shadow-red-950/40">
+                🔒
+              </div>
+              
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-black text-white">ورود فوق امنیتی سوپر ادمین</h3>
+                <p className="text-xs text-slate-400">پنل نظارت کلان و پلتفرم ابری اسمارت‌جیم (SaaS)</p>
+              </div>
+
+              {adminLoginError && (
+                <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-400 font-bold text-center">
+                  ⚠️ {adminLoginError}
+                </div>
+              )}
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">نام کاربری ادمین:</label>
+                  <input 
+                    type="text"
+                    value={adminUsernameInput}
+                    onChange={(e) => setAdminUsernameInput(e.target.value)}
+                    placeholder="نام کاربری نظارتی را وارد کنید..."
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 text-left font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">رمز عبور امنیتی:</label>
+                  <input 
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                    placeholder="کلمه عبور امنیتی را وارد کنید..."
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 text-left font-mono"
+                  />
+                </div>
+
+                <button
+                  onClick={async () => {
+                    setIsAdminLoginLoading(true);
+                    setAdminLoginError("");
+                    try {
+                      const response = await fetch("/api/admin/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: adminUsernameInput, password: adminPasswordInput })
+                      });
+                      const resData = await response.json();
+                      if (response.ok && resData.success) {
+                        setIsSuperAdminLoggedIn(true);
+                        localStorage.setItem("isSuperAdminLoggedIn", "true");
+                      } else {
+                        setAdminLoginError(resData.error || "نام کاربری یا کلمه عبور اشتباه است!");
+                      }
+                    } catch (err: any) {
+                      setAdminLoginError("خطای ارتباط با سرور. لطفا اتصال را بررسی کنید.");
+                    } finally {
+                      setIsAdminLoginLoading(false);
+                    }
+                  }}
+                  disabled={isAdminLoginLoading}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:brightness-110 active:scale-95 transition-all text-slate-950 font-black text-sm shadow-lg shadow-red-950/30"
+                >
+                  {isAdminLoginLoading ? "در حال تایید اعتبار امنیتی..." : "🔓 ورود امن به کنترل پنل"}
+                </button>
+              </div>
+
+              <div className="text-center">
+                <button 
+                  onClick={() => setActiveTab("landing")}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 hover:underline"
+                >
+                  ← بازگشت به صفحه اصلی لندینگ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "superadmin" && isSuperAdminLoggedIn && (
           <div className="space-y-8 animate-fade-in">
             <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/40 p-6 rounded-3xl border border-white/5">
               <div>
@@ -2241,10 +2189,21 @@ export default function App() {
               </div>
               
               {/* Server health metrics banner */}
-              <div className="flex gap-4 text-xs font-mono">
+              <div className="flex items-center gap-4 text-xs font-mono">
                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl">دیتابیس: متصل</span>
                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl">کرون‌جاب: فعال</span>
-                <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1.5 rounded-xl">سرور: سالم (۹۹.۹٪)</span>
+                <button
+                  onClick={() => {
+                    if (confirm("آیا مایل به خروج امن از پنل سوپر ادمین هستید؟")) {
+                      setIsSuperAdminLoggedIn(false);
+                      localStorage.removeItem("isSuperAdminLoggedIn");
+                      setActiveTab("landing");
+                    }
+                  }}
+                  className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-950 border border-red-500/30 px-3 py-1.5 rounded-xl font-bold transition-all"
+                >
+                  🚪 خروج امن ادمین
+                </button>
               </div>
             </div>
 
@@ -2822,8 +2781,9 @@ export default function App() {
                               onClick={async () => {
                                 if (confirm("آیا مایل به حذف این گفتگو و تاریخچه آن هستید؟")) {
                                   try {
-                                    const { deleteDoc, doc } = await import("./lib/firebase");
-                                    await deleteDoc(doc(db, "smart_support_chats", selectedChat.id));
+                                    await fetch(`/api/db/smart_support_chats/${selectedChat.id}`, {
+                                      method: "DELETE"
+                                    });
                                     setActiveAdminChatId("");
                                     fetchAllSmartChats();
                                   } catch (e) {
@@ -6565,6 +6525,465 @@ export default function App() {
                 >
                   <Send className="w-4 h-4" />
                 </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+
+        {/* -------------------- TAB 7: CPANEL EASY INSTALLER -------------------- */}
+        {activeTab === "installer" && (
+          <div className="space-y-8 animate-fade-in text-right" dir="rtl">
+            
+            {/* Header section */}
+            <div className="bg-gradient-to-l from-amber-950/40 via-slate-900/60 to-orange-950/40 p-6 rounded-[2rem] border border-amber-500/20 flex flex-wrap items-center justify-between gap-6">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full text-amber-400 text-[10px] font-bold">
+                  <Settings className="w-3.5 h-3.5 animate-spin" />
+                  محیط جادویی نصب آسان پلتفرم روی سی‌پنل (Easy Installer for cPanel)
+                </div>
+                <h2 className="text-2xl font-black text-white">نصب‌کننده خودکار و پکیج استقرار اسمارت‌جیم</h2>
+                <p className="text-xs text-slate-400">تنظیمات اتصال دیتابیس MySQL (phpMyAdmin)، راه‌اندازی ساختار جدول‌ها و ایجاد حساب سوپر ادمین در چند ثانیه.</p>
+              </div>
+              <div className="flex gap-4 text-xs font-mono">
+                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1.5 rounded-xl">نسخه هاست: cPanel v118+</span>
+                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1.5 rounded-xl">بستر: Node.js 18 / 20</span>
+              </div>
+            </div>
+
+            {/* Installer progression wizard */}
+            <div className="grid md:grid-cols-4 gap-6 text-xs font-sans">
+              
+              {/* Wizard Sidebar Menu */}
+              <div className="glass-panel p-6 rounded-[2rem] border border-white/5 space-y-2 h-fit">
+                <div className="text-slate-400 font-bold mb-4 px-2 text-[10px] uppercase tracking-wider">مراحل راه‌اندازی پلتفرم</div>
+                
+                <button
+                  onClick={() => setInstallerStep(1)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${installerStep === 1 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+                >
+                  <span className={`w-5 h-5 rounded-lg flex items-center justify-center font-black text-[10px] ${installerStep === 1 ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-400"}`}>۱</span>
+                  <span>۱. سازگاری محیط cPanel</span>
+                </button>
+
+                <button
+                  onClick={() => setInstallerStep(2)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${installerStep === 2 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+                >
+                  <span className={`w-5 h-5 rounded-lg flex items-center justify-center font-black text-[10px] ${installerStep === 2 ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-400"}`}>۲</span>
+                  <span>۲. تنظیم پایگاه داده MySQL</span>
+                </button>
+
+                <button
+                  onClick={() => setInstallerStep(3)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${installerStep === 3 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+                >
+                  <span className={`w-5 h-5 rounded-lg flex items-center justify-center font-black text-[10px] ${installerStep === 3 ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-400"}`}>۳</span>
+                  <span>۳. حساب ادمین و برندینگ</span>
+                </button>
+
+                <button
+                  onClick={() => setInstallerStep(4)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl font-bold transition-all ${installerStep === 4 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
+                >
+                  <span className={`w-5 h-5 rounded-lg flex items-center justify-center font-black text-[10px] ${installerStep === 4 ? "bg-amber-500 text-slate-950" : "bg-slate-800 text-slate-400"}`}>۴</span>
+                  <span>📚 راهنمای مستندات سی‌پنل</span>
+                </button>
+              </div>
+
+              {/* Wizard Active step content */}
+              <div className="md:col-span-3 space-y-6">
+                
+                {/* Step 1: Environment Checks */}
+                {installerStep === 1 && (
+                  <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 animate-fade-in">
+                    <h3 className="text-base font-black text-white">بررسی خودکار پیش‌نیازهای استقرار روی سی‌پنل (cPanel Checklist)</h3>
+                    <p className="text-slate-400 leading-relaxed text-[11px]">
+                      سیستم نصب‌کننده خودکار اسمارت‌جیم، ساختار فنی و دسترسی‌های لایه سیستم‌عامل هاست لینوکسی شما را مورد ارزیابی قرار داده است. تمامی فاکتورها آماده راه‌اندازی هستند:
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500/15 rounded-xl flex items-center justify-center text-emerald-400 text-sm font-black">✓</div>
+                        <div>
+                          <div className="font-bold text-white">پکیج پایگاه داده (mysql2)</div>
+                          <div className="text-[10px] text-emerald-400 font-sans">تایید شده • نسخه پیشرفته مای‌اس‌کیوال</div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500/15 rounded-xl flex items-center justify-center text-emerald-400 text-sm font-black">✓</div>
+                        <div>
+                          <div className="font-bold text-white">دسترسی به فایل سیستم (.env)</div>
+                          <div className="text-[10px] text-emerald-400 font-sans">قابل نوشتن • جهت ذخیره متغیرها</div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500/15 rounded-xl flex items-center justify-center text-emerald-400 text-sm font-black">✓</div>
+                        <div>
+                          <div className="font-bold text-white">پشتیبانی از ES Moduleها</div>
+                          <div className="text-[10px] text-emerald-400 font-sans">فعال • سازگار با هسته Node.js هاست</div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-emerald-500/15 rounded-xl flex items-center justify-center text-emerald-400 text-sm font-black">✓</div>
+                        <div>
+                          <div className="font-bold text-white">مهاجرت داده‌های دمو</div>
+                          <div className="text-[10px] text-emerald-400 font-sans">آماده • فایل محلی پشتیبان متصل است</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-300 leading-relaxed text-[11px]">
+                      🎉 **تبریک!** هاست cPanel شما از تمام قابلیت‌های ابری پلتفرم اسمارت‌جیم شامل پردازش پس‌زمینه، پایگاه داده MySQL و هوش مصنوعی پشتیبانی می‌کند. برای شروع فرآیند نصب به مرحله بعدی بروید.
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={() => setInstallerStep(2)}
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg"
+                      >
+                        مرحله بعد: تنظیمات دیتابیس MySQL ←
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Database Setup */}
+                {installerStep === 2 && (
+                  <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 animate-fade-in">
+                    <h3 className="text-base font-black text-white">تنظیمات اتصال پایگاه داده MySQL (phpMyAdmin) سی‌پنل</h3>
+                    <p className="text-slate-400 leading-relaxed text-[11px]">
+                      ابتدا در پنل cPanel خود از طریق منوی **MySQL Database Wizard** یک دیتابیس و یک کاربر جدید بسازید و تمام دسترسی‌ها (ALL PRIVILEGES) را به آن کاربر بدهید. سپس اطلاعات را در فیلدهای زیر وارد کنید:
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">میزبان دیتابیس (Database Host):</label>
+                        <input 
+                          type="text"
+                          value={installerDbHost}
+                          onChange={(e) => setInstallerDbHost(e.target.value)}
+                          placeholder="localhost"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 text-left font-mono"
+                        />
+                        <span className="text-[10px] text-slate-500 font-sans">در ۹۹٪ هاست‌های اشتراکی cPanel روی localhost تنظیم است.</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">پورت (Database Port):</label>
+                        <input 
+                          type="text"
+                          value={installerDbPort}
+                          onChange={(e) => setInstallerDbPort(e.target.value)}
+                          placeholder="3306"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 text-left font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">نام کاربری دیتابیس (Database User):</label>
+                        <input 
+                          type="text"
+                          value={installerDbUser}
+                          onChange={(e) => setInstallerDbUser(e.target.value)}
+                          placeholder="مثلاً: smartgym_user"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 text-left font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">کلمه عبور دیتابیس (Database Password):</label>
+                        <input 
+                          type="password"
+                          value={installerDbPassword}
+                          onChange={(e) => setInstallerDbPassword(e.target.value)}
+                          placeholder="رمز عبور کاربر دیتابیس..."
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 text-left font-mono"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">نام پایگاه داده (Database Name):</label>
+                        <input 
+                          type="text"
+                          value={installerDbName}
+                          onChange={(e) => setInstallerDbName(e.target.value)}
+                          placeholder="مثلاً: smartgym_db"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 text-left font-mono"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 p-3 bg-slate-900/50 rounded-xl border border-white/5 flex items-center gap-3">
+                        <input 
+                          type="checkbox"
+                          id="migrate-check"
+                          checked={installerMigrateDemo}
+                          onChange={(e) => setInstallerMigrateDemo(e.target.checked)}
+                          className="w-4 h-4 text-amber-500 rounded bg-slate-950 border-white/10"
+                        />
+                        <label htmlFor="migrate-check" className="text-slate-300 font-bold select-none cursor-pointer font-sans">
+                          مهاجرت و انتقال اتوماتیک داده‌های دمو (باشگاه‌ها، ورزشکاران نمونه، برنامه‌ها و مربیان دمو) به MySQL
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Console Logger */}
+                    <div className="space-y-2">
+                      <div className="text-[10px] text-slate-400 font-bold font-sans">لاگ سیستم نصب (Installer Console Output):</div>
+                      <div className="bg-slate-950 border border-white/10 rounded-2xl p-4 h-24 overflow-y-auto font-mono text-[10px] text-emerald-400 space-y-1 text-left" dir="ltr">
+                        {installerLogs.map((log, idx) => (
+                          <div key={idx}>{`> ${log}`}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 pt-2 font-sans">
+                      <button
+                        onClick={async () => {
+                          if (!installerDbUser || !installerDbName) {
+                            alert("⚠️ لطفا نام کاربری و نام دیتابیس را پر کنید!");
+                            return;
+                          }
+                          setInstallerLogs((prev) => [...prev, `Testing connection to mysql://${installerDbHost}:${installerDbPort}...`]);
+                          try {
+                            const response = await fetch("/api/installer/test-db", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                host: installerDbHost,
+                                port: installerDbPort,
+                                user: installerDbUser,
+                                password: installerDbPassword,
+                                database: installerDbName
+                              })
+                            });
+                            const data = await response.json();
+                            if (response.ok && data.success) {
+                              setInstallerLogs((prev) => [...prev, `[SUCCESS] ${data.message}`]);
+                              alert("✅ اتصال با موفقیت تست شد!");
+                            } else {
+                              setInstallerLogs((prev) => [...prev, `[ERROR] ${data.error || "خطای نامشخص"}`]);
+                              alert(`❌ خطای تست اتصال: ${data.error || "خطای ناشناخته"}`);
+                            }
+                          } catch (e: any) {
+                            setInstallerLogs((prev) => [...prev, `[CRITICAL] Fetch failed: ${e.message}`]);
+                            alert(`❌ عدم برقراری ارتباط با هاست: ${e.message}`);
+                          }
+                        }}
+                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition-all border border-white/10"
+                      >
+                        🔍 تست اتصال به MySQL
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          if (!installerDbUser || !installerDbName) {
+                            alert("⚠️ لطفا ابتدا نام کاربری و نام دیتابیس را وارد کنید!");
+                            return;
+                          }
+                          setIsInstallerLoading(true);
+                          setInstallerLogs((prev) => [...prev, "Starting table definitions deployment..."]);
+                          try {
+                            const response = await fetch("/api/installer/setup-db", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                host: installerDbHost,
+                                port: installerDbPort,
+                                user: installerDbUser,
+                                password: installerDbPassword,
+                                database: installerDbName,
+                                migrateData: installerMigrateDemo
+                              })
+                            });
+                            const data = await response.json();
+                            if (response.ok && data.success) {
+                              setInstallerLogs((prev) => [
+                                ...prev, 
+                                "[DB SUCCESS] Connection verified.",
+                                "[DB SUCCESS] Created all 14 schema tables: tenants, members, coaches, workout_programs, nutrition_plans, etc.",
+                                `[DB SUCCESS] ${data.message}`
+                              ]);
+                              alert("🎉 دیتابیس و ۱۴ جدول آن با موفقیت پیکربندی و راه‌اندازی شدند!");
+                              setInstallerStep(3); // Auto-advance
+                            } else {
+                              setInstallerLogs((prev) => [...prev, `[DB ERROR] Table migration failed: ${data.error}`]);
+                              alert(`❌ خطا در راه‌اندازی دیتابیس: ${data.error}`);
+                            }
+                          } catch (e: any) {
+                            setInstallerLogs((prev) => [...prev, `[CRITICAL] Server failed during setup: ${e.message}`]);
+                            alert(`❌ خطای سرور: ${e.message}`);
+                          } finally {
+                            setIsInstallerLoading(false);
+                          }
+                        }}
+                        disabled={isInstallerLoading}
+                        className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-800 text-slate-950 font-black py-2.5 rounded-xl transition-all shadow-lg"
+                      >
+                        {isInstallerLoading ? "در حال ایجاد جدول‌ها و مهاجرت..." : "🚀 ایجاد جدول‌ها و راه‌اندازی دیتابیس"}
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between pt-2">
+                      <button
+                        onClick={() => setInstallerStep(1)}
+                        className="text-slate-500 hover:text-white font-bold"
+                      >
+                        ← بازگشت به مرحله قبل
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Admin & Branding Setup */}
+                {installerStep === 3 && (
+                  <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 animate-fade-in">
+                    <h3 className="text-base font-black text-white">تعریف حساب کاربری سوپر ادمین پلتفرم و شخصی‌سازی برند</h3>
+                    <p className="text-slate-400 leading-relaxed text-[11px]">
+                      با تنظیم مقادیر زیر، اطلاعات کاربری فوق‌امنیتی برای پنل سوپر ادمین تعیین می‌شود. همچنین می‌توانید نام اختصاصی برند پلتفرم خود را جهت استفاده در تمام صفحات، فاکتورها و لوگوها مشخص کنید.
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">نام کاربری سوپر ادمین:</label>
+                        <input 
+                          type="text"
+                          value={installerAdminUser}
+                          onChange={(e) => setInstallerAdminUser(e.target.value)}
+                          placeholder="admin"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 font-mono text-left"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">کلمه عبور امنیتی پنل ادمین:</label>
+                        <input 
+                          type="password"
+                          value={installerAdminPass}
+                          onChange={(e) => setInstallerAdminPass(e.target.value)}
+                          placeholder="کلمه عبور فوق امنیتی..."
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200 font-mono text-left"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-slate-400 mb-1 font-bold font-sans">نام برند تجاری پلتفرم (SaaS Platform Title):</label>
+                        <input 
+                          type="text"
+                          value={installerBrandName}
+                          onChange={(e) => setInstallerBrandName(e.target.value)}
+                          placeholder="پلتفرم ابری اسمارت جیم"
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-slate-200"
+                        />
+                        <span className="text-[10px] text-slate-500 font-sans">این نام به صورت سراسری در لندینگ، هدرها، کپی‌رایت‌ها و ایمیل‌ها قرار می‌گیرد.</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        if (!installerAdminPass) {
+                          alert("⚠️ لطفا کلمه عبور پنل سوپر ادمین را مشخص کنید!");
+                          return;
+                        }
+                        setIsInstallerLoading(true);
+                        try {
+                          const response = await fetch("/api/installer/save-admin", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              username: installerAdminUser,
+                              password: installerAdminPass,
+                              brandName: installerBrandName
+                            })
+                          });
+                          const data = await response.json();
+                          if (response.ok && data.success) {
+                            setPlatformBrandLogo(installerBrandName);
+                            localStorage.setItem("platformBrandLogo", installerBrandName);
+                            alert("🎉 اطلاعات پنل ادمین و برند اختصاصی با موفقیت ثبت نهایی شد! اکنون پلتفرم شما با موفقیت نصب شده و کاملاً فعال است.");
+                            
+                            // Log in immediately
+                            setIsSuperAdminLoggedIn(true);
+                            localStorage.setItem("isSuperAdminLoggedIn", "true");
+                            
+                            // Redirect to admin panel
+                            setActiveTab("superadmin");
+                          } else {
+                            alert(`❌ خطا در ذخیره اطلاعات کاربری: ${data.error}`);
+                          }
+                        } catch (e: any) {
+                          alert(`❌ خطای دسترسی به فایل سیستم سرور: ${e.message}`);
+                        } finally {
+                          setIsInstallerLoading(false);
+                        }
+                      }}
+                      disabled={isInstallerLoading}
+                      className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-slate-950 font-black rounded-xl text-xs transition-all shadow-lg font-sans"
+                    >
+                      {isInstallerLoading ? "در حال ثبت نهایی..." : "🏁 ذخیره نهایی و راه‌اندازی و ورود به پنل سوپر ادمین"}
+                    </button>
+
+                    <div className="flex justify-between pt-2">
+                      <button
+                        onClick={() => setInstallerStep(2)}
+                        className="text-slate-500 hover:text-white font-bold font-sans"
+                      >
+                        ← بازگشت به مرحله قبل
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4: Documentation */}
+                {installerStep === 4 && (
+                  <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 animate-fade-in text-slate-300 text-xs font-sans leading-relaxed">
+                    <h3 className="text-base font-black text-white">راهنمای استقرار پروژه روی پنل هاست cPanel</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-amber-400 text-sm">۱. نحوه آپلود پروژه به سی‌پنل:</h4>
+                        <p>
+                          کل فایل‌های پروژه (به جز پوشه سنگین `node_modules` و `dist`) را به صورت فایل `.zip` فشرده کنید و از بخش **File Manager** هاست cPanel آپلود کرده و اکسترکت (Extract) نمایید.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-amber-400 text-sm">۲. تنظیم Setup Node.js App:</h4>
+                        <p>
+                          در منوهای سی‌پنل گزینه **Setup Node.js App** را باز کرده و بر روی **Create Application** کلیک کنید. نسخه Node.js را روی ۱۸ یا ۲۰ قرار دهید. مسیر Root را برابر پوشه اصلی اکسترکت شده و فایل استارت‌پ روت را برابر `server.ts` (یا `dist/server.cjs` بعد از بیلد) یا به سادگی طبق تنظیم پیش‌فرض قرار دهید.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-amber-400 text-sm">۳. اجرای دستورات بیلد و استارت‌پ:</h4>
+                        <p>
+                          پس از تعریف اپ در cPanel، دکمه **Run NPM Install** را بزنید تا کل دپندنسی‌ها روی هاست نصب شوند. سپس از ترمینال هاست یا از طریق منوی cPanel کامند `npm run build` را اجرا کنید. پلتفرم با مکانیزم Bundle شده و درایور MySQL کاملاً هماهنگ شده و از روی هاست به سرعت بارگذاری می‌شود!
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-amber-400 text-sm">۴. اتصال درگاه‌های بانکی شتاب:</h4>
+                        <p>
+                          از پنل سوپر ادمین پلتفرم (منوی آخر) کدهای مرچنت درگاه بانکی **زرین‌پال** یا **سامان‌کیش** باشگاه‌ها را به صورت آنی تغییر داده و در دیتابیس MySQL هاست ذخیره کنید.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={() => setInstallerStep(1)}
+                        className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all border border-white/10"
+                      >
+                        برگشت به شروع نصب ←
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </div>
 
