@@ -186,7 +186,6 @@ app.post("/api/ai/chat", async (req, res) => {
 import { dbGetTable, dbSaveItem, dbSaveTable, dbDeleteItem, reinitializePool, isUsingRealMySQL } from "./server_db";
 
 // --- cPanel Easy Installer Endpoints ---
-const FALLBACK_DB_PATH = path.join(process.cwd(), "local_mysql_fallback.json");
 
 // Helper to update .env file dynamically
 function updateEnvFile(updates: Record<string, string>) {
@@ -474,44 +473,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
       await connection.query(t.sql);
     }
 
-    // Optional Demo Data Migration
-    let migratedCount = 0;
-    if (migrateData && fs.existsSync(FALLBACK_DB_PATH)) {
-      try {
-        const localDbContent = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
-        
-        // Loop over localDb tables and insert records
-        for (const [tableName, items] of Object.entries(localDbContent)) {
-          if (!Array.isArray(items)) continue;
-          
-          for (const item of items) {
-            const keys = Object.keys(item);
-            const formattedItem = { ...item };
-            
-            // Stringify JSON fields for MySQL TEXT/LONGTEXT columns
-            const jsonKeys = ["features", "schedule", "tips", "macros", "meals", "shoppingList", "advice", "replies", "messages", "highlightMuscles", "whiteLabelTheme"];
-            jsonKeys.forEach(key => {
-              if (formattedItem[key] !== undefined && typeof formattedItem[key] !== "string") {
-                formattedItem[key] = JSON.stringify(formattedItem[key]);
-              }
-            });
-
-            const values = keys.map(k => formattedItem[k]);
-            const placeholders = keys.map(() => "?").join(", ");
-            const updateClause = keys.map(k => `\`${k}\` = VALUES(\`${k}\`)`).join(", ");
-
-            const sql = `INSERT INTO \`${tableName}\` (${keys.map(k => `\`${k}\``).join(", ")}) 
-                         VALUES (${placeholders}) 
-                         ON DUPLICATE KEY UPDATE ${updateClause}`;
-            
-            await connection.query(sql, [...values, ...values]);
-            migratedCount++;
-          }
-        }
-      } catch (errMigration) {
-        console.error("Migration during installation failed, but tables were created:", errMigration);
-      }
-    }
+    // No local fallback file database migration needed since we only use real MySQL.
+    // Self-seeding is automatically handled by the client application on load.
 
     await connection.end();
 
@@ -520,7 +483,7 @@ app.post("/api/installer/setup-db", async (req, res) => {
 
     res.json({
       success: true,
-      message: `دیتابیس با موفقیت متصل شده و تمام ۱۴ جدول پلتفرم اسمارت‌جیم با موفقیت ساخته شدند! تعداد ${migratedCount} داده دمو نیز با موفقیت به پایگاه داده MySQL منتقل شدند. 🚀`
+      message: `دیتابیس با موفقیت متصل شده و تمام ۱۴ جدول پلتفرم اسمارت‌جیم با موفقیت روی سرور MySQL ساخته شدند! پایگاه داده آماده بهره‌برداری کامل است. 🚀`
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "خطا در ساخت دیتابیس و جدول‌ها" });

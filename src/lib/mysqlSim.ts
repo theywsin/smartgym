@@ -1,5 +1,4 @@
 import { toPersianNums, BlogPost } from "../types";
-import { db, collection, doc, setDoc } from "./firebase";
 import { MOCK_BLOG_POSTS } from "../data";
 
 // MySQL Database tables schemas & simulations
@@ -210,151 +209,51 @@ export const mysqlDb = {
   // Write (saving locally + asynchronous write to real cloud database)
   async saveMembers(members: MySQLMember[]) {
     localStorage.setItem("mysql_table_members", JSON.stringify(members));
-    try {
-      for (const m of members) {
-        if (m && m.id) {
-          await setDoc(doc(db, "members", m.id), m);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Cloud DB Save Error (Members):", e);
-    }
   },
 
   async saveCoaches(coaches: MySQLCoach[]) {
     localStorage.setItem("mysql_table_coaches", JSON.stringify(coaches));
-    try {
-      for (const c of coaches) {
-        if (c && c.id) {
-          await setDoc(doc(db, "coaches", c.id), c);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Cloud DB Save Error (Coaches):", e);
-    }
   },
 
   async saveTenants(tenants: MySQLTenant[]) {
     localStorage.setItem("mysql_table_tenants", JSON.stringify(tenants));
-    try {
-      for (const t of tenants) {
-        if (t && t.id) {
-          await setDoc(doc(db, "tenants", t.id), t);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Cloud DB Save Error (Tenants):", e);
-    }
   },
 
   async saveMembershipRequests(requests: MySQLMembershipRequest[]) {
     localStorage.setItem("mysql_table_membership_requests", JSON.stringify(requests));
-    try {
-      for (const r of requests) {
-        if (r && r.id) {
-          await setDoc(doc(db, "membership_requests", r.id), r);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Cloud DB Save Error (MembershipRequests):", e);
-    }
   },
 
-  // Helpers for other entities to sync to Firestore easily
+  // Helpers for other entities to sync to local cache
   async saveWorkoutPrograms(programs: any[]) {
-    try {
-      for (const p of programs) {
-        if (p && p.id) {
-          await setDoc(doc(db, "workout_programs", p.id), p);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (WorkoutPrograms):", e);
-    }
+    localStorage.setItem("mysql_table_workout_programs", JSON.stringify(programs));
   },
 
   async saveNutritionPlans(plans: any[]) {
-    try {
-      for (const p of plans) {
-        if (p && p.id) {
-          await setDoc(doc(db, "nutrition_plans", p.id), p);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (NutritionPlans):", e);
-    }
+    localStorage.setItem("mysql_table_nutrition_plans", JSON.stringify(plans));
   },
 
   async saveStoreProducts(products: any[]) {
-    try {
-      for (const p of products) {
-        if (p && p.id) {
-          await setDoc(doc(db, "store_products", p.id), p);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (StoreProducts):", e);
-    }
+    localStorage.setItem("mysql_table_store_products", JSON.stringify(products));
   },
 
   async saveBookings(bookings: any[]) {
-    try {
-      for (const b of bookings) {
-        if (b && b.id) {
-          await setDoc(doc(db, "bookings", b.id), b);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (Bookings):", e);
-    }
+    localStorage.setItem("mysql_table_bookings", JSON.stringify(bookings));
   },
 
   async saveTickets(tickets: any[]) {
-    try {
-      for (const t of tickets) {
-        if (t && t.id) {
-          await setDoc(doc(db, "tickets", t.id), t);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (Tickets):", e);
-    }
+    localStorage.setItem("mysql_table_tickets", JSON.stringify(tickets));
   },
 
   async saveAttendanceRecords(records: any[]) {
-    try {
-      for (const r of records) {
-        if (r && r.id) {
-          await setDoc(doc(db, "attendance_records", r.id), r);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (AttendanceRecords):", e);
-    }
+    localStorage.setItem("mysql_table_attendance_records", JSON.stringify(records));
   },
 
   async saveExercisesList(exercises: any[]) {
-    try {
-      for (const ex of exercises) {
-        if (ex && ex.id) {
-          await setDoc(doc(db, "exercises_database", ex.id), ex);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (ExercisesList):", e);
-    }
+    localStorage.setItem("mysql_table_exercises_database", JSON.stringify(exercises));
   },
 
   async saveCoachSales(sales: any[]) {
-    try {
-      for (const s of sales) {
-        if (s && s.id) {
-          await setDoc(doc(db, "coach_sales", s.id), s);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Save Error (CoachSales):", e);
-    }
+    localStorage.setItem("mysql_table_coach_sales", JSON.stringify(sales));
   },
 
   // Create Athlete with strictly ZERO/DEFAULT values
@@ -438,14 +337,5 @@ export const mysqlDb = {
 
   async saveBlogPosts(posts: BlogPost[]) {
     localStorage.setItem("mysql_table_blog_posts", JSON.stringify(posts));
-    try {
-      for (const p of posts) {
-        if (p && p.id) {
-          await setDoc(doc(db, "blog_posts", p.id), p);
-        }
-      }
-    } catch (e) {
-      console.error("Firestore Cloud DB Save Error (BlogPosts):", e);
-    }
   }
 };

@@ -59,7 +59,6 @@ import {
 } from "./data";
 import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost } from "./types";
 import { mysqlDb } from "./lib/mysqlSim";
-import { db, collection, doc, setDoc, getDocs, getDoc, OperationType, handleFirestoreError } from "./lib/firebase";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
