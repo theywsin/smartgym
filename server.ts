@@ -183,7 +183,7 @@ app.post("/api/ai/chat", async (req, res) => {
 });
 
 // Generic MySQL DB endpoints
-import { dbGetTable, dbSaveItem, dbSaveTable, dbDeleteItem, reinitializePool, isUsingRealMySQL } from "./server_db";
+import { dbGetTable, dbSaveItem, dbSaveTable, dbDeleteItem, reinitializePool, isUsingRealMySQL, dbGetSettings, dbSaveSettings } from "./server_db";
 
 // --- cPanel Easy Installer Endpoints ---
 
@@ -313,7 +313,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`chestSize\` VARCHAR(50),
           \`waistSize\` VARCHAR(50),
           \`thighSize\` VARCHAR(50),
-          \`notes\` TEXT
+          \`notes\` TEXT,
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -324,7 +325,7 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`username\` VARCHAR(100),
           \`password\` VARCHAR(255),
           \`specialty\` VARCHAR(255),
-          \`clubId\` VARCHAR(100)
+          \`clubId\` VARCHAR(100) DEFAULT 'all'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -346,7 +347,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`title\` VARCHAR(255) NOT NULL,
           \`summary\` TEXT,
           \`schedule\` LONGTEXT,
-          \`tips\` TEXT
+          \`tips\` TEXT,
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -357,7 +359,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`macros\` TEXT,
           \`meals\` LONGTEXT,
           \`shoppingList\` TEXT,
-          \`advice\` TEXT
+          \`advice\` TEXT,
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -370,7 +373,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`priceToman\` DECIMAL(15, 2) DEFAULT 0,
           \`stock\` INT DEFAULT 0,
           \`minStockAlert\` INT DEFAULT 5,
-          \`barcode\` VARCHAR(255)
+          \`barcode\` VARCHAR(255),
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -381,7 +385,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`className\` VARCHAR(255),
           \`date\` VARCHAR(100),
           \`time\` VARCHAR(100),
-          \`status\` VARCHAR(50)
+          \`status\` VARCHAR(50),
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -394,7 +399,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`priority\` VARCHAR(50),
           \`senderName\` VARCHAR(255),
           \`createdAt\` VARCHAR(100),
-          \`replies\` LONGTEXT
+          \`replies\` LONGTEXT,
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -407,7 +413,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`checkInTime\` VARCHAR(100),
           \`checkOutTime\` VARCHAR(100),
           \`totalHours\` DOUBLE DEFAULT 0,
-          \`status\` VARCHAR(50)
+          \`status\` VARCHAR(50),
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -430,7 +437,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`packageName\` VARCHAR(255),
           \`price\` DECIMAL(15, 2) DEFAULT 0,
           \`date\` VARCHAR(100),
-          \`month\` VARCHAR(50)
+          \`month\` VARCHAR(50),
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -443,7 +451,8 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`author\` VARCHAR(255),
           \`date\` VARCHAR(100),
           \`image\` VARCHAR(255),
-          \`category\` VARCHAR(100)
+          \`category\` VARCHAR(100),
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
       {
@@ -454,9 +463,17 @@ app.post("/api/installer/setup-db", async (req, res) => {
           \`userPhone\` VARCHAR(100),
           \`createdAt\` VARCHAR(100),
           \`updatedAt\` VARCHAR(100),
-          \`messages\` LONGTEXT
+          \`messages\` LONGTEXT,
+          \`clubId\` VARCHAR(100) DEFAULT 'oxigen'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
       },
+      {
+        name: "platform_settings",
+        sql: `CREATE TABLE IF NOT EXISTS \`platform_settings\` (
+          \`key\` VARCHAR(100) PRIMARY KEY,
+          \`value\` LONGTEXT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
+      }
     ];
 
     // Execute table creation scripts
@@ -527,6 +544,27 @@ app.post("/api/admin/login", (req, res) => {
     res.json({ success: true, message: "خوش آمدید سوپر ادمین گرامی! 🔐" });
   } else {
     res.status(401).json({ success: false, error: "نام کاربری یا کلمه عبور وارد شده صحیح نمی‌باشد!" });
+  }
+});
+
+app.get("/api/platform/settings", async (req, res) => {
+  try {
+    const settings = await dbGetSettings();
+    res.json(settings);
+  } catch (error: any) {
+    console.error("API GET platform settings error:", error);
+    res.status(500).json({ error: error.message || "خطا در دریافت تنظیمات پلتفرم" });
+  }
+});
+
+app.post("/api/platform/settings", async (req, res) => {
+  try {
+    const settings = req.body;
+    await dbSaveSettings(settings);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("API POST platform settings error:", error);
+    res.status(500).json({ error: error.message || "خطا در ذخیره تنظیمات پلتفرم" });
   }
 });
 

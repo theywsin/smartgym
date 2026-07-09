@@ -191,3 +191,51 @@ export async function dbDeleteItem(tableName: string, id: string): Promise<void>
 
   await pool.query(`DELETE FROM \`${tableName}\` WHERE \`id\` = ?`, [id]);
 }
+
+export async function dbGetSettings(): Promise<Record<string, string>> {
+  if (!isUsingRealMySQL || !pool) {
+    const db = readFallbackDb();
+    return db["platform_settings"] ? db["platform_settings"].reduce((acc: any, curr: any) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {}) : {};
+  }
+  try {
+    const [rows] = await pool.query("SELECT * FROM `platform_settings`");
+    return (rows as any[]).reduce((acc: any, curr: any) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {});
+  } catch (err) {
+    console.warn("Could not query platform_settings, returning fallback:", err);
+    const db = readFallbackDb();
+    return db["platform_settings"] ? db["platform_settings"].reduce((acc: any, curr: any) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {}) : {};
+  }
+}
+
+export async function dbSaveSettings(settings: Record<string, string>): Promise<void> {
+  // Sync to fallback JSON database first for local cache redundancy
+  const db = readFallbackDb();
+  const arr = Object.entries(settings).map(([key, value]) => ({ key, value }));
+  db["platform_settings"] = arr;
+  writeFallbackDb(db);
+
+  if (!isUsingRealMySQL || !pool) {
+    return;
+  }
+  
+  try {
+    for (const [key, value] of Object.entries(settings)) {
+      await pool.query(
+        "INSERT INTO `platform_settings` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?",
+        [key, value, value]
+      );
+    }
+  } catch (err) {
+    console.error("Failed to write settings to real MySQL:", err);
+  }
+}
+

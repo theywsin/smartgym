@@ -110,9 +110,9 @@ export default function AthleteDashboard({
   const [workoutFinished, setWorkoutFinished] = useState(false);
 
   // Load programs & nutrition
-  const myProgram = workoutPrograms.find(p => p.id === member.assignedProgramId) || workoutPrograms[0];
-  const myNutrition = nutritionPlans.find(n => n.id === member.assignedNutritionId) || nutritionPlans[0];
-  const currentDay = myProgram.schedule[selectedDayIndex] || myProgram.schedule[0];
+  const myProgram = workoutPrograms.find(p => p.id === member.assignedProgramId) || null;
+  const myNutrition = nutritionPlans.find(n => n.id === member.assignedNutritionId) || null;
+  const currentDay = myProgram && myProgram.schedule ? (myProgram.schedule[selectedDayIndex] || myProgram.schedule[0]) : null;
 
   // Weight Logging Helper
   const handleAddWeightLog = (e: React.FormEvent) => {
@@ -132,6 +132,7 @@ export default function AthleteDashboard({
     setIsResting(false);
     setRestTimer(0);
     
+    if (!myProgram || !myProgram.schedule) return;
     const currentDay = myProgram.schedule[selectedDayIndex] || myProgram.schedule[0];
     const currentEx = currentDay.exercises[currentExIndex];
     
@@ -165,6 +166,7 @@ export default function AthleteDashboard({
   };
 
   const handleEndSet = () => {
+    if (!myProgram || !myProgram.schedule) return;
     const currentDay = myProgram.schedule[selectedDayIndex] || myProgram.schedule[0];
     const currentEx = currentDay.exercises[currentExIndex];
     setRestTimer(currentEx.restDurationSeconds || 60);
@@ -460,7 +462,7 @@ export default function AthleteDashboard({
               <div className={`p-3 rounded-2xl ${innerCardBg} border text-center flex flex-col items-center justify-center`}>
                 <Flame className="w-5 h-5 text-orange-500 mb-1" />
                 <span className={`text-[8px] ${labelColor}`}>کالری هدف روزانه</span>
-                <span className={`text-xs font-black ${titleColor}`}>{myNutrition.targetCalories}</span>
+                <span className={`text-xs font-black ${titleColor}`}>{myNutrition ? myNutrition.targetCalories : "نامشخص"}</span>
               </div>
               <div className={`p-3 rounded-2xl ${innerCardBg} border text-center flex flex-col items-center justify-center`}>
                 <Calculator className="w-5 h-5 text-green-500 mb-1" />
@@ -511,12 +513,25 @@ export default function AthleteDashboard({
             </div>
 
             {/* Day Selector Segmented Control */}
-            <div className="space-y-2 animate-fade-in">
-              <div className="flex justify-between items-center">
-                <span className={`text-[10px] font-black tracking-wider ${labelColor}`}>روزهای برنامه تمرینی شما</span>
-                <span className="text-[10px] text-green-500 font-bold">برای تغییر روز لمس کنید 👈</span>
+            {myProgram === null ? (
+              <div className={`p-8 rounded-3xl ${innerCardBg} border border-dashed border-white/10 text-center space-y-4 animate-fade-in`}>
+                <Dumbbell className="w-12 h-12 text-slate-500 mx-auto animate-bounce" />
+                <h3 className={`text-sm font-black ${titleColor}`}>برنامه تمرینی صادر نشده است</h3>
+                <p className={`text-[11px] ${labelColor} leading-relaxed`}>
+                  هنوز هیچ برنامه تمرینی فعال اختصاصی برای شما صادر نشده است. پس از ویزیت و ارزیابی عضلانی توسط مربی باشگاه، برنامه شما در این بخش فعال خواهد شد.
+                </p>
+                <div className="text-[10px] text-slate-500">
+                  💡 جهت ثبت درخواست یا تسریع فرایند با بخش پذیرش باشگاه خود هماهنگ فرمایید.
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-2" dir="rtl">
+            ) : (
+              <>
+                <div className="space-y-2 animate-fade-in">
+                  <div className="flex justify-between items-center">
+                    <span className={`text-[10px] font-black tracking-wider ${labelColor}`}>روزهای برنامه تمرینی شما</span>
+                    <span className="text-[10px] text-green-500 font-bold">برای تغییر روز لمس کنید 👈</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2" dir="rtl">
                 {myProgram.schedule.map((dayItem: any, idx: number) => {
                   const isActive = selectedDayIndex === idx;
                   const isCompleted = completedDays.includes(idx);
@@ -632,9 +647,10 @@ export default function AthleteDashboard({
                 ))}
               </div>
             </div>
-
-          </div>
+          </>
         )}
+      </div>
+    )}
 
         {/* ==================== ACTIVE LIVE WORKOUT PLAYER ==================== */}
         {isWorkoutActive && (
@@ -816,16 +832,28 @@ export default function AthleteDashboard({
         {/* ==================== SUBTAB: NUTRITION ==================== */}
         {subTab === "nutrition" && (
           <div className="space-y-6 animate-fade-in">
-            
-            {/* Interactive Water Intake Logger Widget */}
-            <div className={`p-5 rounded-[2rem] border ${borderColor} ${innerCardBg} space-y-4`}>
-              <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Droplet className="w-5 h-5 text-cyan-400" />
-                  <span className={`font-black text-xs ${titleColor}`}>ثبت آب مصرفی روزانه</span>
+            {myNutrition === null ? (
+              <div className={`p-8 rounded-3xl ${innerCardBg} border border-dashed border-white/10 text-center space-y-4 animate-fade-in`}>
+                <Utensils className="w-12 h-12 text-slate-500 mx-auto animate-bounce" />
+                <h3 className={`text-sm font-black ${titleColor}`}>برنامه غذایی صادر نشده است</h3>
+                <p className={`text-[11px] ${labelColor} leading-relaxed`}>
+                  هنوز هیچ برنامه رژیم غذایی فعال اختصاصی برای شما صادر نشده است. پس از ارزیابی بیومتریک و آنالیز بدن توسط مربی تغذیه، رژیم شما در این بخش فعال خواهد شد.
+                </p>
+                <div className="text-[10px] text-slate-500">
+                  💡 جهت ثبت درخواست یا تسریع فرایند با بخش پذیرش باشگاه خود هماهنگ فرمایید.
                 </div>
-                <span className="text-xs text-cyan-400 font-bold font-mono">{(waterCups * 0.25).toFixed(2)} / {myNutrition.macros?.water || 3.5} لیتر</span>
               </div>
+            ) : (
+              <>
+                {/* Interactive Water Intake Logger Widget */}
+                <div className={`p-5 rounded-[2rem] border ${borderColor} ${innerCardBg} space-y-4`}>
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <Droplet className="w-5 h-5 text-cyan-400" />
+                      <span className={`font-black text-xs ${titleColor}`}>ثبت آب مصرفی روزانه</span>
+                    </div>
+                    <span className="text-xs text-cyan-400 font-bold font-mono">{(waterCups * 0.25).toFixed(2)} / {myNutrition ? (myNutrition.macros?.water || 3.5) : 3.5} لیتر</span>
+                  </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5 flex-wrap max-w-[200px]">
@@ -891,6 +919,8 @@ export default function AthleteDashboard({
                 )) || <li>سینه مرغ گرم، تخم‌مرغ محلی، جو دوسر پرک</li>}
               </ul>
             </div>
+              </>
+            )}
 
           </div>
         )}

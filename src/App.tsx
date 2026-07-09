@@ -697,6 +697,56 @@ export default function App() {
         const loadedBlogs = await loadFromApi("blog_posts", mysqlDb.getBlogPosts());
         setBlogPosts(loadedBlogs);
 
+        // 14. Load Global Platform Settings from server API
+        try {
+          const res = await fetch("/api/platform/settings");
+          if (res.ok) {
+            const settings = await res.json();
+            if (settings) {
+              if (settings.platformBrandLogo) {
+                setPlatformBrandLogo(settings.platformBrandLogo);
+                localStorage.setItem("platformBrandLogo", settings.platformBrandLogo);
+              }
+              if (settings.platformTheme) {
+                setPlatformTheme(settings.platformTheme);
+                localStorage.setItem("platformTheme", settings.platformTheme);
+              }
+              if (settings.platformLogoUrl !== undefined) {
+                setPlatformLogoUrl(settings.platformLogoUrl);
+                localStorage.setItem("platformLogoUrl", settings.platformLogoUrl);
+              }
+              if (settings.platformLandingTitle) {
+                setPlatformLandingTitle(settings.platformLandingTitle);
+                localStorage.setItem("platformLandingTitle", settings.platformLandingTitle);
+              }
+              if (settings.platformLandingSubtitle) {
+                setPlatformLandingSubtitle(settings.platformLandingSubtitle);
+                localStorage.setItem("platformLandingSubtitle", settings.platformLandingSubtitle);
+              }
+              if (settings.gatewayZarinpalEnabled !== undefined) {
+                const val = settings.gatewayZarinpalEnabled === "true" || settings.gatewayZarinpalEnabled === true;
+                setGatewayZarinpalEnabled(val);
+                localStorage.setItem("gatewayZarinpalEnabled", String(val));
+              }
+              if (settings.gatewayZarinpalMerchant) {
+                setGatewayZarinpalMerchant(settings.gatewayZarinpalMerchant);
+                localStorage.setItem("gatewayZarinpalMerchant", settings.gatewayZarinpalMerchant);
+              }
+              if (settings.gatewaySepEnabled !== undefined) {
+                const val = settings.gatewaySepEnabled === "true" || settings.gatewaySepEnabled === true;
+                setGatewaySepEnabled(val);
+                localStorage.setItem("gatewaySepEnabled", String(val));
+              }
+              if (settings.gatewaySepTerminalId) {
+                setGatewaySepTerminalId(settings.gatewaySepTerminalId);
+                localStorage.setItem("gatewaySepTerminalId", settings.gatewaySepTerminalId);
+              }
+            }
+          }
+        } catch (settingsError) {
+          console.error("Error loading platform settings from server:", settingsError);
+        }
+
         console.log("Live MySQL database successfully loaded and synchronized via REST API.");
         setIsDbReady(true);
         setIsDbLoading(false);
@@ -1219,7 +1269,14 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(aiWorkoutInput)
       });
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || "پاسخ نامعتبر از سرور دریافت شد." };
+      }
       if (response.ok) {
         setAiWorkoutResult(data);
       } else {
@@ -1242,7 +1299,14 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(aiNutritionInput)
       });
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || "پاسخ نامعتبر از سرور دریافت شد." };
+      }
       if (response.ok) {
         setAiNutritionResult(data);
       } else {
@@ -1272,7 +1336,14 @@ export default function App() {
           userRole: activeTab === "coach" ? "مربی ورزشی" : "مدیر باشگاه اکسیژن"
         })
       });
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || "ارتباط ناموفق با سرور چت" };
+      }
       if (response.ok) {
         setChatMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
       } else {
@@ -1307,20 +1378,41 @@ export default function App() {
       branchesCount: 1,
       membersCount: 0,
       monthlyRevenue: 0,
-      createdAt: "1405/04/01"
+      createdAt: "1405/04/01",
+      domain: "",
+      features: []
     };
-    setTenants([...tenants, newlyCreated]);
-    setNewTenant({ name: "", ownerName: "", email: "", phone: "", username: "", password: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
-    alert(`باشگاه "${newlyCreated.name}" با موفقیت تعریف شد.\nنام کاربری: ${newlyCreated.username}\nکلمه عبور: ${newlyCreated.password}`);
+
+    fetch("/api/db/tenants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newlyCreated)
+    })
+      .then(async (response) => {
+        if (response.ok) {
+          setTenants([...tenants, newlyCreated]);
+          setNewTenant({ name: "", ownerName: "", email: "", phone: "", username: "", password: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
+          alert(`باشگاه "${newlyCreated.name}" با موفقیت در دیتابیس سراسری ثبت و تعریف شد.\nنام کاربری: ${newlyCreated.username}\nکلمه عبور: ${newlyCreated.password}`);
+        } else {
+          const text = await response.text();
+          alert(`خطا در ذخیره باشگاه در دیتابیس: ${text}`);
+        }
+      })
+      .catch((err) => {
+        console.error("Error creating tenant in db:", err);
+        alert("بروز خطا در ارتباط با پایگاه داده جهت ایجاد باشگاه جدید.");
+      });
   };
 
   // Add new booking
   const handleCreateBooking = (e: React.FormEvent) => {
     e.preventDefault();
+    const activeClubId = loggedInTenant?.id || "oxigen";
     const newlyCreated: Booking = {
       id: `b_${Date.now()}`,
       ...newBooking,
-      status: "CONFIRMED"
+      status: "CONFIRMED",
+      clubId: activeClubId
     };
     setBookings([...bookings, newlyCreated]);
     alert("رزرو کلاس با موفقیت در سیستم ثبت گردید.");
@@ -1330,9 +1422,11 @@ export default function App() {
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.brand) return;
+    const activeClubId = loggedInTenant?.id || "oxigen";
     const newlyCreated: StoreProduct = {
       id: `p_${Date.now()}`,
-      ...newProduct
+      ...newProduct,
+      clubId: activeClubId
     };
     setStoreProducts([...storeProducts, newlyCreated]);
     setNewProduct({ name: "", category: "SUPPLEMENT", brand: "", priceToman: 500000, stock: 20, minStockAlert: 5, barcode: "" });
@@ -1353,6 +1447,8 @@ export default function App() {
       return;
     }
 
+    const activeClubId = loggedInTenant?.id || loggedInCoach?.clubId || "oxigen";
+
     const newlyCreated = {
       id: `m_${Date.now()}`,
       name: newMemberName,
@@ -1362,20 +1458,35 @@ export default function App() {
       assignedProgramId: newMemberProgramId,
       assignedNutritionId: newMemberNutritionId,
       remainingSessions: Number(newMemberSessions) || 12,
-      coachName: "استاد پوریا کریمی",
-      joinedDate: "1405/04/01"
+      coachName: loggedInCoach?.name || "استاد پوریا کریمی",
+      joinedDate: "1405/04/01",
+      clubId: activeClubId
     };
 
-    setMembers([...members, newlyCreated]);
-    
-    // Clear Form
-    setNewMemberName("");
-    setNewMemberPhone("");
-    setNewMemberUsername("");
-    setNewMemberPassword("");
-    setNewMemberSessions(12);
-
-    alert(`حساب کاربری ورزشکار "${newlyCreated.name}" با موفقیت ایجاد شد! اکنون ورزشکار می‌تواند با نام کاربری "${newlyCreated.username}" وارد پنل خود شود.`);
+    fetch("/api/db/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newlyCreated)
+    })
+      .then(async (response) => {
+        if (response.ok) {
+          setMembers([...members, newlyCreated]);
+          // Clear Form
+          setNewMemberName("");
+          setNewMemberPhone("");
+          setNewMemberUsername("");
+          setNewMemberPassword("");
+          setNewMemberSessions(12);
+          alert(`حساب کاربری ورزشکار "${newlyCreated.name}" با موفقیت در دیتابیس ایجاد شد! اکنون ورزشکار می‌تواند با نام کاربری "${newlyCreated.username}" وارد پنل خود شود.`);
+        } else {
+          const text = await response.text();
+          alert(`خطا در ایجاد ورزشکار در دیتابیس: ${text}`);
+        }
+      })
+      .catch((err) => {
+        console.error("Error creating member in db:", err);
+        alert("بروز خطا در ارتباط با پایگاه داده جهت ایجاد ورزشکار جدید.");
+      });
   };
 
   // Login Member handler (Member Action)
@@ -1429,6 +1540,58 @@ export default function App() {
       });
     }, 300);
   };
+
+  const tenantIdContext = loggedInTenant?.id || loggedInCoach?.clubId || loggedInMember?.clubId || "";
+
+  const displayedMembers = members.filter(m => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return m.clubId === tenantIdContext;
+  });
+
+  const displayedCoaches = coaches.filter(c => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return c.clubId === tenantIdContext || c.clubId === "all";
+  });
+
+  const displayedBookings = bookings.filter(b => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return b.clubId === tenantIdContext;
+  });
+
+  const displayedStoreProducts = storeProducts.filter(p => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return p.clubId === tenantIdContext;
+  });
+
+  const displayedTickets = tickets.filter(t => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return t.clubId === tenantIdContext;
+  });
+
+  const displayedAttendanceRecords = attendanceRecords.filter(a => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return a.clubId === tenantIdContext;
+  });
+
+  const displayedCoachSales = coachSales.filter(s => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return s.clubId === tenantIdContext;
+  });
+
+  const displayedBlogPosts = blogPosts.filter(b => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return b.clubId === tenantIdContext;
+  });
+
+  const displayedWorkoutPrograms = workoutPrograms.filter(p => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return p.clubId === tenantIdContext;
+  });
+
+  const displayedNutritionPlans = nutritionPlans.filter(p => {
+    if (!tenantIdContext || tenantIdContext === "oxigen") return true;
+    return p.clubId === tenantIdContext;
+  });
 
   return (
     <div className={`min-h-screen ${isDarkMode ? "dark-theme-vars bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"} font-sans transition-colors duration-200 selection:bg-emerald-600/30 overflow-x-hidden`} dir="rtl">
@@ -2147,7 +2310,14 @@ export default function App() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ username: adminUsernameInput, password: adminPasswordInput })
                       });
-                      const resData = await response.json();
+                      let resData: any = {};
+                      const contentType = response.headers.get("content-type");
+                      if (contentType && contentType.includes("application/json")) {
+                        resData = await response.json();
+                      } else {
+                        const text = await response.text();
+                        resData = { error: text || "قالب پاسخ نامعتبر از سرور" };
+                      }
                       if (response.ok && resData.success) {
                         setIsSuperAdminLoggedIn(true);
                         localStorage.setItem("isSuperAdminLoggedIn", "true");
@@ -3133,7 +3303,30 @@ export default function App() {
                       localStorage.setItem("gatewayZarinpalMerchant", gatewayZarinpalMerchant);
                       localStorage.setItem("gatewaySepEnabled", String(gatewaySepEnabled));
                       localStorage.setItem("gatewaySepTerminalId", gatewaySepTerminalId);
-                      alert("💾 تمامی تنظیمات برندینگ، بارگذاری لوگو، تم رنگ، متون صفحه فرود و درگاه‌های پرداخت با موفقیت در فضای ابری محلی ذخیره شدند و به صورت آنی در کل پلتفرم اعمال گردیدند!");
+
+                      const payload = {
+                        platformBrandLogo,
+                        platformTheme,
+                        platformLogoUrl,
+                        platformLandingTitle,
+                        platformLandingSubtitle,
+                        gatewayZarinpalEnabled: String(gatewayZarinpalEnabled),
+                        gatewayZarinpalMerchant,
+                        gatewaySepEnabled: String(gatewaySepEnabled),
+                        gatewaySepTerminalId
+                      };
+                      fetch("/api/platform/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                      })
+                        .then(() => {
+                          alert("💾 تمامی تنظیمات برندینگ، بارگذاری لوگو، تم رنگ، متون صفحه فرود و درگاه‌های پرداخت با موفقیت در دیتابیس مرکزی ذخیره شدند و به صورت آنی در کل پلتفرم اعمال گردیدند!");
+                        })
+                        .catch(err => {
+                          console.error("Error saving settings to database:", err);
+                          alert("💾 ذخیره محلی با موفقیت انجام شد اما اتصال به سرور دیتابیس برقرار نشد.");
+                        });
                     }}
                     className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-3 rounded-2xl text-xs transition-all shadow-lg shadow-emerald-950/20"
                   >
@@ -3835,7 +4028,7 @@ export default function App() {
 
                 {/* Simulated bookings list */}
                 <div className="space-y-3">
-                  {bookings.map((booking) => (
+                  {displayedBookings.map((booking) => (
                     <div key={booking.id} className="bg-slate-950 p-3 rounded-2xl border border-white/5 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-bold text-slate-200 block">{booking.className}</span>
@@ -3898,7 +4091,7 @@ export default function App() {
 
                   {/* Store Products List */}
                   <div className="space-y-3 max-h-[180px] overflow-y-auto">
-                    {storeProducts.map((p) => (
+                    {displayedStoreProducts.map((p) => (
                       <div key={p.id} className="bg-slate-950 p-2.5 rounded-2xl border border-white/5 flex items-center justify-between text-xs">
                         <div>
                           <span className="font-bold text-slate-200 block">{p.name}</span>
@@ -4064,7 +4257,7 @@ export default function App() {
                 <TicketSystem
                   isSuperAdmin={false}
                   isDarkMode={isDarkMode}
-                  tickets={tickets}
+                  tickets={displayedTickets}
                   setTickets={setTickets}
                   currentUserLabel={loggedInTenant.clubName || "باشگاه ورزشی اکسیژن"}
                 />
@@ -4407,7 +4600,7 @@ export default function App() {
                       onChange={(e) => setSelectedCoachMemberId(e.target.value)}
                       className="bg-slate-950 border border-white/10 px-3 py-1.5 rounded-xl text-slate-200 text-[11px] focus:outline-none focus:border-violet-500"
                     >
-                      {members.map(m => (
+                      {displayedMembers.map(m => (
                         <option key={m.id} value={m.id}>{m.name} ({m.phone})</option>
                       ))}
                     </select>
@@ -4747,7 +4940,7 @@ export default function App() {
                         onChange={(e) => setNewMemberProgramId(e.target.value)}
                         className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500 text-xs"
                       >
-                        {workoutPrograms.map((p) => (
+                        {displayedWorkoutPrograms.map((p) => (
                           <option key={p.id} value={p.id}>{p.title}</option>
                         ))}
                       </select>
@@ -4759,7 +4952,7 @@ export default function App() {
                         onChange={(e) => setNewMemberNutritionId(e.target.value)}
                         className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500 text-xs"
                       >
-                        {nutritionPlans.map((n) => (
+                        {displayedNutritionPlans.map((n) => (
                           <option key={n.id} value={n.id}>{n.title}</option>
                         ))}
                       </select>
@@ -4778,11 +4971,11 @@ export default function App() {
                 <div className="lg:col-span-2 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-300 text-xs">لیست اکانت‌های فعال جهت ورود به پنل ورزشکار</span>
-                    <span className="text-[10px] text-slate-500">{members.length} ورزشکار ثبت شده</span>
+                    <span className="text-[10px] text-slate-500">{displayedMembers.length} ورزشکار ثبت شده</span>
                   </div>
 
                   <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-                    {members.map((member) => (
+                    {displayedMembers.map((member) => (
                       <div key={member.id} className="bg-slate-900/60 p-4 rounded-2xl border border-white/5 flex flex-wrap items-center justify-between gap-4 text-xs hover:border-indigo-500/30 transition-all">
                         <div className="flex items-center gap-3 animate-fade-in">
                           <div 
@@ -5131,13 +5324,15 @@ export default function App() {
 
                         const newId = `prog_custom_${Date.now()}`;
                         const targetMemberName = selectedTargetMemberId ? (members.find(m => m.id === selectedTargetMemberId)?.name || "ورزشکار منتخب") : "همه ورزشکاران";
+                        const activeClubId = loggedInTenant?.id || loggedInCoach?.clubId || "oxigen";
                         const finalObj = {
                           id: newId,
                           title: mWorkoutTitle,
                           summary: mWorkoutSummary || "برنامه بدنسازی تمرینی طراحی شده دستی",
                           createdBy: "پوریا کریمی",
                           assignedTo: targetMemberName,
-                          schedule: mWorkoutDays
+                          schedule: mWorkoutDays,
+                          clubId: activeClubId
                         };
 
                         setWorkoutPrograms([finalObj, ...workoutPrograms]);
@@ -5379,6 +5574,7 @@ export default function App() {
                         }
 
                         const newId = `nut_custom_${Date.now()}`;
+                        const activeClubId = loggedInTenant?.id || loggedInCoach?.clubId || "oxigen";
                         const finalObj = {
                           id: newId,
                           title: mNutTitle,
@@ -5396,7 +5592,8 @@ export default function App() {
                             snacks: { title: "میان‌وعده‌ها", items: mNutSnack.split("\n").filter(x => x.trim()), calories: 300 }
                           },
                           advice: mNutAdvice.split("\n").filter(x => x.trim()),
-                          shoppingList: mNutShopping.split(",").map(x => x.trim()).filter(Boolean)
+                          shoppingList: mNutShopping.split(",").map(x => x.trim()).filter(Boolean),
+                          clubId: activeClubId
                         };
 
                         setNutritionPlans([finalObj, ...nutritionPlans]);
@@ -6130,7 +6327,7 @@ export default function App() {
                   </div>
 
                   <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    {attendanceRecords.map((att) => (
+                    {displayedAttendanceRecords.map((att) => (
                       <div key={att.id} className="bg-slate-950 p-3 rounded-2xl border border-white/5 space-y-1.5 text-xs text-center">
                         <span className="font-mono text-slate-400 block">{att.date}</span>
                         <span className="font-bold text-slate-200 block">ورود: {att.checkInTime} {att.checkOutTime && `| خروج: ${att.checkOutTime}`}</span>
@@ -6760,7 +6957,14 @@ export default function App() {
                                 database: installerDbName
                               })
                             });
-                            const data = await response.json();
+                            let data: any = {};
+                            const contentType = response.headers.get("content-type");
+                            if (contentType && contentType.includes("application/json")) {
+                              data = await response.json();
+                            } else {
+                              const text = await response.text();
+                              data = { error: text || "قالب پاسخ نامعتبر از سرور" };
+                            }
                             if (response.ok && data.success) {
                               setInstallerLogs((prev) => [...prev, `[SUCCESS] ${data.message}`]);
                               alert("✅ اتصال با موفقیت تست شد!");
@@ -6799,7 +7003,14 @@ export default function App() {
                                 migrateData: installerMigrateDemo
                               })
                             });
-                            const data = await response.json();
+                            let data: any = {};
+                            const contentType = response.headers.get("content-type");
+                            if (contentType && contentType.includes("application/json")) {
+                              data = await response.json();
+                            } else {
+                              const text = await response.text();
+                              data = { error: text || "قالب پاسخ نامعتبر از سرور" };
+                            }
                             if (response.ok && data.success) {
                               setInstallerLogs((prev) => [
                                 ...prev, 
@@ -6899,7 +7110,14 @@ export default function App() {
                               brandName: installerBrandName
                             })
                           });
-                          const data = await response.json();
+                          let data: any = {};
+                          const contentType = response.headers.get("content-type");
+                          if (contentType && contentType.includes("application/json")) {
+                            data = await response.json();
+                          } else {
+                            const text = await response.text();
+                            data = { error: text || "قالب پاسخ نامعتبر از سرور" };
+                          }
                           if (response.ok && data.success) {
                             setPlatformBrandLogo(installerBrandName);
                             localStorage.setItem("platformBrandLogo", installerBrandName);
