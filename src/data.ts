@@ -759,3 +759,78 @@ export const MOCK_BLOG_POSTS: BlogPost[] = [
     likes: 31
   }
 ];
+
+export const MOCK_MEMBERS = [
+  {
+    id: "m_101",
+    name: "آرش احمدی",
+    username: "arash",
+    password: "123",
+    phone: "09121112233",
+    assignedProgramId: "prog_1",
+    assignedNutritionId: "nut_1",
+    remainingSessions: 14,
+    remainingDays: 24,
+    coachName: "استاد پوریا کریمی",
+    joinedDate: "1405/01/10",
+    bmi: "۲۴.۱ (سالم)",
+    bmr: "۱,۷۸۰ کالری",
+    fatPercent: "۱۳.۵٪",
+    armSize: "۴۱",
+    chestSize: "۱۱۲",
+    waistSize: "۸۲",
+    thighSize: "۶۲",
+    notes: "نسبت به ماه گذشته دور کمر ۲ سانتی‌متر کاهش و دور بازو ۱ سانتی‌متر افزایش یافته است. این یعنی کاهش چربی همراه با افزایش همزمان حجم خشک عضله. برنامه غذایی کات به خوبی عمل کرده است.",
+    clubId: "oxigen"
+  },
+  {
+    id: "m_102",
+    name: "سهراب مرادی",
+    username: "sohrab",
+    password: "123",
+    phone: "09192223344",
+    assignedProgramId: "prog_1",
+    assignedNutritionId: "nut_1",
+    remainingSessions: 12,
+    remainingDays: 15,
+    coachName: "استاد پوریا کریمی",
+    joinedDate: "1405/02/15",
+    bmi: "۲۶.۸ (اضافه وزن ملایم)",
+    bmr: "۱,۹۵۰ کالری",
+    fatPercent: "۱۸.۲٪",
+    armSize: "۴۳",
+    chestSize: "۱۱۸",
+    waistSize: "۹۰",
+    thighSize: "۶۶",
+    notes: "سهراب در دوره حجم‌گیری خوبی قرار دارد. درصد چربی کمی بالا رفته اما عضلات بسیار پرتر شده‌اند. تمرینات قدرتی با تکرارهای ۸ الی ۱۰ عالی پیش می‌روند.",
+    clubId: "oxigen"
+  },
+  {
+    id: "m_103",
+    name: "الناز شاکری",
+    username: "elnaz",
+    password: "123",
+    phone: "09353334455",
+    assignedProgramId: "prog_1",
+    assignedNutritionId: "nut_1",
+    remainingSessions: 8,
+    remainingDays: 35,
+    coachName: "سارا حسینی",
+    joinedDate: "1405/03/01",
+    bmi: "۲۱.۴ (نرمال و فیت)",
+    bmr: "۱,۴۲۰ کالری",
+    fatPercent: "۱۶.۸٪",
+    armSize: "۳۲",
+    chestSize: "۹۴",
+    waistSize: "۶۸",
+    thighSize: "۵۴",
+    notes: "الناز پیشرفت فوق‌العاده‌ای در فرم‌دهی و قدرت عضلات پا داشته است. ثبات تمرینی بسیار بالایی دارد و رژیم غذایی پرپروتئین را دقیقاً رعایت می‌کند.",
+    clubId: "oxigen"
+  }
+];
+
+export const MOCK_COACHES = [
+  { id: "1", name: "استاد پوریا کریمی", username: "pouria", password: "123", specialty: "بدنسازی و فیتنس", clubId: "all", rating: 4.9, activeAthletes: 18 },
+  { id: "2", name: "سارا حسینی", username: "sara", password: "123", specialty: "تغذیه و لاغری", clubId: "all", rating: 4.8, activeAthletes: 12 }
+];
+

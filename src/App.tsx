@@ -55,10 +55,11 @@ import {
   MOCK_AUDIT_LOGS, 
   MOCK_PRODUCTS,
   SUBSCRIPTION_PLANS,
-  MOCK_BLOG_POSTS
+  MOCK_BLOG_POSTS,
+  MOCK_MEMBERS,
+  MOCK_COACHES
 } from "./data";
 import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost } from "./types";
-import { mysqlDb } from "./lib/mysqlSim";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
@@ -386,7 +387,7 @@ export default function App() {
   const [editMemberNotes, setEditMemberNotes] = useState("");
 
   // Shared state for membership requests
-  const [membershipRequests, setMembershipRequests] = useState<any[]>(() => mysqlDb.getMembershipRequests());
+  const [membershipRequests, setMembershipRequests] = useState<any[]>([]);
 
   // Search filter
   const [globalSearch, setGlobalSearch] = useState("");
@@ -643,15 +644,15 @@ export default function App() {
         setTenants(loadedTenants);
 
         // 2. Members (Athletes)
-        const loadedMembers = await loadFromApi("members", mysqlDb.getMembers());
+        const loadedMembers = await loadFromApi("members", MOCK_MEMBERS);
         setMembers(loadedMembers);
 
         // 3. Coaches
-        const loadedCoaches = await loadFromApi("coaches", mysqlDb.getCoaches());
+        const loadedCoaches = await loadFromApi("coaches", MOCK_COACHES);
         setCoaches(loadedCoaches);
 
         // 4. Membership Requests (Invoices)
-        const loadedRequests = await loadFromApi("membership_requests", mysqlDb.getMembershipRequests());
+        const loadedRequests = await loadFromApi("membership_requests", []);
         setMembershipRequests(loadedRequests);
 
         // 5. Workout Programs
@@ -694,7 +695,7 @@ export default function App() {
         setCoachSales(loadedSales);
 
         // 13. Blog Posts List
-        const loadedBlogs = await loadFromApi("blog_posts", mysqlDb.getBlogPosts());
+        const loadedBlogs = await loadFromApi("blog_posts", MOCK_BLOG_POSTS);
         setBlogPosts(loadedBlogs);
 
         // 14. Load Global Platform Settings from server API
@@ -762,7 +763,6 @@ export default function App() {
   // Automated state synchronization to live cloud database
   useEffect(() => {
     if (isDbReady && blogPosts.length > 0) {
-      mysqlDb.saveBlogPosts(blogPosts);
       fetch("/api/db/blog_posts/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -773,7 +773,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && tenants.length > 0) {
-      mysqlDb.saveTenants(tenants);
       fetch("/api/db/tenants/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -784,7 +783,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && members.length > 0) {
-      mysqlDb.saveMembers(members);
       fetch("/api/db/members/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -795,7 +793,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && coaches.length > 0) {
-      mysqlDb.saveCoaches(coaches);
       fetch("/api/db/coaches/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -806,7 +803,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && membershipRequests.length > 0) {
-      mysqlDb.saveMembershipRequests(membershipRequests);
       fetch("/api/db/membership_requests/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -817,7 +813,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && workoutPrograms.length > 0) {
-      mysqlDb.saveWorkoutPrograms(workoutPrograms);
       fetch("/api/db/workout_programs/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -828,7 +823,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && nutritionPlans.length > 0) {
-      mysqlDb.saveNutritionPlans(nutritionPlans);
       fetch("/api/db/nutrition_plans/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -839,7 +833,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && storeProducts.length > 0) {
-      mysqlDb.saveStoreProducts(storeProducts);
       fetch("/api/db/store_products/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -850,7 +843,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && bookings.length > 0) {
-      mysqlDb.saveBookings(bookings);
       fetch("/api/db/bookings/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -861,7 +853,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && tickets.length > 0) {
-      mysqlDb.saveTickets(tickets);
       fetch("/api/db/tickets/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -872,7 +863,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && attendanceRecords.length > 0) {
-      mysqlDb.saveAttendanceRecords(attendanceRecords);
       fetch("/api/db/attendance_records/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -883,7 +873,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && exercisesList.length > 0) {
-      mysqlDb.saveExercisesList(exercisesList);
       fetch("/api/db/exercises_database/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -894,7 +883,6 @@ export default function App() {
 
   useEffect(() => {
     if (isDbReady && coachSales.length > 0) {
-      mysqlDb.saveCoachSales(coachSales);
       fetch("/api/db/coach_sales/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1145,7 +1133,6 @@ export default function App() {
       return m;
     });
     setMembers(updated);
-    mysqlDb.saveMembers(updated);
     alert(`🎉 پرونده پزشکی و آنالیز فیزیکی ورزشکار "${activeCoachMember?.name}" با موفقیت بروزرسانی شد و در دیتابیس MySQL ثبت گردید.`);
   };
 
@@ -3958,7 +3945,6 @@ export default function App() {
                                   return r;
                                 });
                                 setMembershipRequests(updatedRequests);
-                                mysqlDb.saveMembershipRequests(updatedRequests);
 
                                 // Update member remaining days
                                 const updatedMembers = members.map(m => {
@@ -3968,7 +3954,6 @@ export default function App() {
                                   return m;
                                 });
                                 setMembers(updatedMembers);
-                                mysqlDb.saveMembers(updatedMembers);
 
                                 // Add revenue to club
                                 setClubRevenue(prev => prev + req.priceToman);
@@ -3998,7 +3983,6 @@ export default function App() {
                                   return r;
                                 });
                                 setMembershipRequests(updatedRequests);
-                                mysqlDb.saveMembershipRequests(updatedRequests);
                                 alert(`❌ درخواست تمدید شهریه "${req.memberName}" رد شد.`);
                               }}
                               className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-[10px] transition-all cursor-pointer"
@@ -5345,7 +5329,6 @@ export default function App() {
                             return m;
                           });
                           setMembers(updatedMembers);
-                          mysqlDb.saveMembers(updatedMembers);
                         }
 
                         setCoachSubView("directory");
@@ -5779,7 +5762,6 @@ export default function App() {
                 onSubmitMembershipRequest={(req) => {
                   const updated = [req, ...membershipRequests];
                   setMembershipRequests(updated);
-                  mysqlDb.saveMembershipRequests(updated);
                 }}
               />
             </div>
