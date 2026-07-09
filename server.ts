@@ -261,16 +261,7 @@ app.post("/api/installer/test-db", async (req, res) => {
 app.post("/api/installer/setup-db", async (req, res) => {
   const { host, port, user, password, database, migrateData } = req.body;
   try {
-    // Save to env file
-    updateEnvFile({
-      DB_HOST: host,
-      DB_PORT: String(port || 3306),
-      DB_USER: user,
-      DB_PASSWORD: password || "",
-      DB_NAME: database,
-    });
-
-    // Create a connection to execute CREATE TABLE scripts
+    // Create a connection directly to execute CREATE TABLE scripts
     const connection = await mysql.createConnection({
       host,
       port: Number(port) || 3306,
@@ -478,13 +469,26 @@ app.post("/api/installer/setup-db", async (req, res) => {
 
     await connection.end();
 
-    // Reinitialize the global connection pool
-    await reinitializePool();
-
     res.json({
       success: true,
       message: `دیتابیس با موفقیت متصل شده و تمام ۱۴ جدول پلتفرم اسمارت‌جیم با موفقیت روی سرور MySQL ساخته شدند! پایگاه داده آماده بهره‌برداری کامل است. 🚀`
     });
+
+    // Defer writing to .env and reinitializing the pool to allow the response to finish sending completely
+    setTimeout(async () => {
+      try {
+        updateEnvFile({
+          DB_HOST: host,
+          DB_PORT: String(port || 3306),
+          DB_USER: user,
+          DB_PASSWORD: password || "",
+          DB_NAME: database,
+        });
+        await reinitializePool();
+      } catch (errEnv) {
+        console.error("Deferred env/pool update failed:", errEnv);
+      }
+    }, 1000);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "خطا در ساخت دیتابیس و جدول‌ها" });
   }
@@ -494,12 +498,20 @@ app.post("/api/installer/setup-db", async (req, res) => {
 app.post("/api/installer/save-admin", (req, res) => {
   const { username, password, brandName } = req.body;
   try {
-    updateEnvFile({
-      ADMIN_USERNAME: username || "admin",
-      ADMIN_PASSWORD: password || "admin123",
-      PLATFORM_BRAND_NAME: brandName || "پلتفرم ابری اسمارت جیم",
-    });
     res.json({ success: true, message: "اطلاعات حساب سوپر ادمین و برند اختصاصی شما با موفقیت ذخیره شد! 🛡️" });
+
+    // Defer writing to .env file to allow the response to finish sending completely
+    setTimeout(() => {
+      try {
+        updateEnvFile({
+          ADMIN_USERNAME: username || "admin",
+          ADMIN_PASSWORD: password || "admin123",
+          PLATFORM_BRAND_NAME: brandName || "پلتفرم ابری اسمارت جیم",
+        });
+      } catch (errEnv) {
+        console.error("Deferred admin credentials update failed:", errEnv);
+      }
+    }, 1000);
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "خطا در ثبت اطلاعات کاربری" });
   }
