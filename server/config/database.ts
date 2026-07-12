@@ -68,9 +68,38 @@ export function getPool(): mysql.Pool {
   return pool;
 }
 
-// Memory database fallback for preview mode when MySQL is not connected yet
-const memoryDb: Record<string, any[]> = {};
-const memorySettings: Record<string, string> = {};
+import fs from "fs";
+import path from "path";
+
+const FALLBACK_FILE = path.join(process.cwd(), "db_fallback.json");
+
+let memoryDb: Record<string, any[]> = {};
+let memorySettings: Record<string, string> = {};
+
+// Helper to load fallback data
+function loadFallback() {
+  try {
+    if (fs.existsSync(FALLBACK_FILE)) {
+      const data = JSON.parse(fs.readFileSync(FALLBACK_FILE, "utf8"));
+      memoryDb = data.memoryDb || {};
+      memorySettings = data.memorySettings || {};
+    }
+  } catch (err) {
+    console.error("⚠️ Failed to load persistent fallback DB file:", err);
+  }
+}
+
+// Helper to save fallback data
+function saveFallback() {
+  try {
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify({ memoryDb, memorySettings }, null, 2), "utf8");
+  } catch (err) {
+    console.error("⚠️ Failed to save persistent fallback DB file:", err);
+  }
+}
+
+// Initial load
+loadFallback();
 
 // Abstraction helper functions for REST APIs (ONLY using MySQL, with dynamic transient in-memory fallback)
 export async function dbGetTable(tableName: string): Promise<any[]> {
@@ -128,7 +157,7 @@ export async function dbSaveItem(tableName: string, item: any): Promise<void> {
 
   if (isUsingRealMySQL) {
     const activePool = getPool();
-    const keys = Object.keys(item);
+    const keys = Object.keys(item).filter(k => /^[a-zA-Z0-9_]+$/.test(k));
     if (keys.length === 0) return;
 
     const formattedItem = { ...item };
@@ -165,6 +194,7 @@ export async function dbSaveItem(tableName: string, item: any): Promise<void> {
     } else {
       memoryDb[tableName].push(clonedItem);
     }
+    saveFallback();
   }
 }
 
@@ -187,7 +217,7 @@ export async function dbSaveTable(tableName: string, items: any[]): Promise<void
     try {
       await connection.beginTransaction();
       for (const item of items) {
-        const keys = Object.keys(item);
+        const keys = Object.keys(item).filter(k => /^[a-zA-Z0-9_]+$/.test(k));
         if (keys.length === 0) continue;
         
         const formattedItem = { ...item };
@@ -231,6 +261,7 @@ export async function dbSaveTable(tableName: string, items: any[]): Promise<void
         memoryDb[tableName].push(clonedItem);
       }
     }
+    saveFallback();
   }
 }
 
@@ -253,6 +284,7 @@ export async function dbDeleteItem(tableName: string, id: string): Promise<void>
     if (memoryDb[tableName]) {
       memoryDb[tableName] = memoryDb[tableName].filter(i => i.id !== id);
     }
+    saveFallback();
   }
 }
 
@@ -282,5 +314,6 @@ export async function dbSaveSettings(settings: Record<string, string>): Promise<
     for (const [key, value] of Object.entries(settings)) {
       memorySettings[key] = value;
     }
+    saveFallback();
   }
 }

@@ -12,7 +12,7 @@ import {
   getPlatformSettings, 
   savePlatformSettings 
 } from "../controllers/dbController";
-import { reinitializePool, isUsingRealMySQL } from "../config/database";
+import { dbGetSettings, dbSaveSettings, reinitializePool, isUsingRealMySQL } from "../config/database";
 
 const router = Router();
 
@@ -490,32 +490,51 @@ router.post("/installer/setup-db", async (req: Request, res: Response, next: Nex
   }
 });
 
-router.post("/installer/save-admin", (req: Request, res: Response) => {
+router.post("/installer/save-admin", async (req: Request, res: Response) => {
   const { username, password, brandName } = req.body;
   try {
-    res.json({ success: true, message: "اطلاعات حساب سوپر ادمین و برند اختصاصی شما با موفقیت ذخیره شد! 🛡️" });
+    // 1. Save to platform_settings table in database
+    try {
+      await dbSaveSettings({
+        admin_username: username || "admin",
+        admin_password: password || "admin123",
+        platformBrandLogo: brandName || "پلتفرم ابری اسمارت جیم",
+        platform_brand_name: brandName || "پلتفرم ابری اسمارت جیم"
+      });
+    } catch (dbErr) {
+      console.error("Failed to save admin credentials to platform_settings table:", dbErr);
+    }
 
-    setTimeout(() => {
-      try {
-        updateEnvFile({
-          ADMIN_USERNAME: username || "admin",
-          ADMIN_PASSWORD: password || "admin123",
-          PLATFORM_BRAND_NAME: brandName || "پلتفرم ابری اسمارت جیم",
-        });
-      } catch (errEnv) {
-        console.error("Deferred admin credentials update failed:", errEnv);
-      }
-    }, 1000);
+    // 2. Save to environment variables and .env file
+    updateEnvFile({
+      ADMIN_USERNAME: username || "admin",
+      ADMIN_PASSWORD: password || "admin123",
+      PLATFORM_BRAND_NAME: brandName || "پلتفرم ابری اسمارت جیم",
+    });
+
+    res.json({ success: true, message: "اطلاعات حساب سوپر ادمین و برند اختصاصی شما با موفقیت ذخیره شد! 🛡️" });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || "خطا در ثبت اطلاعات کاربری" });
   }
 });
 
 // --- Authentication & User Endpoints ---
-router.post("/admin/login", (req: Request, res: Response) => {
+router.post("/admin/login", async (req: Request, res: Response) => {
   const { username, password } = req.body;
-  const sysUser = process.env.ADMIN_USERNAME || "admin";
-  const sysPass = process.env.ADMIN_PASSWORD || "admin123";
+  let sysUser = process.env.ADMIN_USERNAME || "admin";
+  let sysPass = process.env.ADMIN_PASSWORD || "admin123";
+
+  try {
+    const dbSettings = await dbGetSettings();
+    if (dbSettings && dbSettings.admin_username) {
+      sysUser = dbSettings.admin_username;
+    }
+    if (dbSettings && dbSettings.admin_password) {
+      sysPass = dbSettings.admin_password;
+    }
+  } catch (dbErr) {
+    console.error("Failed to fetch admin settings from DB, using env/fallback:", dbErr);
+  }
 
   if (username === sysUser && password === sysPass) {
     res.json({ success: true, message: "خوش آمدید سوپر ادمین گرامی! 🔐" });
