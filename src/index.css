@@ -2,85 +2,122 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Vazirmatn", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Fira Code", ui-monospace, monospace;
 }
 
 :root {
-  /* Green Corporate Palette */
-  --primary: #16A34A;
-  --secondary: #22C55E;
-  --success: #15803D;
-  --accent: #4ADE80;
+  /* Enterprise SaaS Color Tokens */
+  --primary: #22C55E;
+  --primary-hover: #16A34A;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --error: #EF4444;
   
-  /* Light Theme defaults */
-  --bg-main: #F8FAFC;
-  --bg-card: #FFFFFF;
-  --bg-input: #F1F5F9;
-  --border-color: rgba(15, 23, 42, 0.08);
-  --text-main: #0F172A;
-  --text-muted: #64748B;
-  --glass-bg: rgba(255, 255, 255, 0.8);
+  /* Dark Theme defaults (Apple / Stripe / Linear / Vercel style) */
+  --bg-main: #090B10;
+  --bg-surface: #11151E;
+  --bg-card: #161B26;
+  --bg-input: #11151E;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-main: #FFFFFF;
+  --text-secondary: #C6CBD6;
+  --glass-bg: rgba(22, 27, 38, 0.85);
 }
 
 .dark-theme-vars {
-  /* Dark Theme defaults */
-  --bg-main: #0F172A;
-  --bg-card: #1E293B;
-  --bg-input: #0F172A;
+  --bg-main: #090B10;
+  --bg-surface: #11151E;
+  --bg-card: #161B26;
+  --bg-input: #11151E;
   --border-color: rgba(255, 255, 255, 0.08);
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --glass-bg: rgba(15, 23, 42, 0.75);
+  --text-main: #FFFFFF;
+  --text-secondary: #C6CBD6;
+  --glass-bg: rgba(22, 27, 38, 0.85);
 }
 
-/* Base custom styles for premium glassmorphism and RTL scrollbars */
+/* Base custom styles for premium enterprise RTL interface */
 @layer base {
   html {
     font-family: var(--font-sans);
     direction: rtl;
     text-align: right;
     scroll-behavior: smooth;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   
-  /* Selection colors */
+  /* Selection styling */
   ::selection {
-    background-color: rgba(22, 163, 74, 0.3);
+    background-color: rgba(34, 197, 94, 0.25);
     color: #ffffff;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
   }
 }
 
-/* Custom classes for Glassmorphism & premium UI */
+/* Custom classes for SaaS components */
 .glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
   color: var(--text-main);
+  border-radius: 1rem;
 }
 
 /* ----------------------------------------------------
-   LIGHT MODE (WHITE MODE) DYNAMIC THEME ADAPTATION
+   LIGHT MODE DYNAMIC THEME ADAPTATION (APPLE / STRIPE / LINEAR / NOTION STYLE)
    ---------------------------------------------------- */
 .min-h-screen:not(.dark-theme-vars) {
   --bg-main: #F8FAFC;
+  --bg-surface: #F1F5F9;
   --bg-card: #FFFFFF;
-  --bg-input: #F1F5F9;
-  --border-color: rgba(15, 23, 42, 0.08);
+  --bg-input: #FFFFFF;
+  --border-color: #E2E8F0;
   --text-main: #0F172A;
-  --text-muted: #64748B;
-  --glass-bg: rgba(255, 255, 255, 0.9);
+  --text-secondary: #334155;
+  --glass-bg: rgba(255, 255, 255, 0.92);
 }
 
-/* Force Light Mode background and text overrides */
 .min-h-screen:not(.dark-theme-vars) .glass-panel {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
   color: #0F172A !important;
-  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
 }
 
-/* Adapt slate background containers in light mode to use a soft grey so they keep their depth */
+/* Elevation Shadows for Light Mode */
+.min-h-screen:not(.dark-theme-vars) .elevation-1 {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03) !important;
+}
+.min-h-screen:not(.dark-theme-vars) .elevation-2 {
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04) !important;
+}
+.min-h-screen:not(.dark-theme-vars) .elevation-3 {
+  box-shadow: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04) !important;
+}
+.min-h-screen:not(.dark-theme-vars) .elevation-float {
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.12), 0 8px 16px -8px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Adapt dark background containers in light mode */
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900\/40,
 .min-h-screen:not(.dark-theme-vars) .bg-slate-900\/50,
@@ -99,25 +136,33 @@
 .min-h-screen:not(.dark-theme-vars) .bg-black\/40,
 .min-h-screen:not(.dark-theme-vars) .bg-black\/50,
 .min-h-screen:not(.dark-theme-vars) .bg-black\/60 {
-  background-color: #F1F5F9 !important;
+  background-color: #FFFFFF !important;
   color: #0F172A !important;
-  border-color: rgba(15, 23, 42, 0.06) !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
 }
 
 /* Forms & inputs visibility in light mode */
 .min-h-screen:not(.dark-theme-vars) input,
 .min-h-screen:not(.dark-theme-vars) select,
 .min-h-screen:not(.dark-theme-vars) textarea {
-  background-color: #F8FAFC !important;
+  background-color: #FFFFFF !important;
   border-color: #CBD5E1 !important;
   color: #0F172A !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+}
+.min-h-screen:not(.dark-theme-vars) input:focus,
+.min-h-screen:not(.dark-theme-vars) select:focus,
+.min-h-screen:not(.dark-theme-vars) textarea:focus {
+  border-color: #0057FF !important;
+  box-shadow: 0 0 0 3px rgba(0, 87, 255, 0.15) !important;
 }
 .min-h-screen:not(.dark-theme-vars) input::placeholder,
 .min-h-screen:not(.dark-theme-vars) textarea::placeholder {
   color: #94A3B8 !important;
 }
 
-/* Light / White Mode text color adapters - protects white text on filled active buttons, but maps background texts to dark grey */
+/* Light Mode text color adapters */
 .min-h-screen:not(.dark-theme-vars) .text-slate-50:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
 .min-h-screen:not(.dark-theme-vars) .text-slate-100:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
 .min-h-screen:not(.dark-theme-vars) .text-slate-200:not(.bg-emerald-600 *):not(.bg-blue-600 *):not(.bg-indigo-600 *):not(.bg-rose-600 *):not(.bg-violet-600 *):not(.bg-amber-600 *):not(.bg-gradient-to-l *):not(.bg-gradient-to-r *):not(.bg-gradient-to-t *):not(.bg-gradient-to-b *):not(.bg-green-600 *):not(.bg-emerald-500 *):not(.bg-blue-500 *):not(.bg-indigo-500 *):not(.bg-rose-500 *):not(.bg-violet-500 *):not(.bg-amber-500 *):not(button.bg-emerald-600):not(button.bg-blue-600):not(button.bg-indigo-600):not(button.bg-rose-600):not(button.bg-violet-600):not(button.bg-amber-600):not(button.bg-green-600),
@@ -133,20 +178,18 @@
   color: #64748B !important;
 }
 
-/* Border corrections for Light Mode */
 .min-h-screen:not(.dark-theme-vars) .border-white\/5,
 .min-h-screen:not(.dark-theme-vars) .border-white\/10,
 .min-h-screen:not(.dark-theme-vars) .border-white\/15,
 .min-h-screen:not(.dark-theme-vars) .border-white\/20 {
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  border-color: #E2E8F0 !important;
 }
 
-/* Ensure color indicators / colorful texts are highly readable and rich on light backgrounds */
 .min-h-screen:not(.dark-theme-vars) .text-emerald-400 {
   color: #059669 !important;
 }
 .min-h-screen:not(.dark-theme-vars) .text-blue-400 {
-  color: #2563EB !important;
+  color: #0057FF !important;
 }
 .min-h-screen:not(.dark-theme-vars) .text-violet-400 {
   color: #7C3AED !important;
@@ -161,63 +204,24 @@
   color: #4F46E5 !important;
 }
 .min-h-screen:not(.dark-theme-vars) .text-cyan-400 {
-  color: #0891B2 !important;
-}
-
-/* Map colorful background badges to be rich yet readable in Light Mode */
-.min-h-screen:not(.dark-theme-vars) .bg-emerald-500\/10 {
-  background-color: rgba(16, 185, 129, 0.12) !important;
-  color: #059669 !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-blue-500\/10 {
-  background-color: rgba(37, 99, 235, 0.08) !important;
-  color: #2563EB !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-indigo-500\/10 {
-  background-color: rgba(79, 70, 229, 0.08) !important;
-  color: #4F46E5 !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-violet-500\/10 {
-  background-color: rgba(124, 58, 237, 0.08) !important;
-  color: #7C3AED !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-rose-500\/10 {
-  background-color: rgba(225, 29, 72, 0.08) !important;
-  color: #E11D48 !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-amber-500\/10 {
-  background-color: rgba(217, 119, 6, 0.08) !important;
-  color: #D97706 !important;
-}
-.min-h-screen:not(.dark-theme-vars) .bg-cyan-500\/10 {
-  background-color: rgba(8, 145, 178, 0.08) !important;
-  color: #0891B2 !important;
+  color: #00C7F2 !important;
 }
 
 .text-gradient-cyan-blue {
-  background: linear-gradient(135deg, #16A34A 0%, #22C55E 100%);
+  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gradient-emerald-green {
-  background: linear-gradient(135deg, #16A34A 0%, #4ADE80 100%);
+  background: linear-gradient(135deg, #22C55E 0%, #4ADE80 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .pulsing-glow {
-  box-shadow: 0 0 20px rgba(22, 163, 74, 0.2);
-  animation: pulse-glow-anim 2s infinite alternate;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.15);
 }
 
-@keyframes pulse-glow-anim {
-  from {
-    box-shadow: 0 0 10px rgba(22, 163, 74, 0.15);
-  }
-  to {
-    box-shadow: 0 0 25px rgba(22, 163, 74, 0.4);
-  }
-}
 
 

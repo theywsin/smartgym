@@ -71,10 +71,53 @@ export default function AthleteDashboard({
   const [athleteName, setAthleteName] = useState(member.name);
   const [athletePhone, setAthletePhone] = useState(member.phone);
   const [athleteAvatarEmoji, setAthleteAvatarEmoji] = useState("🦁");
+  const [athleteAvatarStyle, setAthleteAvatarStyle] = useState("adventurer");
+  const [athleteAvatarSeed, setAthleteAvatarSeed] = useState(member.name || "Hero1");
+  const [athleteAvatarUrl, setAthleteAvatarUrl] = useState<string>(
+    member.avatar || `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(member.name || "Hero1")}`
+  );
   const [athleteThemeColor, setAthleteThemeColor] = useState(tenantCustomColor);
   const [showMembershipModal, setShowMembershipModal] = useState(false);
   const [memberRemainingDays, setMemberRemainingDays] = useState(member.remainingDays !== undefined ? member.remainingDays : 24);
   const [completedDays, setCompletedDays] = useState<number[]>([]);
+
+  const diceBearStyles = [
+    { id: "adventurer", name: "ماجراجو (Adventurer)" },
+    { id: "bottts", name: "رباتیک و هوشمند (Bottts)" },
+    { id: "avataaars", name: "انسان فانتزی (Avataaars)" },
+    { id: "fun-emoji", name: "اموجی پرانرژی (Fun Emoji)" },
+    { id: "big-smile", name: "لبخند لبخند (Big Smile)" },
+    { id: "micah", name: "مدرن و هنری (Micah)" },
+    { id: "lorelei", name: "مینیمال (Lorelei)" },
+  ];
+
+  const diceBearPresets = [
+    { label: "قهرمان ۱", style: "adventurer", seed: "Champion" },
+    { label: "قهرمان ۲", style: "adventurer", seed: "Titan" },
+    { label: "مبارز", style: "adventurer", seed: "Sparta" },
+    { label: "ورزشکار ۱", style: "avataaars", seed: "Kian" },
+    { label: "ورزشکار ۲", style: "avataaars", seed: "Aria" },
+    { label: "سایبرجیم", style: "bottts", seed: "CyberGym" },
+    { label: "پرقدرت", style: "fun-emoji", seed: "PowerGym" },
+    { label: "لبخند طلایی", style: "big-smile", seed: "GoldSmile" },
+    { label: "نینجا", style: "micah", seed: "Ninja1" },
+    { label: "ققنوس", style: "lorelei", seed: "Phoenix" },
+  ];
+
+  const handleSelectDiceBear = (style: string, seed: string) => {
+    setAthleteAvatarStyle(style);
+    setAthleteAvatarSeed(seed);
+    const newUrl = `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+    setAthleteAvatarUrl(newUrl);
+  };
+
+  const handleGenerateRandomDiceBear = () => {
+    const randomStyles = ["adventurer", "bottts", "avataaars", "fun-emoji", "big-smile", "micah", "lorelei"];
+    const randomSeeds = ["Hero", "Titan", "Power", "Flex", "Iron", "Alpha", "Apex", "Viking", "Samurai", "Falcon", "Panther", "Zeus"];
+    const randStyle = randomStyles[Math.floor(Math.random() * randomStyles.length)];
+    const randSeed = `${randomSeeds[Math.floor(Math.random() * randomSeeds.length)]}_${Math.floor(Math.random() * 999)}`;
+    handleSelectDiceBear(randStyle, randSeed);
+  };
 
   // Synchronize remaining days with parent prop
   useEffect(() => {
@@ -231,7 +274,7 @@ export default function AthleteDashboard({
   const bmi = (weightKg / (heightM * heightM)).toFixed(1);
 
   return (
-    <div className="w-full max-w-md mx-auto relative min-h-[720px] pb-24 rounded-[3rem] overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col" style={{
+    <div className="w-full max-w-7xl mx-auto relative min-h-screen md:min-h-[720px] pb-20 md:pb-8 rounded-none sm:rounded-3xl md:rounded-[2.5rem] overflow-hidden border-0 sm:border border-slate-800 bg-slate-950 shadow-2xl flex flex-col" style={{
       background: isDarkMode ? "#0F172A" : "#F8FAFC",
       color: isDarkMode ? "#F1F5F9" : "#1E293B"
     }}>
@@ -408,25 +451,67 @@ export default function AthleteDashboard({
         </div>
       )}
       
-      {/* 1. Header Bar with Athlete Profile and Notification bell */}
-      <div className={`p-6 flex justify-between items-center ${isDarkMode ? "bg-slate-900/60" : "bg-white"} border-b ${borderColor}`}>
+      {/* 1. Header Bar with Athlete Profile, Desktop Tabs Navigation, and Actions */}
+      <div className={`p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isDarkMode ? "bg-slate-900/80" : "bg-white"} border-b ${borderColor}`}>
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-600 to-indigo-600 flex items-center justify-center text-lg border-2 border-white/10 shadow-md shadow-indigo-950/20">
-            {athleteAvatarEmoji}
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-600 to-indigo-600 flex items-center justify-center p-0.5 border-2 border-white/10 shadow-md shadow-indigo-950/20 overflow-hidden shrink-0">
+            {athleteAvatarUrl ? (
+              <img src={athleteAvatarUrl} alt={athleteName} className="w-full h-full object-cover rounded-xl bg-slate-900" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="text-xl">{athleteAvatarEmoji}</span>
+            )}
           </div>
           <div>
-            <span className={`text-[10px] ${labelColor} block`}>خوش آمدی قهرمان 👋</span>
-            <h4 className={`text-sm font-black ${titleColor}`}>{athleteName}</h4>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] ${labelColor} block`}>خوش آمدی قهرمان 👋</span>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                {tenantBrandText}
+              </span>
+            </div>
+            <h4 className={`text-base font-black ${titleColor}`}>{athleteName}</h4>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Desktop Top Tab Navigation Menu */}
+        <div className="hidden md:flex items-center bg-slate-950/40 p-1.5 rounded-2xl border border-white/5 gap-1">
+          <button 
+            onClick={() => setSubTab("workout")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${subTab === "workout" ? "bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 shadow font-extrabold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Dumbbell className="w-4 h-4" />
+            برنامه تمرینی
+          </button>
+          <button 
+            onClick={() => setSubTab("nutrition")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${subTab === "nutrition" ? "bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 shadow font-extrabold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <Utensils className="w-4 h-4" />
+            برنامه غذایی
+          </button>
+          <button 
+            onClick={() => setSubTab("stats")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${subTab === "stats" ? "bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 shadow font-extrabold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            آنالیز و آمار
+          </button>
+          <button 
+            onClick={() => setSubTab("profile")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${subTab === "profile" ? "bg-gradient-to-l from-emerald-500 to-teal-600 text-slate-950 shadow font-extrabold" : "text-slate-400 hover:text-slate-200"}`}
+          >
+            <User className="w-4 h-4" />
+            پروفایل کاربری
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           {/* Active Badge */}
           <button 
             onClick={() => setShowMembershipModal(true)}
-            className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+            className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
           >
-            🟢 عضویت فعال ({memberRemainingDays} روز)
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            عضویت فعال ({memberRemainingDays} روز)
           </button>
           {/* Dark / Light Toggle */}
           <button 
@@ -451,7 +536,7 @@ export default function AthleteDashboard({
       </div>
 
       {/* 2. Main Sub-tab Scrollable Content Container */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-6">
 
         {/* ==================== SUBTAB: WORKOUT ==================== */}
         {subTab === "workout" && !isWorkoutActive && (
@@ -1029,163 +1114,238 @@ export default function AthleteDashboard({
 
         {/* ==================== SUBTAB: PROFILE & SETTINGS ==================== */}
         {subTab === "profile" && (
-          <div className="space-y-4 animate-fade-in text-xs text-right" dir="rtl">
+          <div className="space-y-6 animate-fade-in text-xs text-right" dir="rtl">
             
-            {/* Interactive Profile Editor Card */}
-            <div className={`p-5 rounded-2xl border ${borderColor} ${innerCardBg} space-y-4`}>
-              <span className="font-black text-xs text-indigo-400 block border-b border-white/5 pb-2">
-                👤 ویرایش اطلاعات فردی و پروفایل
-              </span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">نام و نام خانوادگی شما</label>
-                  <input
-                    type="text"
-                    value={athleteName}
-                    onChange={(e) => setAthleteName(e.target.value)}
-                    className="w-full bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+              {/* Interactive Profile Editor & DiceBear Card */}
+              <div className={`p-5 rounded-2xl border ${borderColor} ${innerCardBg} space-y-4`}>
+                <span className="font-black text-xs text-indigo-400 block border-b border-white/5 pb-2">
+                  👤 ویرایش اطلاعات فردی و آواتار
+                </span>
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">نام و نام خانوادگی شما</label>
+                      <input
+                        type="text"
+                        value={athleteName}
+                        onChange={(e) => setAthleteName(e.target.value)}
+                        className="w-full bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
 
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">شماره تلفن همراه</label>
-                  <input
-                    type="text"
-                    value={athletePhone}
-                    onChange={(e) => setAthletePhone(e.target.value)}
-                    className="w-full bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl text-white font-mono focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">شماره تلفن همراه</label>
+                      <input
+                        type="text"
+                        value={athletePhone}
+                        onChange={(e) => setAthletePhone(e.target.value)}
+                        className="w-full bg-slate-900/60 border border-white/10 px-3 py-2 rounded-xl text-white font-mono focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
 
-                {/* Avatar / Profile Picture Emoji Selector */}
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1.5">انتخاب آواتار و عکس پروفایل</label>
-                  <div className="flex gap-2.5 overflow-x-auto py-1">
-                    {["🦁", "🐯", "🦅", "🥋", "🏋️", "🥇", "🥊", "🧘", "🤸"].map((emoji) => (
+                  {/* DiceBear Avatar Generator & Selector Block */}
+                  <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-white/5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold text-slate-200 block">انتخاب آواتار هوشمند (DiceBear Avatars API)</label>
                       <button
-                        key={emoji}
                         type="button"
-                        onClick={() => {
-                          setAthleteAvatarEmoji(emoji);
-                        }}
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all ${athleteAvatarEmoji === emoji ? "bg-indigo-500/20 border-2 border-indigo-500 scale-110" : "bg-slate-900 border border-white/5 hover:bg-slate-800"}`}
+                        onClick={handleGenerateRandomDiceBear}
+                        className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
                       >
-                        {emoji}
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        🎲 آواتار تصادفی
                       </button>
-                    ))}
+                    </div>
+
+                    {/* Active Avatar Preview Card */}
+                    <div className="flex items-center gap-4 bg-slate-900/80 p-3 rounded-xl border border-white/10">
+                      <div className="w-16 h-16 rounded-2xl bg-slate-950 p-1 border-2 border-indigo-500/40 shadow-lg shadow-indigo-950/30 shrink-0 flex items-center justify-center">
+                        <img
+                          src={athleteAvatarUrl}
+                          alt="DiceBear Avatar"
+                          className="w-full h-full object-contain rounded-xl"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <span className="text-[10px] text-indigo-400 font-bold block">آواتار فعال شما</span>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">
+                          سبک: {athleteAvatarStyle} | کلید: {athleteAvatarSeed}
+                        </p>
+                        <span className="text-[9px] text-slate-500 block">تولید لحظه‌ای از وب‌سایت https://www.dicebear.com</span>
+                      </div>
+                    </div>
+
+                    {/* DiceBear Presets Grid */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-slate-400 block">پیش‌نهاد آواتارهای ورزشی محبوب:</span>
+                      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                        {diceBearPresets.map((preset, idx) => {
+                          const url = `https://api.dicebear.com/9.x/${preset.style}/svg?seed=${encodeURIComponent(preset.seed)}`;
+                          const isSelected = athleteAvatarUrl === url;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleSelectDiceBear(preset.style, preset.seed)}
+                              className={`p-1 rounded-xl border flex flex-col items-center justify-center transition-all ${
+                                isSelected ? "bg-indigo-500/20 border-indigo-500 scale-105 shadow" : "bg-slate-900 border-white/5 hover:border-white/20"
+                              }`}
+                              title={preset.label}
+                            >
+                              <img src={url} alt={preset.label} className="w-8 h-8 object-contain" referrerPolicy="no-referrer" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom Style & Seed Generator */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">سبک آواتار (DiceBear Style)</label>
+                        <select
+                          value={athleteAvatarStyle}
+                          onChange={(e) => handleSelectDiceBear(e.target.value, athleteAvatarSeed)}
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1.5 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
+                        >
+                          {diceBearStyles.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">نام یا واژه دلخواه جهت ساخت آواتار</label>
+                        <input
+                          type="text"
+                          value={athleteAvatarSeed}
+                          onChange={(e) => handleSelectDiceBear(athleteAvatarStyle, e.target.value || "Gym")}
+                          placeholder="مثلاً: Arash_Titan"
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1.5 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Theme Preset Selector */}
+                  <div>
+                    <label className="text-[10px] text-slate-400 block mb-1.5">تم رنگی اختصاصی (Custom Accent)</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { id: "emerald", label: "سبز", color: "bg-emerald-500" },
+                        { id: "blue", label: "آبی", color: "bg-blue-500" },
+                        { id: "rose", label: "یاقوتی", color: "bg-rose-500" },
+                        { id: "violet", label: "بنفش", color: "bg-violet-500" },
+                        { id: "amber", label: "کهربایی", color: "bg-amber-500" }
+                      ].map((theme) => (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            setAthleteThemeColor(theme.id);
+                          }}
+                          className={`p-1.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${athleteThemeColor === theme.id ? "border-indigo-500 bg-indigo-500/10 scale-105" : "border-white/5 bg-slate-900"}`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${theme.color}`} />
+                          <span className="text-[8px] text-slate-400">{theme.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => alert("🎉 تغییرات پروفایل، تصویر آواتار DiceBear و تم رنگی اختصاصی شما با موفقیت ذخیره گردید و فوراً روی کل پنل اعمال شد.")}
+                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl text-xs transition-all mt-1"
+                  >
+                    💾 ذخیره تغییرات پروفایل
+                  </button>
+                </div>
+              </div>
+
+              {/* Column 2: Club Info & System Overview */}
+              <div className="space-y-4">
+                {/* Club Info Section for Athlete */}
+                <div className={`p-5 rounded-2xl border ${borderColor} ${innerCardBg} space-y-4`}>
+                  <span className="font-black text-xs text-indigo-400 block border-b border-white/5 pb-2 flex items-center gap-1.5">
+                    🏛️ مشخصات و اطلاعات رسمی باشگاه شما
+                  </span>
+                  
+                  <div className="flex items-center gap-3 bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-lg">
+                      🏋️
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-100">{clubInfo?.name || "مجموعه ورزشی اکسیژن (شعبه مرکزی)"}</h4>
+                      <span className="text-[10px] text-slate-500">تحت پوشش پورتال اسمارت جیم</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-[10px]">
+                    <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-slate-500 block">مدیریت باشگاه:</span>
+                      <span className="font-bold text-slate-200">{clubInfo?.ownerName || "جناب آقای تهرانی"}</span>
+                    </div>
+                    <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-slate-500 block">شماره تماس ثابت:</span>
+                      <span className="font-bold text-slate-200 font-mono">{clubInfo?.phone || "۰۲۱-۲۲۸۸۹۹۰۰"}</span>
+                    </div>
+                    <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-slate-500 block">ساعات کاری باشگاه:</span>
+                      <span className="font-bold text-slate-200">۰۶:۰۰ الی ۲۳:۰۰</span>
+                    </div>
+                    <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1 text-right">
+                      <span className="text-slate-500 block">وضعیت فعلی:</span>
+                      <span className="font-bold text-emerald-400">🟢 فعال و دایر</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/30 p-3 rounded-xl border border-white/5 space-y-1 text-[10px]">
+                    <span className="text-slate-500 block">آدرس دقیق پستی:</span>
+                    <span className="text-slate-300 font-bold leading-relaxed block">
+                      {clubInfo?.address || "تهران، نیاوران، سه راه یاسر، کوچه راد، پلاک ۱۲، طبقه منفی ۱"}
+                    </span>
                   </div>
                 </div>
 
-                {/* Theme Preset Selector */}
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1.5">تم رنگی وب‌اپلیکیشن (Custom Accent)</label>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {[
-                      { id: "emerald", label: "سبز", color: "bg-emerald-500" },
-                      { id: "blue", label: "آبی", color: "bg-blue-500" },
-                      { id: "rose", label: "یاقوتی", color: "bg-rose-500" },
-                      { id: "violet", label: "بنفش", color: "bg-violet-500" },
-                      { id: "amber", label: "کهربایی", color: "bg-amber-500" }
-                    ].map((theme) => (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={() => {
-                          setAthleteThemeColor(theme.id);
-                        }}
-                        className={`p-1.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${athleteThemeColor === theme.id ? "border-indigo-500 bg-indigo-500/10 scale-105" : "border-white/5 bg-slate-900"}`}
-                      >
-                        <span className={`w-2.5 h-2.5 rounded-full ${theme.color}`} />
-                        <span className="text-[8px] text-slate-400">{theme.label}</span>
-                      </button>
-                    ))}
+                {/* Read-only system overview */}
+                <div className={`p-4 rounded-2xl border ${borderColor} ${innerCardBg} space-y-2.5 text-[10px] text-slate-400`}>
+                  <div className="flex justify-between">
+                    <span>مربی بدنساز شما:</span>
+                    <span className="font-bold text-slate-200">{member.coachName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>تاریخ شروع دوره:</span>
+                    <span className="font-mono text-slate-200">{member.joinedDate}</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => alert("🎉 تغییرات پروفایل، تصویر آواتار و تم رنگی اختصاصی شما با موفقیت ذخیره گردید و فوراً روی کل پنل اعمال شد.")}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition-all mt-1"
+                {/* Offline Simulator actions */}
+                <div className={`p-4 rounded-2xl border ${borderColor} ${innerCardBg} space-y-2`}>
+                  <span className="font-bold text-xs text-indigo-400 block">📱 شبیه‌ساز نسخه آفلاین PWA</span>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">این وب‌اپلیکیشن برای استفاده‌ی آفلاین بهینه‌سازی شده است.</p>
+                  <button 
+                    onClick={() => alert("شبیه‌سازی دانلود آفلاین با موفقیت انجام شد و برنامه آفلاین در کش محلی ذخیره گردید.")}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-slate-300 py-2 rounded-xl font-bold transition-all border border-white/5 cursor-pointer"
+                  >
+                    ذخیره کامل برنامه برای دسترسی بدون اینترنت
+                  </button>
+                </div>
+
+                <button 
+                  onClick={onLogout}
+                  className="w-full bg-red-600/15 hover:bg-red-600/20 text-red-400 border border-red-500/10 py-3 rounded-2xl font-black text-xs transition-all cursor-pointer"
                 >
-                  💾 ذخیره تغییرات پروفایل
+                  خروج امن از پنل کاربری
                 </button>
               </div>
+
             </div>
-
-            {/* Club Info Section for Athlete */}
-            <div className={`p-5 rounded-2xl border ${borderColor} ${innerCardBg} space-y-4`}>
-              <span className="font-black text-xs text-indigo-400 block border-b border-white/5 pb-2 flex items-center gap-1.5">
-                🏛️ مشخصات و اطلاعات رسمی باشگاه شما
-              </span>
-              
-              <div className="flex items-center gap-3 bg-slate-950/40 p-3 rounded-xl border border-white/5">
-                <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-lg">
-                  🏋️
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-100">{clubInfo?.name || "مجموعه ورزشی اکسیژن (شعبه مرکزی)"}</h4>
-                  <span className="text-[10px] text-slate-500">تحت پوشش پورتال اسمارت جیم</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-[10px]">
-                <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
-                  <span className="text-slate-500 block">مدیریت باشگاه:</span>
-                  <span className="font-bold text-slate-200">{clubInfo?.ownerName || "جناب آقای تهرانی"}</span>
-                </div>
-                <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
-                  <span className="text-slate-500 block">شماره تماس ثابت:</span>
-                  <span className="font-bold text-slate-200 font-mono">{clubInfo?.phone || "۰۲۱-۲۲۸۸۹۹۰۰"}</span>
-                </div>
-                <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1">
-                  <span className="text-slate-500 block">ساعات کاری باشگاه:</span>
-                  <span className="font-bold text-slate-200">۰۶:۰۰ الی ۲۳:۰۰</span>
-                </div>
-                <div className="bg-slate-950/30 p-2.5 rounded-xl border border-white/5 space-y-1 text-right">
-                  <span className="text-slate-500 block">وضعیت فعلی:</span>
-                  <span className="font-bold text-emerald-400">🟢 فعال و دایر</span>
-                </div>
-              </div>
-
-              <div className="bg-slate-950/30 p-3 rounded-xl border border-white/5 space-y-1 text-[10px]">
-                <span className="text-slate-500 block">آدرس دقیق پستی:</span>
-                <span className="text-slate-300 font-bold leading-relaxed block">
-                  {clubInfo?.address || "تهران، نیاوران، سه راه یاسر، کوچه راد، پلاک ۱۲، طبقه منفی ۱"}
-                </span>
-              </div>
-            </div>
-
-            {/* Read-only system overview */}
-            <div className={`p-4 rounded-2xl border ${borderColor} ${innerCardBg} space-y-2.5 text-[10px] text-slate-400`}>
-              <div className="flex justify-between">
-                <span>مربی بدنساز شما:</span>
-                <span className="font-bold text-slate-200">{member.coachName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>تاریخ شروع دوره:</span>
-                <span className="font-mono text-slate-200">{member.joinedDate}</span>
-              </div>
-            </div>
-
-            {/* Offline Simulator actions */}
-            <div className={`p-4 rounded-2xl border ${borderColor} ${innerCardBg} space-y-2`}>
-              <span className="font-bold text-xs text-indigo-400 block">📱 شبیه‌ساز نسخه آفلاین PWA</span>
-              <p className="text-[10px] text-slate-400 leading-relaxed">این وب‌اپلیکیشن برای استفاده‌ی آفلاین بهینه‌سازی شده است.</p>
-              <button 
-                onClick={() => alert("شبیه‌سازی دانلود آفلاین با موفقیت انجام شد و برنامه آفلاین در کش محلی ذخیره گردید.")}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-slate-300 py-2 rounded-xl font-bold transition-all border border-white/5"
-              >
-                ذخیره کامل برنامه برای دسترسی بدون اینترنت
-              </button>
-            </div>
-
-            <button 
-              onClick={onLogout}
-              className="w-full bg-red-600/15 hover:bg-red-600/20 text-red-400 border border-red-500/10 py-3 rounded-2xl font-black text-xs transition-all"
-            >
-              خروج امن از پنل کاربری
-            </button>
 
           </div>
         )}
@@ -1194,8 +1354,8 @@ export default function AthleteDashboard({
 
       {/* AI Floating Button removed per user request */}
 
-      {/* 4. Persistent App Bottom Navigation Menu (منوی ناوبری در پایین) */}
-      <div className={`absolute bottom-0 inset-x-0 h-18 ${isDarkMode ? "bg-slate-900/95" : "bg-white"} border-t ${borderColor} flex justify-around items-center px-4 z-40`}>
+      {/* 4. Persistent App Bottom Navigation Menu (منوی ناوبری در پایین مخصوص موبایل) */}
+      <div className={`md:hidden absolute bottom-0 inset-x-0 h-18 ${isDarkMode ? "bg-slate-900/95" : "bg-white"} border-t ${borderColor} flex justify-around items-center px-4 z-40`}>
         <button 
           onClick={() => setSubTab("workout")}
           className={`flex flex-col items-center gap-1 transition-all ${subTab === "workout" ? "text-green-500 scale-105" : "text-slate-400"}`}

@@ -33,6 +33,7 @@ import {
   Eye, 
   Heart, 
   Info,
+  AlertCircle,
   Layers,
   ShoppingBag,
   Ticket,
@@ -73,6 +74,10 @@ import TicketSystem from "./components/TicketSystem";
 import CoachEarningsPanel from "./components/CoachEarningsPanel";
 import BlogSection from "./components/BlogSection";
 import BlogSettingsPanel from "./components/BlogSettingsPanel";
+import PlatformMonitoringCenter from "./components/PlatformMonitoringCenter";
+import InteractiveTrainingSystem from "./components/InteractiveTrainingSystem";
+import SmsOtpAuthenticationSystem from "./components/SmsOtpAuthenticationSystem";
+import TenantWelcomeSetupWizard from "./components/TenantWelcomeSetupWizard";
 
 // @ts-ignore
 import mascotSmart from "./assets/images/mascot_smart_1783248774021.jpg";
@@ -94,27 +99,76 @@ export default function App() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<"landing" | "superadmin" | "tenant" | "coach" | "member" | "ai_labs" | "installer">("landing");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem("isDarkMode");
-    if (saved !== null) {
-      return saved === "true";
+  // Theme Engine States (Light / Dark / Auto)
+  const [themeMode, setThemeMode] = useState<"light" | "dark" | "auto">( () => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("themeMode");
+      if (saved === "light" || saved === "dark" || saved === "auto") {
+        return saved;
+      }
+      const legacyDark = localStorage.getItem("isDarkMode");
+      if (legacyDark !== null) {
+        return legacyDark === "true" ? "dark" : "light";
+      }
     }
+    return "dark";
+  });
+
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (themeMode === "light") return false;
+    if (themeMode === "dark") return true;
     if (typeof window !== "undefined" && window.matchMedia) {
       return window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
-    return true; // fallback default
+    return true;
   });
+
+  useEffect(() => {
+    localStorage.setItem("themeMode", themeMode);
+    localStorage.setItem("isDarkMode", String(isDarkMode));
+  }, [themeMode, isDarkMode]);
+
+  useEffect(() => {
+    if (themeMode === "auto") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = (e: MediaQueryListEvent) => {
+        setIsDarkMode(e.matches);
+      };
+      setIsDarkMode(mediaQuery.matches);
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    } else {
+      setIsDarkMode(themeMode === "dark");
+    }
+  }, [themeMode]);
+
+  const [showThemeDropdown, setShowThemeDropdown] = useState(false);
+
   const toggleDarkMode = () => {
-    setIsDarkMode((prev) => {
-      const next = !prev;
-      localStorage.setItem("isDarkMode", String(next));
-      return next;
-    });
+    if (themeMode === "dark") setThemeMode("light");
+    else if (themeMode === "light") setThemeMode("auto");
+    else setThemeMode("dark");
   };
   const [activePlanFeaturesEditId, setActivePlanFeaturesEditId] = useState<string | null>(null);
+  const [newPlanFeatureText, setNewPlanFeatureText] = useState("");
 
   // New Unified Design System States & Gateways
-  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>(SUBSCRIPTION_PLANS);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("subscriptionPlans");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return SUBSCRIPTION_PLANS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("subscriptionPlans", JSON.stringify(subscriptionPlans));
+  }, [subscriptionPlans]);
   const [paymentGatewayConfigs, setPaymentGatewayConfigs] = useState({
     activeGateway: "زرین‌پال (ZarinPal)",
     merchantId: "ZARINPAL-890124901",
@@ -124,12 +178,23 @@ export default function App() {
   });
   
   const [tenantSubTab, setTenantSubTab] = useState<"dashboard" | "info" | "support" | "coaches">("dashboard");
-  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "plans" | "tickets" | "settings" | "smart_chat" | "blog">("dashboard");
+  const [superAdminSubTab, setSuperAdminSubTab] = useState<"dashboard" | "monitoring" | "plans" | "tickets" | "settings" | "smart_chat" | "blog" | "sms_management">("dashboard");
   const [selectedDetailedMember, setSelectedDetailedMember] = useState<any | null>(null);
 
-  // Iranian Payment Gateway flow states
+  // Iranian Payment Gateway & Tenant Activation Flow states
   const [pendingPurchasePlan, setPendingPurchasePlan] = useState<any | null>(null);
   const [showPaymentSimulator, setShowPaymentSimulator] = useState(false);
+  const [showCustomerRegModal, setShowCustomerRegModal] = useState(false);
+  const [customerRegForm, setCustomerRegForm] = useState({
+    firstName: "",
+    lastName: "",
+    mobile: "",
+    gymName: "",
+    city: "تهران",
+    email: "",
+    acceptTerms: true
+  });
+  const [showTenantWelcomeWizard, setShowTenantWelcomeWizard] = useState(false);
   const [showTenantBrandModal, setShowTenantBrandModal] = useState(false);
   const [showTenantSubscriptionModal, setShowTenantSubscriptionModal] = useState(false);
   const [footerDocView, setFooterDocView] = useState<"terms" | "privacy" | "support" | "sla" | null>(null);
@@ -572,6 +637,132 @@ export default function App() {
     minStockAlert: 5,
     barcode: ""
   });
+
+  // Real-time Validation States for Registration & Form System
+  const [memberFormTouched, setMemberFormTouched] = useState<Record<string, boolean>>({});
+  const [memberFormSubmitted, setMemberFormSubmitted] = useState(false);
+
+  const [coachFormTouched, setCoachFormTouched] = useState<Record<string, boolean>>({});
+  const [coachFormSubmitted, setCoachFormSubmitted] = useState(false);
+
+  const [tenantFormTouched, setTenantFormTouched] = useState<Record<string, boolean>>({});
+  const [tenantFormSubmitted, setTenantFormSubmitted] = useState(false);
+
+  const [productFormTouched, setProductFormTouched] = useState<Record<string, boolean>>({});
+  const [productFormSubmitted, setProductFormSubmitted] = useState(false);
+
+  // Validation functions with immediate error checkers
+  const getMemberFormErrors = () => {
+    const errors: Record<string, string> = {};
+    if (!newMemberName.trim()) {
+      errors.name = "نام و نام خانوادگی ورزشکار الزامی است.";
+    } else if (newMemberName.trim().length < 2) {
+      errors.name = "نام باید حداقل ۲ حرف باشد.";
+    }
+
+    if (!newMemberPhone.trim()) {
+      errors.phone = "شماره همراه ورزشکار الزامی است.";
+    } else if (!/^09\d{9}$/.test(newMemberPhone.trim())) {
+      errors.phone = "شماره همراه معتبر وارد کنید (۱۱ رقم با ۰۹ شروع شود).";
+    }
+
+    if (!newMemberUsername.trim()) {
+      errors.username = "نام کاربری ورود الزامی است.";
+    } else if (newMemberUsername.trim().length < 3) {
+      errors.username = "نام کاربری باید حداقل ۳ کاراکتر انگلیسی باشد.";
+    } else if (!/^[a-zA-Z0-9_.-]+$/.test(newMemberUsername.trim())) {
+      errors.username = "نام کاربری فقط می‌تواند شامل حروف انگلیسی، اعداد و زیرخط باشد.";
+    }
+
+    if (!newMemberPassword) {
+      errors.password = "رمز عبور ورود الزامی است.";
+    } else if (newMemberPassword.length < 4) {
+      errors.password = "رمز عبور باید حداقل ۴ کاراکتر باشد.";
+    }
+
+    if (!newMemberSessions || Number(newMemberSessions) <= 0) {
+      errors.sessions = "تعداد جلسات مجاز باید حداقل ۱ جلسه باشد.";
+    }
+
+    return errors;
+  };
+
+  const getCoachFormErrors = () => {
+    const errors: Record<string, string> = {};
+    if (!newCoachName.trim()) {
+      errors.name = "نام و نام خانوادگی مربی الزامی است.";
+    } else if (newCoachName.trim().length < 3) {
+      errors.name = "نام مربی باید حداقل ۳ حرف باشد.";
+    }
+
+    if (!newCoachSpecialty.trim()) {
+      errors.specialty = "تخصص اصلی مربی الزامی است.";
+    }
+
+    if (!newCoachUsername.trim()) {
+      errors.username = "نام کاربری مربی الزامی است.";
+    } else if (newCoachUsername.trim().length < 3) {
+      errors.username = "نام کاربری باید حداقل ۳ کاراکتر باشد.";
+    } else if (!/^[a-zA-Z0-9_.-]+$/.test(newCoachUsername.trim())) {
+      errors.username = "نام کاربری فقط باید حروف و اعداد انگلیسی باشد.";
+    }
+
+    if (!newCoachPassword) {
+      errors.password = "رمز عبور مربی الزامی است.";
+    } else if (newCoachPassword.length < 4) {
+      errors.password = "رمز عبور باید حداقل ۴ کاراکتر باشد.";
+    }
+
+    return errors;
+  };
+
+  const getTenantFormErrors = () => {
+    const errors: Record<string, string> = {};
+    if (!newTenant.name.trim()) {
+      errors.name = "نام مجموعه ورزشی / کلینیک الزامی است.";
+    }
+    if (!newTenant.ownerName.trim()) {
+      errors.ownerName = "نام کامل موسس یا مالک الزامی است.";
+    }
+    if (!newTenant.phone.trim()) {
+      errors.phone = "شماره تماس الزامی است.";
+    } else if (!/^09\d{9}$/.test(newTenant.phone.trim())) {
+      errors.phone = "شماره همراه معتبر وارد کنید (مانند ۰۹۱۲۱۲۳۴۵۶۷).";
+    }
+    if (!newTenant.email.trim()) {
+      errors.email = "ایمیل رسمی الزامی است.";
+    } else if (!/\S+@\S+\.\S+/.test(newTenant.email.trim())) {
+      errors.email = "فرمت ایمیل نامعتبر است.";
+    }
+    if (!newTenant.username.trim()) {
+      errors.username = "نام کاربری سیستم الزامی است.";
+    } else if (newTenant.username.trim().length < 3) {
+      errors.username = "نام کاربری باید حداقل ۳ کاراکتر انگلیسی باشد.";
+    }
+    if (!newTenant.password) {
+      errors.password = "رمز عبور سیستم الزامی است.";
+    } else if (newTenant.password.length < 4) {
+      errors.password = "رمز عبور باید حداقل ۴ کاراکتر باشد.";
+    }
+    return errors;
+  };
+
+  const getProductFormErrors = () => {
+    const errors: Record<string, string> = {};
+    if (!newProduct.name.trim()) {
+      errors.name = "نام محصول الزامی است.";
+    }
+    if (!newProduct.brand.trim()) {
+      errors.brand = "برند یا دسته کالا الزامی است.";
+    }
+    if (!newProduct.priceToman || Number(newProduct.priceToman) <= 0) {
+      errors.priceToman = "قیمت باید بزرگتر از صفر باشد.";
+    }
+    if (newProduct.stock === undefined || newProduct.stock === null || Number(newProduct.stock) < 0) {
+      errors.stock = "موجودی اولیه الزامی است.";
+    }
+    return errors;
+  };
 
   // Timers Reference
   const timerIntervalRef = useRef<any>(null);
@@ -1346,17 +1537,18 @@ export default function App() {
   // Add new tenant
   const handleCreateTenant = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTenant.name || !newTenant.ownerName) return;
-    if (!newTenant.username || !newTenant.password) {
-      alert("لطفا نام کاربری و رمز عبور باشگاه جدید را تعیین کنید.");
+    setTenantFormSubmitted(true);
+    const tenantErrs = getTenantFormErrors();
+    if (Object.keys(tenantErrs).length > 0) {
       return;
     }
+
     const newlyCreated: Tenant = {
       id: `tenant_${Date.now()}`,
-      name: newTenant.name,
-      ownerName: newTenant.ownerName,
-      email: newTenant.email || "info@gym.ir",
-      phone: newTenant.phone || "09120000000",
+      name: newTenant.name.trim(),
+      ownerName: newTenant.ownerName.trim(),
+      email: newTenant.email.trim() || "info@gym.ir",
+      phone: newTenant.phone.trim() || "09120000000",
       username: newTenant.username.trim().toLowerCase(),
       password: newTenant.password.trim(),
       status: "ACTIVE",
@@ -1379,6 +1571,8 @@ export default function App() {
         if (response.ok) {
           setTenants([...tenants, newlyCreated]);
           setNewTenant({ name: "", ownerName: "", email: "", phone: "", username: "", password: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
+          setTenantFormTouched({});
+          setTenantFormSubmitted(false);
           alert(`باشگاه "${newlyCreated.name}" با موفقیت در دیتابیس سراسری ثبت و تعریف شد.\nنام کاربری: ${newlyCreated.username}\nکلمه عبور: ${newlyCreated.password}`);
         } else {
           const text = await response.text();
@@ -1408,7 +1602,12 @@ export default function App() {
   // Add new shop product
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProduct.name || !newProduct.brand) return;
+    setProductFormSubmitted(true);
+    const productErrs = getProductFormErrors();
+    if (Object.keys(productErrs).length > 0) {
+      return;
+    }
+
     const activeClubId = loggedInTenant?.id || "oxigen";
     const newlyCreated: StoreProduct = {
       id: `p_${Date.now()}`,
@@ -1417,14 +1616,17 @@ export default function App() {
     };
     setStoreProducts([...storeProducts, newlyCreated]);
     setNewProduct({ name: "", category: "SUPPLEMENT", brand: "", priceToman: 500000, stock: 20, minStockAlert: 5, barcode: "" });
+    setProductFormTouched({});
+    setProductFormSubmitted(false);
     alert("محصول با موفقیت به انبار بوفه اضافه شد.");
   };
 
   // Create member account (Coach Action)
   const handleCreateMember = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMemberName || !newMemberUsername || !newMemberPassword) {
-      alert("لطفاً فیلدهای اجباری (نام، نام کاربری و رمز عبور) را پر کنید.");
+    setMemberFormSubmitted(true);
+    const memberErrs = getMemberFormErrors();
+    if (Object.keys(memberErrs).length > 0) {
       return;
     }
 
@@ -1438,10 +1640,10 @@ export default function App() {
 
     const newlyCreated = {
       id: `m_${Date.now()}`,
-      name: newMemberName,
+      name: newMemberName.trim(),
       username: newMemberUsername.trim(),
-      password: newMemberPassword,
-      phone: newMemberPhone || "09120000000",
+      password: newMemberPassword.trim(),
+      phone: newMemberPhone.trim() || "09120000000",
       assignedProgramId: newMemberProgramId,
       assignedNutritionId: newMemberNutritionId,
       remainingSessions: Number(newMemberSessions) || 12,
@@ -1458,12 +1660,14 @@ export default function App() {
       .then(async (response) => {
         if (response.ok) {
           setMembers([...members, newlyCreated]);
-          // Clear Form
+          // Clear Form & validation state
           setNewMemberName("");
           setNewMemberPhone("");
           setNewMemberUsername("");
           setNewMemberPassword("");
           setNewMemberSessions(12);
+          setMemberFormTouched({});
+          setMemberFormSubmitted(false);
           alert(`حساب کاربری ورزشکار "${newlyCreated.name}" با موفقیت در دیتابیس ایجاد شد! اکنون ورزشکار می‌تواند با نام کاربری "${newlyCreated.username}" وارد پنل خود شود.`);
         } else {
           const text = await response.text();
@@ -1697,16 +1901,74 @@ export default function App() {
             </nav>
           </div>
 
-          {/* Action Controls & Dark Mode Toggle */}
+          {/* Action Controls & Theme Engine Switcher */}
           <div className="flex items-center gap-3">
-            <button 
-              onClick={toggleDarkMode} 
-              className="p-2 rounded-lg bg-slate-900 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
-              title="تغییر تم رنگی"
-            >
-              {isDarkMode ? "☀️" : "🌙"}
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowThemeDropdown(!showThemeDropdown)} 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 transition-all shadow-sm"
+                title="موتور هوشمند تم (Theme Engine)"
+              >
+                <span>{themeMode === "light" ? "☀️ روشن" : themeMode === "dark" ? "🌙 تاریک" : "💻 خودکار"}</span>
+              </button>
+
+              {showThemeDropdown && (
+                <div className="absolute left-0 mt-2 w-44 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl p-1.5 z-50 text-xs font-bold space-y-1 animate-fade-in dir-rtl">
+                  <button
+                    onClick={() => { setThemeMode("light"); setShowThemeDropdown(false); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${themeMode === "light" ? "bg-blue-600 text-white font-black" : "text-slate-300 hover:bg-white/5"}`}
+                  >
+                    <span>☀️ تم روشن (Light)</span>
+                    {themeMode === "light" && <span>✓</span>}
+                  </button>
+                  <button
+                    onClick={() => { setThemeMode("dark"); setShowThemeDropdown(false); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${themeMode === "dark" ? "bg-blue-600 text-white font-black" : "text-slate-300 hover:bg-white/5"}`}
+                  >
+                    <span>🌙 تم تاریک (Dark)</span>
+                    {themeMode === "dark" && <span>✓</span>}
+                  </button>
+                  <button
+                    onClick={() => { setThemeMode("auto"); setShowThemeDropdown(false); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${themeMode === "auto" ? "bg-blue-600 text-white font-black" : "text-slate-300 hover:bg-white/5"}`}
+                  >
+                    <span>💻 خودکار سیستم (Auto)</span>
+                    {themeMode === "auto" && <span>✓</span>}
+                  </button>
+                </div>
+              )}
+            </div>
             
+            {/* SMS OTP Passwordless Login System */}
+            <SmsOtpAuthenticationSystem
+              isAdminMode={false}
+              onLoginSuccess={(role, phone, tenantData) => {
+                if (role === UserRole.SUPER_ADMIN) {
+                  setIsSuperAdminLoggedIn(true);
+                  localStorage.setItem("isSuperAdminLoggedIn", "true");
+                  setActiveTab("superadmin");
+                } else if (role === UserRole.GYM_OWNER) {
+                  const existingTenant = tenants.find(t => t.phone === phone) || tenants[0];
+                  setLoggedInTenant(existingTenant);
+                  setActiveTab("tenant");
+                } else if (role === UserRole.COACH) {
+                  const existingCoach = coaches.find(c => c.phone === phone) || coaches[0];
+                  setLoggedInCoach(existingCoach);
+                  setActiveTab("coach");
+                } else {
+                  const existingMember = members.find(m => m.phone === phone) || members[0];
+                  setLoggedInMember(existingMember);
+                  setActiveTab("member");
+                }
+              }}
+              onTenantCreatedAndActivated={(newTenant) => {
+                setTenants([newTenant, ...tenants]);
+                setLoggedInTenant(newTenant);
+                setActiveTab("tenant");
+                setShowTenantWelcomeWizard(true);
+              }}
+            />
+
             <button 
               onClick={() => {
                 setActiveTab("landing");
@@ -1757,7 +2019,7 @@ export default function App() {
 
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className={activeTab === "member" ? "w-full max-w-7xl mx-auto px-0 py-0 md:py-6" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
 
         {/* -------------------- TAB 1: LANDING PAGE -------------------- */}
         {activeTab === "landing" && (
@@ -2372,6 +2634,18 @@ export default function App() {
                 داشبورد و آمار لحظه‌ای
               </button>
               <button
+                onClick={() => setSuperAdminSubTab("monitoring")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "monitoring" ? "bg-cyan-500 text-slate-950 shadow-lg font-black shadow-cyan-950/50" : "text-cyan-400 hover:text-cyan-200 hover:bg-cyan-500/10 border border-cyan-500/20"}`}
+              >
+                🖥️ مرکز پایش و مانیتورینگ کلان (Live Monitoring)
+              </button>
+              <button
+                onClick={() => setSuperAdminSubTab("sms_management")}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "sms_management" ? "bg-blue-600 text-white shadow-lg font-black shadow-blue-950/50" : "text-blue-400 hover:text-blue-200 hover:bg-blue-500/10 border border-blue-500/20"}`}
+              >
+                📱 مرکز مدیریت ملی‌پيامك (SMS Center)
+              </button>
+              <button
                 onClick={() => setSuperAdminSubTab("plans")}
                 className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${superAdminSubTab === "plans" ? "bg-emerald-600 text-slate-950 shadow-lg font-black" : "text-slate-400 hover:text-slate-200 hover:bg-white/5"}`}
               >
@@ -2439,49 +2713,112 @@ export default function App() {
                   <h3 className="text-sm font-bold">ایجاد باشگاه جدید (مستأجر)</h3>
                 </div>
 
-                <form onSubmit={handleCreateTenant} className="space-y-4 text-xs">
+                <form onSubmit={handleCreateTenant} noValidate className="space-y-4 text-xs">
+                  {tenantFormSubmitted && Object.keys(getTenantFormErrors()).length > 0 && (
+                    <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>لطفاً فیلدهای الزامی ثبت باشگاه را تصحیح فرمایید.</span>
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-slate-400 mb-1">نام مجموعه ورزشی / کلینیک</label>
+                    <label className="block text-slate-400 mb-1">نام مجموعه ورزشی / کلینیک <span className="text-rose-400">*</span></label>
                     <input 
                       type="text"
                       value={newTenant.name}
-                      onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })}
+                      onChange={(e) => {
+                        setNewTenant({ ...newTenant, name: e.target.value });
+                        setTenantFormTouched(prev => ({ ...prev, name: true }));
+                      }}
+                      onBlur={() => setTenantFormTouched(prev => ({ ...prev, name: true }))}
                       placeholder="مثلا: باشگاه فیتنس پارس"
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
+                      className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none transition-all ${
+                        (tenantFormTouched.name || tenantFormSubmitted) && getTenantFormErrors().name
+                          ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                          : "border-white/10 focus:border-blue-500"
+                      }`}
                     />
+                    {(tenantFormTouched.name || tenantFormSubmitted) && getTenantFormErrors().name && (
+                      <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {getTenantFormErrors().name}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1">نام کامل موسس یا مالک</label>
+                    <label className="block text-slate-400 mb-1">نام کامل موسس یا مالک <span className="text-rose-400">*</span></label>
                     <input 
                       type="text"
                       value={newTenant.ownerName}
-                      onChange={(e) => setNewTenant({ ...newTenant, ownerName: e.target.value })}
+                      onChange={(e) => {
+                        setNewTenant({ ...newTenant, ownerName: e.target.value });
+                        setTenantFormTouched(prev => ({ ...prev, ownerName: true }));
+                      }}
+                      onBlur={() => setTenantFormTouched(prev => ({ ...prev, ownerName: true }))}
                       placeholder="مثلا: محمدرضا عباسی"
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500"
+                      className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none transition-all ${
+                        (tenantFormTouched.ownerName || tenantFormSubmitted) && getTenantFormErrors().ownerName
+                          ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                          : "border-white/10 focus:border-blue-500"
+                      }`}
                     />
+                    {(tenantFormTouched.ownerName || tenantFormSubmitted) && getTenantFormErrors().ownerName && (
+                      <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {getTenantFormErrors().ownerName}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-slate-400 mb-1">شماره تماس</label>
+                      <label className="block text-slate-400 mb-1">شماره تماس <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
                         value={newTenant.phone}
-                        onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })}
+                        onChange={(e) => {
+                          setNewTenant({ ...newTenant, phone: e.target.value });
+                          setTenantFormTouched(prev => ({ ...prev, phone: true }));
+                        }}
+                        onBlur={() => setTenantFormTouched(prev => ({ ...prev, phone: true }))}
                         placeholder="0912..."
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none"
+                        className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none transition-all ${
+                          (tenantFormTouched.phone || tenantFormSubmitted) && getTenantFormErrors().phone
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-blue-500"
+                        }`}
                       />
+                      {(tenantFormTouched.phone || tenantFormSubmitted) && getTenantFormErrors().phone && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getTenantFormErrors().phone}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1">ایمیل رسمی</label>
+                      <label className="block text-slate-400 mb-1">ایمیل رسمی <span className="text-rose-400">*</span></label>
                       <input 
                         type="email"
                         value={newTenant.email}
-                        onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })}
+                        onChange={(e) => {
+                          setNewTenant({ ...newTenant, email: e.target.value });
+                          setTenantFormTouched(prev => ({ ...prev, email: true }));
+                        }}
+                        onBlur={() => setTenantFormTouched(prev => ({ ...prev, email: true }))}
                         placeholder="info@..."
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none"
+                        className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none transition-all ${
+                          (tenantFormTouched.email || tenantFormSubmitted) && getTenantFormErrors().email
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-blue-500"
+                        }`}
                       />
+                      {(tenantFormTouched.email || tenantFormSubmitted) && getTenantFormErrors().email && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getTenantFormErrors().email}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2500,26 +2837,52 @@ export default function App() {
 
                   <div className="grid grid-cols-2 gap-3 bg-blue-950/10 p-3 rounded-2xl border border-blue-500/10">
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">نام کاربری ورود *</label>
+                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">نام کاربری ورود <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
-                        required
                         value={newTenant.username}
-                        onChange={(e) => setNewTenant({ ...newTenant, username: e.target.value })}
+                        onChange={(e) => {
+                          setNewTenant({ ...newTenant, username: e.target.value });
+                          setTenantFormTouched(prev => ({ ...prev, username: true }));
+                        }}
+                        onBlur={() => setTenantFormTouched(prev => ({ ...prev, username: true }))}
                         placeholder="مثلا: pars_gym"
-                        className="w-full bg-slate-950 border border-blue-500/30 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono text-center"
+                        className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-center transition-all ${
+                          (tenantFormTouched.username || tenantFormSubmitted) && getTenantFormErrors().username
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-blue-500/30 focus:border-blue-500"
+                        }`}
                       />
+                      {(tenantFormTouched.username || tenantFormSubmitted) && getTenantFormErrors().username && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium text-right">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getTenantFormErrors().username}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">رمز عبور ورود *</label>
+                      <label className="block text-slate-400 mb-1 font-bold text-blue-400">رمز عبور ورود <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
-                        required
                         value={newTenant.password}
-                        onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })}
+                        onChange={(e) => {
+                          setNewTenant({ ...newTenant, password: e.target.value });
+                          setTenantFormTouched(prev => ({ ...prev, password: true }));
+                        }}
+                        onBlur={() => setTenantFormTouched(prev => ({ ...prev, password: true }))}
                         placeholder="مثلا: 123456"
-                        className="w-full bg-slate-950 border border-blue-500/30 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono text-center"
+                        className={`w-full bg-slate-950 border rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-center transition-all ${
+                          (tenantFormTouched.password || tenantFormSubmitted) && getTenantFormErrors().password
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-blue-500/30 focus:border-blue-500"
+                        }`}
                       />
+                      {(tenantFormTouched.password || tenantFormSubmitted) && getTenantFormErrors().password && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium text-right">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getTenantFormErrors().password}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -2618,6 +2981,14 @@ export default function App() {
               </div>
             </div>
             </>
+            )}
+
+            {superAdminSubTab === "monitoring" && (
+              <PlatformMonitoringCenter 
+                tenantsCount={tenants.length} 
+                totalUsersCount={1735} 
+                totalRevenueToman={153500000} 
+              />
             )}
 
             {superAdminSubTab === "plans" && (
@@ -2735,61 +3106,144 @@ export default function App() {
                               {activePlanFeaturesEditId === plan.id && (
                                 <>
                                   <div className="fixed inset-0 z-30" onClick={() => setActivePlanFeaturesEditId(null)}></div>
-                                  <div className="absolute right-0 top-full mt-2 w-80 bg-slate-950 border border-white/15 rounded-3xl shadow-2xl p-4 space-y-3 z-40 animate-scale-up text-right" dir="rtl">
-                                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                                      <span className="text-xs font-black text-white">انتخاب هوشمند امکانات لایسنس</span>
+                                  <div className="absolute right-0 top-full mt-2 w-88 bg-slate-950 border border-white/20 rounded-3xl shadow-2xl p-4 space-y-3 z-40 animate-scale-up text-right max-w-[90vw]" dir="rtl">
+                                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                                      <div>
+                                        <span className="text-xs font-black text-white block">مدیریت و ویرایش امکانات طرح</span>
+                                        <span className="text-[9px] text-slate-400">امکانات سیستم یا متن سفارشی جدید اضافه کنید</span>
+                                      </div>
                                       <button 
                                         onClick={() => setActivePlanFeaturesEditId(null)}
-                                        className="text-[10px] text-slate-400 hover:text-white font-bold bg-white/5 px-2 py-1 rounded-md"
+                                        className="text-[10px] text-slate-400 hover:text-white font-bold bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg transition-all"
                                       >
-                                        بستن
+                                        بستن ✖
                                       </button>
                                     </div>
-                                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                                      {SYSTEM_FEATURES.map((feat) => {
-                                        const isSelected = (plan.unlockedFeatureIds || []).includes(feat.id);
-                                        return (
-                                          <div 
-                                            key={feat.id} 
-                                            onClick={() => {
-                                              const currentIds = plan.unlockedFeatureIds || [];
-                                              let nextIds: string[];
-                                              if (isSelected) {
-                                                nextIds = currentIds.filter(id => id !== feat.id);
-                                              } else {
-                                                nextIds = [...currentIds, feat.id];
-                                              }
-                                              
-                                              // Synchronize textual description list as requested ("به امکانات اون اشتراک اضافه شود")
-                                              const nextTextFeatures = nextIds.map(id => {
-                                                const item = SYSTEM_FEATURES.find(f => f.id === id);
-                                                return item ? item.label : id;
-                                              });
 
-                                              setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { 
-                                                ...p, 
-                                                unlockedFeatureIds: nextIds,
-                                                features: nextTextFeatures
-                                              } : p));
-                                            }}
-                                            className={`flex items-start gap-2.5 p-2 rounded-2xl cursor-pointer transition-all border ${isSelected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-slate-900/40 border-transparent hover:bg-white/5"}`}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isSelected}
-                                              readOnly
-                                              className="mt-1 rounded border-white/10 bg-slate-950 text-emerald-500 focus:ring-emerald-500/50 w-3.5 h-3.5"
-                                            />
-                                            <div className="text-right">
-                                              <span className="text-xs font-extrabold text-slate-200 block">{feat.label}</span>
-                                              <span className="text-[9px] text-slate-400 block mt-0.5 leading-tight">{feat.desc}</span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                    {/* Add custom feature text form */}
+                                    <div className="bg-slate-900/60 p-2.5 rounded-2xl border border-white/5 space-y-2">
+                                      <span className="text-[10px] font-bold text-slate-300 block">➕ افزودن ویژگی سفارشی دلخواه:</span>
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          value={newPlanFeatureText}
+                                          onChange={(e) => setNewPlanFeatureText(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter" && newPlanFeatureText.trim()) {
+                                              const text = newPlanFeatureText.trim();
+                                              const currentFeatures = plan.features || [];
+                                              if (!currentFeatures.includes(text)) {
+                                                const updated = [...currentFeatures, text];
+                                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, features: updated } : p));
+                                              }
+                                              setNewPlanFeatureText("");
+                                            }
+                                          }}
+                                          placeholder="مثلاً: بوفه با تخفیف ویژه ۱۰٪..."
+                                          className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (newPlanFeatureText.trim()) {
+                                              const text = newPlanFeatureText.trim();
+                                              const currentFeatures = plan.features || [];
+                                              if (!currentFeatures.includes(text)) {
+                                                const updated = [...currentFeatures, text];
+                                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, features: updated } : p));
+                                              }
+                                              setNewPlanFeatureText("");
+                                            }
+                                          }}
+                                          className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition-all shrink-0"
+                                        >
+                                          افزودن
+                                        </button>
+                                      </div>
                                     </div>
+
+                                    {/* Section 1: System Feature Modules (Checkboxes) */}
+                                    <div className="space-y-1.5">
+                                      <span className="text-[10px] font-bold text-emerald-400 block">⚙️ ماژول‌ها و ابزارهای سیستمی:</span>
+                                      <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                                        {SYSTEM_FEATURES.map((feat) => {
+                                          const isSelected = (plan.unlockedFeatureIds || []).includes(feat.id);
+                                          return (
+                                            <div 
+                                              key={feat.id} 
+                                              onClick={() => {
+                                                const currentIds = plan.unlockedFeatureIds || [];
+                                                let nextIds: string[];
+                                                if (isSelected) {
+                                                  nextIds = currentIds.filter(id => id !== feat.id);
+                                                } else {
+                                                  nextIds = [...currentIds, feat.id];
+                                                }
+                                                
+                                                // Keep non-system text features intact
+                                                const existingSystemLabels = SYSTEM_FEATURES.map(f => f.label);
+                                                const nonSystemFeatures = (plan.features || []).filter((f: string) => !existingSystemLabels.includes(f));
+                                                
+                                                const selectedSystemFeatures = nextIds.map(id => {
+                                                  const item = SYSTEM_FEATURES.find(f => f.id === id);
+                                                  return item ? item.label : id;
+                                                });
+
+                                                const combinedFeatures = [...new Set([...selectedSystemFeatures, ...nonSystemFeatures])];
+
+                                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { 
+                                                  ...p, 
+                                                  unlockedFeatureIds: nextIds,
+                                                  features: combinedFeatures
+                                                } : p));
+                                              }}
+                                              className={`flex items-start gap-2 p-2 rounded-2xl cursor-pointer transition-all border ${isSelected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-slate-900/40 border-transparent hover:bg-white/5"}`}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                readOnly
+                                                className="mt-1 rounded border-white/10 bg-slate-950 text-emerald-500 focus:ring-emerald-500/50 w-3.5 h-3.5"
+                                              />
+                                              <div className="text-right">
+                                                <span className="text-xs font-extrabold text-slate-200 block">{feat.label}</span>
+                                                <span className="text-[9px] text-slate-400 block mt-0.5 leading-tight">{feat.desc}</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    {/* Section 2: Full List of Text Features for this Plan with Delete Option */}
+                                    <div className="border-t border-white/10 pt-2 space-y-1.5">
+                                      <span className="text-[10px] font-bold text-amber-400 block">📋 لیست کامل ویژگی‌های این طرح ({plan.features?.length || 0} مورد):</span>
+                                      <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                                        {(plan.features || []).map((featText: string, idx: number) => (
+                                          <span 
+                                            key={idx} 
+                                            className="bg-slate-900 text-slate-200 border border-white/10 text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1.5"
+                                          >
+                                            <span>{featText}</span>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const updatedFeatures = (plan.features || []).filter((_: string, i: number) => i !== idx);
+                                                setSubscriptionPlans(subscriptionPlans.map(p => p.id === plan.id ? { ...p, features: updatedFeatures } : p));
+                                              }}
+                                              className="text-red-400 hover:text-red-300 font-bold ml-1 text-xs"
+                                              title="حذف ویژگی"
+                                            >
+                                              ×
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+
                                     <div className="text-[10px] text-slate-500 text-center pt-2 border-t border-white/5">
-                                      تغییرات به صورت زنده ذخیره می‌شوند.
+                                      تغییرات به صورت زنده ذخیره شده و در صفحه خرید و پنل خریداران اعمال می‌شوند.
                                     </div>
                                   </div>
                                 </>
@@ -3057,6 +3511,16 @@ export default function App() {
                 <BlogSettingsPanel 
                   posts={blogPosts} 
                   onSavePosts={(updatedPosts) => setBlogPosts(updatedPosts)} 
+                />
+              </div>
+            )}
+
+            {superAdminSubTab === "sms_management" && (
+              <div className="animate-fade-in">
+                <SmsOtpAuthenticationSystem
+                  isAdminMode={true}
+                  onLoginSuccess={() => {}}
+                  onTenantCreatedAndActivated={() => {}}
                 />
               </div>
             )}
@@ -3465,8 +3929,14 @@ export default function App() {
               </div>
  
               {/* Status and quick white label controls */}
-              <div className="flex gap-2">
-                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-3 py-1.5 rounded-xl font-bold">وضعیت: فعال</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-3 py-1.5 rounded-xl font-bold flex items-center">وضعیت: فعال</span>
+                <button 
+                  onClick={() => setShowTenantWelcomeWizard(true)}
+                  className="bg-gradient-to-r from-blue-600 to-emerald-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md hover:brightness-110"
+                >
+                  🚀 راهنمای راه‌اندازی اولیه (Setup Wizard)
+                </button>
                 <button 
                   onClick={() => setShowTenantSubscriptionModal(true)}
                   className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer animate-pulse"
@@ -3600,36 +4070,22 @@ export default function App() {
                   </div>
 
                   <div className="space-y-3">
-                    {[
-                      {
-                        name: "پلن برنزی (پایه)",
-                        desc: "شامل مدیریت پایه، حضور غیاب ساده و صندوق بوفه",
-                        priceToman: 490000,
-                        extensionDays: 30,
-                        features: ["مدیریت اعضا", "صندوق بوفه", "پذیرش QR"]
-                      },
-                      {
-                        name: "پلن حرفه‌ای (نقره‌ای)",
-                        desc: "پرطرفدارترین! شامل تیکت ابری، بوفه پیشرفته و مدیریت کلاس‌ها",
-                        priceToman: 1190000,
-                        extensionDays: 90,
-                        features: ["مدیریت اعضا", "صندوق بوفه", "تیکت ابری", "مدیریت کلاس‌ها"]
-                      },
-                      {
-                        name: "پلن سازمانی (طلایی سالانه)",
-                        desc: "ویژه! شامل مدیریت مربیان مجاز، ریز مالی هوشمند، AI Coach و پشتیبانی اختصاصی VIP",
-                        priceToman: 3900000,
-                        extensionDays: 365,
-                        features: ["مدیریت اعضا", "صندوق بوفه", "تیکت ابری", "مدیریت کلاس‌ها", "مدیریت مربیان و ریز درآمد", "برنامه‌ساز هوش مصنوعی (AI Coach)"]
-                      }
-                    ].map((plan, index) => (
-                      <div key={index} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-emerald-500/20 transition-all">
+                    {subscriptionPlans.map((plan) => (
+                      <div key={plan.id} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-emerald-500/20 transition-all">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-white">{plan.name}</span>
-                            <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-bold px-2 py-0.5 rounded-md">+{plan.extensionDays} روز اعتبار</span>
+                            <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-bold px-2 py-0.5 rounded-md">+{plan.durationMonths ? plan.durationMonths * 30 : 30} روز اعتبار</span>
+                            {plan.isPopular && <span className="bg-amber-500/10 text-amber-400 text-[8px] font-bold px-2 py-0.5 rounded-md">محبوب‌ترین</span>}
                           </div>
-                          <p className="text-[10px] text-slate-400">{plan.desc}</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {plan.features?.slice(0, 3).map((f: string, i: number) => (
+                              <span key={i} className="text-[9px] text-slate-400 bg-white/5 px-1.5 py-0.5 rounded">✓ {f}</span>
+                            ))}
+                            {(plan.features?.length || 0) > 3 && (
+                              <span className="text-[9px] text-emerald-400">+{(plan.features?.length || 0) - 3} مورد دیگر</span>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="flex items-center gap-3 justify-between md:justify-end">
@@ -3641,10 +4097,8 @@ export default function App() {
                             type="button"
                             onClick={() => {
                               setPendingPurchasePlan({
-                                name: plan.name,
-                                priceToman: plan.priceToman,
-                                extensionDays: plan.extensionDays,
-                                features: plan.features,
+                                ...plan,
+                                extensionDays: plan.durationMonths ? plan.durationMonths * 30 : 30,
                                 isRenewal: true
                               });
                               setShowTenantSubscriptionModal(false);
@@ -4103,49 +4557,112 @@ export default function App() {
                   </div>
 
                   {/* Create product form */}
-                  <form onSubmit={handleCreateProduct} className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 space-y-3 text-xs">
+                  <form onSubmit={handleCreateProduct} noValidate className="bg-slate-950/60 p-4 rounded-2xl border border-white/5 space-y-3 text-xs">
                     <span className="font-bold block text-slate-300">افزودن آیتم جدید به انبار بوفه</span>
                     
+                    {productFormSubmitted && Object.keys(getProductFormErrors()).length > 0 && (
+                      <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>لطفاً فیلدهای الزامی کالا را تصحیح فرمایید.</span>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-slate-400 block mb-0.5">نام محصول</label>
+                        <label className="text-slate-400 block mb-0.5">نام محصول <span className="text-rose-400">*</span></label>
                         <input 
                           type="text" 
                           value={newProduct.name}
-                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          onChange={(e) => {
+                            setNewProduct({ ...newProduct, name: e.target.value });
+                            setProductFormTouched(prev => ({ ...prev, name: true }));
+                          }}
+                          onBlur={() => setProductFormTouched(prev => ({ ...prev, name: true }))}
                           placeholder="پروتئین وی..."
-                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                          className={`w-full bg-slate-900 border px-2.5 py-1 rounded-lg text-slate-200 focus:outline-none transition-all ${
+                            (productFormTouched.name || productFormSubmitted) && getProductFormErrors().name
+                              ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                              : "border-white/10 focus:border-indigo-500"
+                          }`}
                         />
+                        {(productFormTouched.name || productFormSubmitted) && getProductFormErrors().name && (
+                          <p className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-medium">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            {getProductFormErrors().name}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="text-slate-400 block mb-0.5">برند تولیدی</label>
+                        <label className="text-slate-400 block mb-0.5">برند تولیدی <span className="text-rose-400">*</span></label>
                         <input 
                           type="text" 
                           value={newProduct.brand}
-                          onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                          onChange={(e) => {
+                            setNewProduct({ ...newProduct, brand: e.target.value });
+                            setProductFormTouched(prev => ({ ...prev, brand: true }));
+                          }}
+                          onBlur={() => setProductFormTouched(prev => ({ ...prev, brand: true }))}
+                          className={`w-full bg-slate-900 border px-2.5 py-1 rounded-lg text-slate-200 focus:outline-none transition-all ${
+                            (productFormTouched.brand || productFormSubmitted) && getProductFormErrors().brand
+                              ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                              : "border-white/10 focus:border-indigo-500"
+                          }`}
                         />
+                        {(productFormTouched.brand || productFormSubmitted) && getProductFormErrors().brand && (
+                          <p className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-medium">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            {getProductFormErrors().brand}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="text-slate-400 block mb-0.5">قیمت (تومان)</label>
+                        <label className="text-slate-400 block mb-0.5">قیمت (تومان) <span className="text-rose-400">*</span></label>
                         <input 
                           type="number" 
                           value={newProduct.priceToman}
-                          onChange={(e) => setNewProduct({ ...newProduct, priceToman: Number(e.target.value) })}
-                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                          onChange={(e) => {
+                            setNewProduct({ ...newProduct, priceToman: Number(e.target.value) });
+                            setProductFormTouched(prev => ({ ...prev, priceToman: true }));
+                          }}
+                          onBlur={() => setProductFormTouched(prev => ({ ...prev, priceToman: true }))}
+                          className={`w-full bg-slate-900 border px-2.5 py-1 rounded-lg text-slate-200 focus:outline-none transition-all ${
+                            (productFormTouched.priceToman || productFormSubmitted) && getProductFormErrors().priceToman
+                              ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                              : "border-white/10 focus:border-indigo-500"
+                          }`}
                         />
+                        {(productFormTouched.priceToman || productFormSubmitted) && getProductFormErrors().priceToman && (
+                          <p className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-medium">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            {getProductFormErrors().priceToman}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <label className="text-slate-400 block mb-0.5">موجودی اولیه</label>
+                        <label className="text-slate-400 block mb-0.5">موجودی اولیه <span className="text-rose-400">*</span></label>
                         <input 
                           type="number" 
                           value={newProduct.stock}
-                          onChange={(e) => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
-                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                          onChange={(e) => {
+                            setNewProduct({ ...newProduct, stock: Number(e.target.value) });
+                            setProductFormTouched(prev => ({ ...prev, stock: true }));
+                          }}
+                          onBlur={() => setProductFormTouched(prev => ({ ...prev, stock: true }))}
+                          className={`w-full bg-slate-900 border px-2.5 py-1 rounded-lg text-slate-200 focus:outline-none transition-all ${
+                            (productFormTouched.stock || productFormSubmitted) && getProductFormErrors().stock
+                              ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                              : "border-white/10 focus:border-indigo-500"
+                          }`}
                         />
+                        {(productFormTouched.stock || productFormSubmitted) && getProductFormErrors().stock && (
+                          <p className="text-[10px] text-rose-400 mt-0.5 flex items-center gap-1 font-medium">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            {getProductFormErrors().stock}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="text-slate-400 block mb-0.5">بارکد کالا</label>
@@ -4153,7 +4670,7 @@ export default function App() {
                           type="text" 
                           value={newProduct.barcode}
                           onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200"
+                          className="w-full bg-slate-900 border border-white/10 px-2.5 py-1 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
                     </div>
@@ -4266,71 +4783,133 @@ export default function App() {
 
                   <form onSubmit={(e) => {
                     e.preventDefault();
-                    if (!newCoachName || !newCoachUsername || !newCoachPassword) {
-                      alert("لطفا تمامی فیلدها را پر کنید");
+                    setCoachFormSubmitted(true);
+                    const coachErrs = getCoachFormErrors();
+                    if (Object.keys(coachErrs).length > 0) {
                       return;
                     }
                     const newCoach = {
                       id: String(coaches.length + 1),
-                      name: newCoachName,
-                      username: newCoachUsername,
-                      password: newCoachPassword,
-                      specialty: newCoachSpecialty,
+                      name: newCoachName.trim(),
+                      username: newCoachUsername.trim(),
+                      password: newCoachPassword.trim(),
+                      specialty: newCoachSpecialty.trim(),
                       clubId: loggedInTenant.id || "1"
                     };
                     setCoaches([...coaches, newCoach]);
                     setNewCoachName("");
                     setNewCoachUsername("");
                     setNewCoachPassword("");
+                    setCoachFormTouched({});
+                    setCoachFormSubmitted(false);
                     setCoachAddSuccess(true);
                     setTimeout(() => setCoachAddSuccess(false), 4000);
-                  }} className="space-y-4">
+                  }} noValidate className="space-y-4">
+                    {coachFormSubmitted && Object.keys(getCoachFormErrors()).length > 0 && (
+                      <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>لطفاً فیلدهای الزامی فرم ثبت مربی را تصحیح فرمایید.</span>
+                      </div>
+                    )}
+
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">نام و نام خانوادگی مربی</label>
+                      <label className="block text-xs text-slate-400 mb-1">نام و نام خانوادگی مربی <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
                         value={newCoachName}
-                        onChange={(e) => setNewCoachName(e.target.value)}
+                        onChange={(e) => {
+                          setNewCoachName(e.target.value);
+                          setCoachFormTouched(prev => ({ ...prev, name: true }));
+                        }}
+                        onBlur={() => setCoachFormTouched(prev => ({ ...prev, name: true }))}
                         placeholder="مثال: استاد علیرضا احمدی"
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                        required
+                        className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all ${
+                          (coachFormTouched.name || coachFormSubmitted) && getCoachFormErrors().name
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-emerald-500"
+                        }`}
                       />
+                      {(coachFormTouched.name || coachFormSubmitted) && getCoachFormErrors().name && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getCoachFormErrors().name}
+                        </p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">تخصص اصلی</label>
+                      <label className="block text-xs text-slate-400 mb-1">تخصص اصلی <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
                         value={newCoachSpecialty}
-                        onChange={(e) => setNewCoachSpecialty(e.target.value)}
+                        onChange={(e) => {
+                          setNewCoachSpecialty(e.target.value);
+                          setCoachFormTouched(prev => ({ ...prev, specialty: true }));
+                        }}
+                        onBlur={() => setCoachFormTouched(prev => ({ ...prev, specialty: true }))}
                         placeholder="مثال: فیتنس، پاورلیفتینگ، تغذیه"
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                        required
+                        className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all ${
+                          (coachFormTouched.specialty || coachFormSubmitted) && getCoachFormErrors().specialty
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-emerald-500"
+                        }`}
                       />
+                      {(coachFormTouched.specialty || coachFormSubmitted) && getCoachFormErrors().specialty && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getCoachFormErrors().specialty}
+                        </p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">نام کاربری (نام لاتین)</label>
+                      <label className="block text-xs text-slate-400 mb-1">نام کاربری (نام لاتین) <span className="text-rose-400">*</span></label>
                       <input 
                         type="text"
                         value={newCoachUsername}
-                        onChange={(e) => setNewCoachUsername(e.target.value)}
+                        onChange={(e) => {
+                          setNewCoachUsername(e.target.value);
+                          setCoachFormTouched(prev => ({ ...prev, username: true }));
+                        }}
+                        onBlur={() => setCoachFormTouched(prev => ({ ...prev, username: true }))}
                         placeholder="مثال: ahmadifit"
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-left font-mono"
-                        required
+                        className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none text-left font-mono transition-all ${
+                          (coachFormTouched.username || coachFormSubmitted) && getCoachFormErrors().username
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-emerald-500"
+                        }`}
                       />
+                      {(coachFormTouched.username || coachFormSubmitted) && getCoachFormErrors().username && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getCoachFormErrors().username}
+                        </p>
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">رمز عبور ورود</label>
+                      <label className="block text-xs text-slate-400 mb-1">رمز عبور ورود <span className="text-rose-400">*</span></label>
                       <input 
                         type="password"
                         value={newCoachPassword}
-                        onChange={(e) => setNewCoachPassword(e.target.value)}
+                        onChange={(e) => {
+                          setNewCoachPassword(e.target.value);
+                          setCoachFormTouched(prev => ({ ...prev, password: true }));
+                        }}
+                        onBlur={() => setCoachFormTouched(prev => ({ ...prev, password: true }))}
                         placeholder="••••••••"
-                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 text-left"
-                        required
+                        className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none text-left transition-all ${
+                          (coachFormTouched.password || coachFormSubmitted) && getCoachFormErrors().password
+                            ? "border-rose-500 bg-rose-950/20 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-emerald-500"
+                        }`}
                       />
+                      {(coachFormTouched.password || coachFormSubmitted) && getCoachFormErrors().password && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getCoachFormErrors().password}
+                        </p>
+                      )}
                     </div>
 
                     <button 
@@ -4854,65 +5433,139 @@ export default function App() {
               <div className="grid lg:grid-cols-3 gap-6">
                 
                 {/* Form to create member account */}
-                <form onSubmit={handleCreateMember} className="lg:col-span-1 bg-slate-950/60 p-5 rounded-2xl border border-white/5 space-y-4 text-xs">
+                <form onSubmit={handleCreateMember} noValidate className="lg:col-span-1 bg-slate-950/60 p-5 rounded-2xl border border-white/5 space-y-4 text-xs">
                   <span className="font-bold text-slate-200 text-sm block border-b border-white/5 pb-2">ثبت‌نام و ایجاد اکانت جدید</span>
                   
+                  {memberFormSubmitted && Object.keys(getMemberFormErrors()).length > 0 && (
+                    <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>لطفاً فیلدهای الزامی فرم ثبت‌نام را تصحیح فرمایید.</span>
+                    </div>
+                  )}
+
                   <div>
-                    <label className="text-slate-400 block mb-1 font-medium">نام و نام خانوادگی ورزشکار <span className="text-red-400">*</span></label>
+                    <label className="text-slate-400 block mb-1 font-medium">نام و نام خانوادگی ورزشکار <span className="text-rose-400">*</span></label>
                     <input 
                       type="text" 
-                      required
                       value={newMemberName}
-                      onChange={(e) => setNewMemberName(e.target.value)}
+                      onChange={(e) => {
+                        setNewMemberName(e.target.value);
+                        setMemberFormTouched(prev => ({ ...prev, name: true }));
+                      }}
+                      onBlur={() => setMemberFormTouched(prev => ({ ...prev, name: true }))}
                       placeholder="مانند: علی حسینی"
-                      className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500"
+                      className={`w-full bg-slate-900 border px-3 py-2 rounded-xl text-slate-200 focus:outline-none transition-all ${
+                        (memberFormTouched.name || memberFormSubmitted) && getMemberFormErrors().name
+                          ? "border-rose-500 bg-rose-950/20 text-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                          : "border-white/10 focus:border-indigo-500"
+                      }`}
                     />
+                    {(memberFormTouched.name || memberFormSubmitted) && getMemberFormErrors().name && (
+                      <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {getMemberFormErrors().name}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">تلفن همراه</label>
+                      <label className="text-slate-400 block mb-1 font-medium">تلفن همراه <span className="text-rose-400">*</span></label>
                       <input 
                         type="text" 
                         value={newMemberPhone}
-                        onChange={(e) => setNewMemberPhone(e.target.value)}
+                        onChange={(e) => {
+                          setNewMemberPhone(e.target.value);
+                          setMemberFormTouched(prev => ({ ...prev, phone: true }));
+                        }}
+                        onBlur={() => setMemberFormTouched(prev => ({ ...prev, phone: true }))}
                         placeholder="۰۹۱۲..."
-                        className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500"
+                        className={`w-full bg-slate-900 border px-3 py-2 rounded-xl text-slate-200 focus:outline-none transition-all ${
+                          (memberFormTouched.phone || memberFormSubmitted) && getMemberFormErrors().phone
+                            ? "border-rose-500 bg-rose-950/20 text-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-indigo-500"
+                        }`}
                       />
+                      {(memberFormTouched.phone || memberFormSubmitted) && getMemberFormErrors().phone && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getMemberFormErrors().phone}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">تعداد جلسات مجاز</label>
+                      <label className="text-slate-400 block mb-1 font-medium">تعداد جلسات مجاز <span className="text-rose-400">*</span></label>
                       <input 
                         type="number" 
                         value={newMemberSessions}
-                        onChange={(e) => setNewMemberSessions(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500"
+                        onChange={(e) => {
+                          setNewMemberSessions(Number(e.target.value));
+                          setMemberFormTouched(prev => ({ ...prev, sessions: true }));
+                        }}
+                        onBlur={() => setMemberFormTouched(prev => ({ ...prev, sessions: true }))}
+                        className={`w-full bg-slate-900 border px-3 py-2 rounded-xl text-slate-200 focus:outline-none transition-all ${
+                          (memberFormTouched.sessions || memberFormSubmitted) && getMemberFormErrors().sessions
+                            ? "border-rose-500 bg-rose-950/20 text-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-indigo-500"
+                        }`}
                       />
+                      {(memberFormTouched.sessions || memberFormSubmitted) && getMemberFormErrors().sessions && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getMemberFormErrors().sessions}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">نام کاربری ورود <span className="text-red-400">*</span></label>
+                      <label className="text-slate-400 block mb-1 font-medium">نام کاربری ورود <span className="text-rose-400">*</span></label>
                       <input 
                         type="text" 
-                        required
                         value={newMemberUsername}
-                        onChange={(e) => setNewMemberUsername(e.target.value)}
+                        onChange={(e) => {
+                          setNewMemberUsername(e.target.value);
+                          setMemberFormTouched(prev => ({ ...prev, username: true }));
+                        }}
+                        onBlur={() => setMemberFormTouched(prev => ({ ...prev, username: true }))}
                         placeholder="مثال: ali_h"
-                        className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                        className={`w-full bg-slate-900 border px-3 py-2 rounded-xl text-slate-200 focus:outline-none font-mono transition-all ${
+                          (memberFormTouched.username || memberFormSubmitted) && getMemberFormErrors().username
+                            ? "border-rose-500 bg-rose-950/20 text-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-indigo-500"
+                        }`}
                       />
+                      {(memberFormTouched.username || memberFormSubmitted) && getMemberFormErrors().username && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getMemberFormErrors().username}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="text-slate-400 block mb-1 font-medium">رمز عبور ورود <span className="text-red-400">*</span></label>
+                      <label className="text-slate-400 block mb-1 font-medium">رمز عبور ورود <span className="text-rose-400">*</span></label>
                       <input 
                         type="text" 
-                        required
                         value={newMemberPassword}
-                        onChange={(e) => setNewMemberPassword(e.target.value)}
+                        onChange={(e) => {
+                          setNewMemberPassword(e.target.value);
+                          setMemberFormTouched(prev => ({ ...prev, password: true }));
+                        }}
+                        onBlur={() => setMemberFormTouched(prev => ({ ...prev, password: true }))}
                         placeholder="مانند: 123456"
-                        className="w-full bg-slate-900 border border-white/10 px-3 py-2 rounded-xl text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                        className={`w-full bg-slate-900 border px-3 py-2 rounded-xl text-slate-200 focus:outline-none font-mono transition-all ${
+                          (memberFormTouched.password || memberFormSubmitted) && getMemberFormErrors().password
+                            ? "border-rose-500 bg-rose-950/20 text-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50"
+                            : "border-white/10 focus:border-indigo-500"
+                        }`}
                       />
+                      {(memberFormTouched.password || memberFormSubmitted) && getMemberFormErrors().password && (
+                        <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {getMemberFormErrors().password}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -5739,8 +6392,8 @@ export default function App() {
         {activeTab === "member" && loggedInMember && (
           <div className="space-y-8 animate-fade-in text-right" dir="rtl">
             
-            {/* Direct PWA Mobile Athlete Dashboard Layout */}
-            <div className="w-full max-w-2xl mx-auto">
+            {/* Direct PWA Responsive Athlete Dashboard Layout */}
+            <div className="w-full max-w-7xl mx-auto px-0">
               <AthleteDashboard 
                 member={loggedInMember}
                 workoutPrograms={workoutPrograms}
@@ -7352,17 +8005,25 @@ export default function App() {
               }}
               onSuccess={() => {
                 if (pendingPurchasePlan.isRenewal) {
-                  setSubscriptionDaysLeft((prev) => prev + (pendingPurchasePlan.extensionDays || 30));
+                  const extDays = pendingPurchasePlan.extensionDays || (pendingPurchasePlan.durationMonths ? pendingPurchasePlan.durationMonths * 30 : 30);
+                  setSubscriptionDaysLeft((prev) => prev + extDays);
                   if (loggedInTenant) {
                     setLoggedInTenant((prev: any) => ({
                       ...prev,
-                      planName: pendingPurchasePlan.name
+                      planName: pendingPurchasePlan.name,
+                      planId: pendingPurchasePlan.id || prev.planId,
+                      features: pendingPurchasePlan.features || prev.features
                     }));
-                    setTenants((prevList) => prevList.map(t => t.id === loggedInTenant.id ? { ...t, planName: pendingPurchasePlan.name } : t));
+                    setTenants((prevList) => prevList.map(t => t.id === loggedInTenant.id ? { 
+                      ...t, 
+                      planName: pendingPurchasePlan.name,
+                      planId: pendingPurchasePlan.id || t.planId,
+                      features: pendingPurchasePlan.features || t.features
+                    } : t));
                   }
                   setShowPaymentSimulator(false);
                   setPendingPurchasePlan(null);
-                  alert(`🎉 پرداخت موفقیت‌آمیز بود! اشتراک باشگاه شما به "${pendingPurchasePlan.name}" ارتقا یافت و اعتبار شما به میزان ${pendingPurchasePlan.extensionDays} روز دیگر تمدید شد.`);
+                  alert(`🎉 پرداخت موفقیت‌آمیز بود! اشتراک باشگاه شما به "${pendingPurchasePlan.name}" ارتقا یافت و اعتبار شما به میزان ${extDays} روز دیگر تمدید شد.`);
                   return;
                 }
 
@@ -7386,6 +8047,7 @@ export default function App() {
                   phone: "09121234567",
                   status: "ACTIVE",
                   planName: pendingPurchasePlan.name,
+                  planId: pendingPurchasePlan.id,
                   expiresAt: "1406/04/01",
                   branchesCount: 1,
                   membersCount: 0,
@@ -7394,6 +8056,18 @@ export default function App() {
                   features: pendingPurchasePlan.features || []
                 };
                 setTenants((prev) => [newlyCreated, ...prev]);
+
+                // Auto update logged in tenant
+                setLoggedInTenant({
+                  id: newlyCreated.id,
+                  username: generatedUsername,
+                  clubName: newlyCreated.name,
+                  planName: pendingPurchasePlan.name,
+                  planId: pendingPurchasePlan.id,
+                  features: pendingPurchasePlan.features || [],
+                  isNew: true
+                });
+                setSubscriptionDaysLeft((pendingPurchasePlan.durationMonths || 1) * 30);
 
                 setShowPaymentSimulator(false);
                 setPendingPurchasePlan(null);
@@ -7692,6 +8366,195 @@ export default function App() {
             </div>
           </button>
         </div>
+      )}
+
+      {/* Interactive Training System & Guided Onboarding Hub */}
+      <InteractiveTrainingSystem
+        currentRole={
+          isSuperAdminLoggedIn
+            ? "ADMIN"
+            : loggedInTenant
+            ? "TENANT"
+            : loggedInCoach
+            ? "COACH"
+            : loggedInMember
+            ? "ATHLETE"
+            : "ALL"
+        }
+        userDisplayName={
+          isSuperAdminLoggedIn
+            ? "مدیر ارشد سیستم"
+            : loggedInTenant
+            ? loggedInTenant.name
+            : loggedInCoach
+            ? loggedInCoach.name
+            : loggedInMember
+            ? loggedInMember.name
+            : "کاربر گرامی"
+        }
+        isAdminUser={isSuperAdminLoggedIn}
+      />
+
+      {/* Customer Subscription Registration Form Modal */}
+      {showCustomerRegModal && pendingPurchasePlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in dir-rtl text-right font-sans">
+          <div className="bg-slate-900 border border-white/20 rounded-3xl shadow-2xl max-w-md w-full p-6 text-slate-100 space-y-5 relative">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-white">ثبت‌نام و خرید اشتراک {pendingPurchasePlan.name}</h3>
+                <p className="text-[10px] text-emerald-400 font-mono mt-0.5">مبلغ قابل پرداخت: {pendingPurchasePlan.priceToman.toLocaleString()} تومان</p>
+              </div>
+              <button onClick={() => setShowCustomerRegModal(false)} className="text-slate-400 hover:text-white text-lg">✕</button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!customerRegForm.mobile || !customerRegForm.gymName) {
+                alert("لطفاً شماره همراه و نام باشگاه را وارد کنید.");
+                return;
+              }
+              setShowCustomerRegModal(false);
+              setShowPaymentSimulator(true);
+            }} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نام *</label>
+                  <input
+                    type="text"
+                    required
+                    value={customerRegForm.firstName}
+                    onChange={(e) => setCustomerRegForm({...customerRegForm, firstName: e.target.value})}
+                    placeholder="مثلاً: علی"
+                    className="w-full bg-slate-950 border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">نام خانوادگی *</label>
+                  <input
+                    type="text"
+                    required
+                    value={customerRegForm.lastName}
+                    onChange={(e) => setCustomerRegForm({...customerRegForm, lastName: e.target.value})}
+                    placeholder="مثلاً: رضایی"
+                    className="w-full bg-slate-950 border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">شماره همراه جهت دریافت SMS کد ورود *</label>
+                <input
+                  type="tel"
+                  required
+                  value={customerRegForm.mobile}
+                  onChange={(e) => setCustomerRegForm({...customerRegForm, mobile: e.target.value})}
+                  placeholder="09123456789"
+                  className="w-full bg-slate-950 border border-white/15 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">نام مجموعه ورزشی / باشگاه *</label>
+                <input
+                  type="text"
+                  required
+                  value={customerRegForm.gymName}
+                  onChange={(e) => setCustomerRegForm({...customerRegForm, gymName: e.target.value})}
+                  placeholder="مثلاً: باشگاه طلایی اکسیژن"
+                  className="w-full bg-slate-950 border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">شهر محل فعالیت</label>
+                <input
+                  type="text"
+                  value={customerRegForm.city}
+                  onChange={(e) => setCustomerRegForm({...customerRegForm, city: e.target.value})}
+                  placeholder="تهران"
+                  className="w-full bg-slate-950 border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="terms_check"
+                  checked={customerRegForm.acceptTerms}
+                  onChange={(e) => setCustomerRegForm({...customerRegForm, acceptTerms: e.target.checked})}
+                  className="rounded"
+                />
+                <label htmlFor="terms_check" className="text-[11px] text-slate-300 cursor-pointer">
+                  قوانین و شرایط استفاده از خدمات ابری اسمارت‌جیم را می‌پذیرم.
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-emerald-500 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all mt-2"
+              >
+                💳 ورود به درگاه پرداخت شتاب و صدور آنی لایسنس
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Iranian Gateway Simulator for Plan Purchase */}
+      {showPaymentSimulator && pendingPurchasePlan && (
+        <IranianGatewaySimulator
+          amountToman={pendingPurchasePlan.priceToman}
+          planName={pendingPurchasePlan.name}
+          gatewayName={gatewayZarinpalEnabled ? "ZARINPAL" : "SAMAN"}
+          isSandbox={true}
+          merchantId={gatewayZarinpalMerchant || "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+          onSuccess={() => {
+            setShowPaymentSimulator(false);
+
+            // Generate new tenant automatically
+            const generatedId = `tenant_gym_${Date.now()}`;
+            const newTenantObj: Tenant = {
+              id: generatedId,
+              name: customerRegForm.gymName || "باشگاه ورزشی اکسیژن",
+              ownerName: `${customerRegForm.firstName || "مدیر"} ${customerRegForm.lastName || "مجموعه"}`,
+              email: customerRegForm.email || "owner@gym.ir",
+              phone: customerRegForm.mobile || "09121111111",
+              status: "ACTIVE",
+              planName: pendingPurchasePlan.name,
+              planId: pendingPurchasePlan.id,
+              expiresAt: new Date(Date.now() + (pendingPurchasePlan.durationMonths || 3) * 30 * 24 * 60 * 60 * 1000).toLocaleDateString("fa-IR"),
+              branchesCount: 1,
+              membersCount: 0,
+              monthlyRevenue: 0,
+              createdAt: new Date().toLocaleDateString("fa-IR"),
+              username: customerRegForm.mobile || "09121111111",
+              password: "123"
+            };
+
+            setTenants([newTenantObj, ...tenants]);
+            setLoggedInTenant(newTenantObj);
+            setActiveTab("tenant");
+            setShowTenantWelcomeWizard(true);
+
+            alert(`پرداخت با موفقیت انجام شد!
+حساب کاربری باشگاه ${newTenantObj.name} فعال شد.
+پیامک خوش‌آمدگویی MeliPayamak و کد ورود اتوماتیک به شماره ${newTenantObj.phone} ارسال گردید.`);
+          }}
+          onCancel={() => setShowPaymentSimulator(false)}
+        />
+      )}
+
+      {/* Tenant Welcome Setup Wizard Modal */}
+      {showTenantWelcomeWizard && loggedInTenant && (
+        <TenantWelcomeSetupWizard
+          tenant={loggedInTenant}
+          onComplete={(updatedTenant) => {
+            setTenants(tenants.map(t => t.id === updatedTenant.id ? updatedTenant : t));
+            setLoggedInTenant(updatedTenant);
+            setShowTenantWelcomeWizard(false);
+          }}
+          onClose={() => setShowTenantWelcomeWizard(false)}
+        />
       )}
 
     </div>

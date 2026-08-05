@@ -26,12 +26,14 @@ export interface Tenant {
   logoUrl?: string;
   status: "ACTIVE" | "SUSPENDED" | "TRIAL";
   planName: string;
+  planId?: string;
   expiresAt: string;
   branchesCount: number;
   membersCount: number;
   monthlyRevenue: number;
   createdAt: string;
   features?: string[];
+  unlockedFeatureIds?: string[];
   whiteLabelTheme?: {
     primaryColor: string;
     secondaryColor: string;

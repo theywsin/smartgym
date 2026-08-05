@@ -6,7 +6,7 @@ dotenv.config();
 export let pool: mysql.Pool | null = null;
 export let isUsingRealMySQL = false;
 
-export async function reinitializePool(): Promise<void> {
+export async function reinitializePool(throwOnError: boolean = false): Promise<void> {
   console.log("♻️ Reinitializing MySQL Connection Pool with updated parameters...");
   dotenv.config({ override: true }); // Reload any newly saved env changes
   
@@ -44,10 +44,12 @@ export async function reinitializePool(): Promise<void> {
       isUsingRealMySQL = true;
       console.log("🚀 MySQL Connection Pool successfully connected.");
     } catch (err: any) {
-      console.error(`⚠️ Could not connect to real MySQL database: ${err.message}`);
+      console.warn(`⚠️ MySQL database connection is not reachable (${host}): ${err.message}. Seamlessly using local fallback database.`);
       isUsingRealMySQL = false;
       pool = null;
-      throw new Error(`خطا در اتصال به پایگاه داده MySQL: ${err.message}`);
+      if (throwOnError) {
+        throw new Error(`خطا در اتصال به پایگاه داده MySQL: ${err.message}`);
+      }
     }
   } else {
     isUsingRealMySQL = false;
@@ -56,9 +58,9 @@ export async function reinitializePool(): Promise<void> {
   }
 }
 
-// Run initial pool configuration
-reinitializePool().catch(err => {
-  console.error("Initial database pool setup failed:", err.message);
+// Run initial pool configuration safely
+reinitializePool(false).catch(err => {
+  console.warn("Initial database pool setup notice:", err.message);
 });
 
 export function getPool(): mysql.Pool {
