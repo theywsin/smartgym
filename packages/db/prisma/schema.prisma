@@ -961,3 +961,31 @@ model TicketMessage {
   @@index([ticketId, createdAt])
   @@map("ticket_message")
 }
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Platform blog (public site). Written by super admins. Body is a small Markdown subset rendered without raw HTML.
+model Article {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  slug           String        @unique
+  title          String
+  excerpt        String
+  body           String
+  coverUrl       String?       @map("cover_url")
+  tags           String[]      @default([])
+  status         ArticleStatus @default(DRAFT)
+  seoTitle       String?       @map("seo_title")
+  seoDescription String?       @map("seo_description")
+  readMinutes    Int           @default(1) @map("read_minutes")
+  authorUserId   String?       @map("author_user_id") @db.Uuid
+  publishedAt    DateTime?     @map("published_at") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, publishedAt])
+  @@map("article")
+}
