@@ -121,4 +121,4 @@ AI_MODEL=<model name offered by the provider>
 AI_DAILY_LIMIT_PER_GYM=50
 ```
 
-Only training facts (goal, level, days, equipment, limitations) are sent; never the member's name, phone or id. Drafts are not saved until the coach saves them. Every call is audited (`ai.workout_draft`). Leave `AI_PROVIDER=none` to hide nothing but return a clear "not configured" message.
+Only training facts (goal, level, days, equipment, limitations) are sent; never the member's name, phone or id. Drafts are not saved until the coach saves them. Every call is audited (`ai.workout_draft`). With `AI_PROVIDER=none` (default) the feature returns a clear "not configured" message.
