@@ -70,7 +70,7 @@ function LandingForm({ initial }: { initial: PlatformSettings["landing"] }) {
   return (
     <form className="card space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(f); }} aria-labelledby="land-t">
       <h2 id="land-t" className="card-title">صفحه‌ی اصلی (لندینگ)</h2>
-      <Field label="تیتر اصلی"><input className="input" value={f.heroTitle} onChange={(e) => setF({ ...f, heroTitle: e.target.value })} /></Field>
+      <Field label="تیتر اصلی (بخش سبز را بین دو ستاره بنویسید، مثل *همیشه!*)"><input className="input" value={f.heroTitle} onChange={(e) => setF({ ...f, heroTitle: e.target.value })} /></Field>
       <Field label="توضیح زیر تیتر"><textarea className="input min-h-20" value={f.heroSubtitle} onChange={(e) => setF({ ...f, heroSubtitle: e.target.value })} /></Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="متن دکمه‌ی اصلی"><input className="input" value={f.ctaText} onChange={(e) => setF({ ...f, ctaText: e.target.value })} /></Field>
