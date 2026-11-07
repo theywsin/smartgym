@@ -25,3 +25,4 @@ export * from "./workouts";
 export * from "./athlete";
 export * from "./attendance/pass";
 export * from "./admin";
+export * from "./admin/platform";

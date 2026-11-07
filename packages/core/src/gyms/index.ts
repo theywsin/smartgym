@@ -5,7 +5,6 @@ import { AppError } from "../errors";
 import { type CoreDeps, nowOf } from "../deps";
 import { writeAudit } from "../audit";
 
-const TRIAL_PLAN_KEY = "starter";
 
 /**
  * Self-service gym registration for a verified user: creates the gym (TRIAL), makes the
@@ -19,6 +18,9 @@ export async function registerGym(
 ): Promise<Gym> {
   const now = nowOf(deps);
   return withSystem(deps.db, async (tx) => {
+    const signup = await tx.platformSetting.findUnique({ where: { key: "signup" } });
+    const sv = (signup?.value ?? {}) as { allowGymSignup?: boolean; trialPlanKey?: string };
+    if (sv.allowGymSignup === false) throw new AppError("FORBIDDEN", "ثبت باشگاه جدید فعلاً بسته است. با پشتیبانی تماس بگیرید.");
     const owned = await tx.gym.count({ where: { ownerUserId: userId, deletedAt: null } });
     if (owned >= deps.config.maxOwnedGyms) {
       throw new AppError("BUSINESS_RULE", "به حداکثر تعداد باشگاه برای یک حساب رسیده‌اید. با پشتیبانی تماس بگیرید.");
@@ -43,7 +45,7 @@ export async function registerGym(
       });
     }
 
-    const plan = await tx.subscriptionPlan.findUnique({ where: { key: TRIAL_PLAN_KEY } });
+    const plan = await tx.subscriptionPlan.findUnique({ where: { key: sv.trialPlanKey ?? "starter" } });
     if (plan) {
       const trialEnds = new Date(now.getTime() + plan.trialDays * 86_400_000);
       await tx.gymSubscription.create({

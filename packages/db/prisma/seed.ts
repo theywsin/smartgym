@@ -57,14 +57,12 @@ export async function seedBase(tx: Tx): Promise<void> {
   }
   const modules = new Map((await tx.module.findMany()).map((m) => [m.key, m.id]));
 
+  // Default plans are created once. After that the platform admin owns them (prices, modules, limits),
+  // so re-running the seed on deploy must not overwrite their edits.
   for (const plan of PLANS) {
     const { modules: planModules, ...data } = plan;
-    const saved = await tx.subscriptionPlan.upsert({
-      where: { key: plan.key },
-      update: { nameFa: data.nameFa, limits: data.limits },
-      create: data,
-    });
-    await tx.subscriptionPlanModule.deleteMany({ where: { planId: saved.id } });
+    if (await tx.subscriptionPlan.findUnique({ where: { key: plan.key }, select: { id: true } })) continue;
+    const saved = await tx.subscriptionPlan.create({ data });
     await tx.subscriptionPlanModule.createMany({
       data: planModules.map((k) => ({ planId: saved.id, moduleId: modules.get(k)! })),
     });
