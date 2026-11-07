@@ -183,6 +183,7 @@ model Gym {
   coachPayouts  CoachPayout[]
   products      Product[]
   notifications NotificationLog[]
+  workoutPrograms WorkoutProgram[]
   sales         Sale[]
   ledger        LedgerEntry[]
 
@@ -869,4 +870,28 @@ model NotificationLog {
   @@unique([kind, dedupeKey])
   @@index([gymId, createdAt])
   @@map("notification_log")
+}
+
+/// A coach's training plan for one member. At most one active per member; older ones stay as history.
+/// days: [{ title, exercises: [{ name, sets, reps, restSeconds?, note? }] }]
+model WorkoutProgram {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  gymId           String    @map("gym_id") @db.Uuid
+  memberId        String    @map("member_id") @db.Uuid
+  coachUserId     String?   @map("coach_user_id") @db.Uuid
+  title           String
+  goal            String?
+  notes           String?
+  days            Json
+  isActive        Boolean   @default(true) @map("is_active")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, memberId, createdAt])
+  @@index([gymId, coachUserId])
+  @@map("workout_program")
 }

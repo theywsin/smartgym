@@ -344,3 +344,24 @@ export const reminderSettingsSchema = z.object({
   enabled: z.boolean(),
   daysBefore: z.number().int().min(1, "حداقل ۱ روز").max(14, "حداکثر ۱۴ روز"),
 });
+
+// ───────────── Phase 5: coach portal ─────────────
+
+const exerciseSchema = z.object({
+  name: z.string().trim().min(1, "نام حرکت را بنویسید").max(80),
+  sets: z.number().int().min(1).max(20),
+  reps: z.string().trim().min(1, "تکرار را بنویسید").max(20), // "12" or "8-10" or "30s"
+  restSeconds: z.number().int().min(0).max(600).optional(),
+  note: optionalText(200),
+});
+
+export const workoutProgramSchema = z.object({
+  title: z.string().trim().min(1, "عنوان برنامه را بنویسید").max(100),
+  goal: optionalText(100),
+  notes: optionalText(1000),
+  days: z
+    .array(z.object({ title: z.string().trim().min(1, "عنوان روز را بنویسید").max(60), exercises: z.array(exerciseSchema).min(1, "حداقل یک حرکت اضافه کنید").max(30) }))
+    .min(1, "حداقل یک روز تمرینی اضافه کنید")
+    .max(7),
+});
+export type WorkoutProgramInput = z.infer<typeof workoutProgramSchema>;
