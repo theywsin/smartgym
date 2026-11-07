@@ -9,6 +9,7 @@ The new platform lives in the npm workspaces `apps/*` and `packages/*`, next to 
 | `packages/db` | Prisma schema, migrations (including row-level security), `withTenant` / `withUser` / `withSystem`, seed |
 | `packages/core` | Business logic: OTP, sessions, RBAC, gyms, branches, staff, audit, SMS providers |
 | `apps/web` | Next.js app: manager panel and the `/api/v1` routes |
+| `apps/worker` | Background jobs: membership expiry SMS reminders, expiring payment links |
 
 ## 1. Services
 
@@ -46,6 +47,15 @@ SMS providers: `console` (development), `melipayamak` (production: set `MELIPAYA
 With `SMS_PROVIDER=console` the OTP code is printed in the server log. The console provider refuses to start in production unless `ALLOW_CONSOLE_SMS=true`, which is only for local `next start` testing.
 
 Demo owners after `SEED_DEV`: `09120000001` (demo-arian) and `09120000002` (demo-negin).
+
+## 3b. Run the worker
+
+```bash
+DATABASE_URL=... SMS_PROVIDER=console npm start -w @smartgym/worker   # loop, every 15 minutes
+npm run once -w @smartgym/worker                                     # single pass (cron / systemd timer)
+```
+
+Reminders are sent only between 09:00 and 21:00 Tehran time, once per sold period (claimed in `notification_log` before sending, so two workers never double-send). They need an approved template: `MELIPAYAMAK_EXPIRY_BODY_ID` (text with `{0}` first name, `{1}` gym name, `{2}` days left). Without it the job logs that it skipped.
 
 ## 4. Checks (same as CI)
 

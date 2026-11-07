@@ -1,0 +1,15 @@
+{
+  "name": "@smartgym/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@smartgym/core": "0.1.0",
+    "@smartgym/db": "0.1.0"
+  }
+}
