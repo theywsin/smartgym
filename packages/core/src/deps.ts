@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@smartgym/db";
 import type { SmsProvider } from "./sms";
+import type { AiProvider } from "./ai";
 
 export interface CoreConfig {
   /** Secret mixed into OTP hashes (32+ chars). */
@@ -13,11 +14,15 @@ export interface CoreConfig {
   sessionAbsoluteSeconds: number;
   /** Max gyms a single user can register (abuse guard). */
   maxOwnedGyms: number;
+  /** AI calls per gym per rolling 24h. */
+  aiDailyLimitPerGym?: number;
 }
 
 export interface CoreDeps {
   db: PrismaClient;
   sms: SmsProvider;
+  /** Undefined when AI_PROVIDER is not configured. */
+  ai?: AiProvider;
   config: CoreConfig;
   now?: () => Date;
 }

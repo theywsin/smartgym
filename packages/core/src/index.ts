@@ -28,3 +28,4 @@ export * from "./admin";
 export * from "./admin/platform";
 export * from "./tickets";
 export * from "./articles";
+export * from "./ai";

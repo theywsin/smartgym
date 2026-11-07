@@ -9,6 +9,7 @@ import {
   createMember,
 
   assignCoach, listMyAthletes, listPrograms, createProgram, updateProgram,
+  draftWorkoutProgram, OpenAiCompatibleProvider, createAiProviderFromEnv,
 } from "../src";
 
 const hasDb = !!process.env.DATABASE_URL;
@@ -91,5 +92,35 @@ describe.skipIf(!hasDb)("workout programs", () => {
     await assignCoach(deps, owner, mine, coachB.userId);
     await expectCode(listPrograms(deps, coachA, mine), "NOT_FOUND");
     expect((await listPrograms(deps, coachB, mine)).length).toBe(2);
+  });
+
+  it("drafts a program with the AI provider without sending member identity", async () => {
+    const draftInput = { goal: "کاهش وزن", level: "BEGINNER" as const, daysPerWeek: 2 };
+    await expectCode(draftWorkoutProgram(deps, coachB, mine, draftInput), "BUSINESS_RULE"); // not configured
+    expect(createAiProviderFromEnv({})).toBeUndefined();
+
+    const bodies: string[] = [];
+    const answer = { title: "برنامه کاهش وزن", days: [1, 2].map((d) => ({ title: `روز ${d}`, exercises: [{ name: "اسکوات", sets: "3", reps: 12, restSeconds: 60 }] })) };
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      expect(url).toBe("https://ai.example/v1/chat/completions");
+      expect((init.headers as Record<string, string>).authorization).toBe("Bearer k");
+      bodies.push(String(init.body));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "```json\n" + JSON.stringify(answer) + "\n```" } }] }));
+    }) as unknown as typeof fetch;
+    const aiDeps: CoreDeps = { ...deps, ai: new OpenAiCompatibleProvider("https://ai.example/v1/", "k", "m", fakeFetch), config: { ...deps.config, aiDailyLimitPerGym: 2 } };
+
+    const draft = await draftWorkoutProgram(aiDeps, coachB, mine, draftInput);
+    expect(draft.days).toHaveLength(2);
+    expect(draft.days[0]!.exercises[0]).toMatchObject({ name: "اسکوات", sets: 3, reps: "12" });
+    expect(bodies[0]).toContain("کاهش وزن");
+    expect(bodies[0]).not.toContain("شاگرد");
+    // Nothing saved by drafting.
+    expect((await listPrograms(deps, coachB, mine)).some((p) => p.title === "برنامه کاهش وزن")).toBe(false);
+    // Other coaches' athletes and staff without workouts.manage are refused.
+    await expectCode(draftWorkoutProgram(aiDeps, coachA, mine, draftInput), "NOT_FOUND");
+    await expectCode(draftWorkoutProgram(aiDeps, reception, mine, draftInput), "FORBIDDEN");
+    // Daily cap per gym.
+    await draftWorkoutProgram(aiDeps, coachB, mine, draftInput);
+    await expectCode(draftWorkoutProgram(aiDeps, coachB, mine, draftInput), "RATE_LIMITED");
   });
 });

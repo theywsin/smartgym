@@ -108,3 +108,17 @@ Every admin change is written to the audit log (`platform.*` actions).
 ## Podman instead of Docker
 
 `podman compose` reads the same file. Use `podman` everywhere `docker` appears, and run `loginctl enable-linger` plus `podman generate systemd` (or Quadlet) so containers start on boot.
+
+## AI assistant (optional)
+
+Coaches can ask for a draft workout program. Any OpenAI-compatible provider works (AvalAI, GapGPT, Metis, ...):
+
+```
+AI_PROVIDER=openai-compatible
+AI_BASE_URL=https://<provider>/v1
+AI_API_KEY=<secret, server env only>
+AI_MODEL=<model name offered by the provider>
+AI_DAILY_LIMIT_PER_GYM=50
+```
+
+Only training facts (goal, level, days, equipment, limitations) are sent; never the member's name, phone or id. Drafts are not saved until the coach saves them. Every call is audited (`ai.workout_draft`). With `AI_PROVIDER=none` (default) the feature returns a clear "not configured" message.

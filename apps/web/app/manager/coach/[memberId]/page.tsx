@@ -10,6 +10,7 @@ import { api, ApiError } from "@/lib/client/api";
 import { useCan } from "@/lib/client/me";
 import { jdate } from "@/lib/client/format";
 import { ErrorState, LoadingState } from "@/components/states";
+import { AiDraftPanel } from "@/components/ai-draft";
 
 type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string };
 type Day = { title: string; exercises: Exercise[] };
@@ -93,6 +94,8 @@ export default function AthleteProgramPage() {
           )}
         </>
       ) : (
+        <>
+        {canManage && <AiDraftPanel memberId={memberId} onDraft={(p) => setDraft(toDraft({ ...p, goal: p.goal ?? null, notes: p.notes ?? null } as Program))} />}
         <form className="space-y-4" noValidate onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
           <section className="card grid gap-3 sm:grid-cols-2">
             <div><label htmlFor="ptitle" className="label">عنوان برنامه</label><input id="ptitle" className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></div>
@@ -132,6 +135,7 @@ export default function AthleteProgramPage() {
             <button type="button" className="btn-ghost" onClick={() => setMode("view")}>انصراف</button>
           </div>
         </form>
+        </>
       )}
     </div>
   );

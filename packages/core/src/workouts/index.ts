@@ -8,7 +8,7 @@ import { findAccessibleMember } from "../members";
 import { membershipSummary, SUMMARY_SUBS_INCLUDE } from "../memberships/state";
 
 /** Coaches without coaches.manage work only with their current athletes. */
-async function assertCoachAccess(tx: Tx, ctx: TenantContext, memberId: string) {
+export async function assertCoachAccess(tx: Tx, ctx: TenantContext, memberId: string) {
   await findAccessibleMember(tx, ctx, memberId);
   if (hasPermission(ctx, "coaches.manage")) return;
   const link = await tx.coachAthlete.findFirst({ where: { gymId: ctx.gymId, memberId, coachUserId: ctx.userId, endedAt: null } });
