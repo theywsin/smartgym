@@ -13,3 +13,8 @@ export function toLatinDigits(input: string): string {
 export function toPersianDigits(input: string | number | bigint): string {
   return String(input).replace(/[0-9]/g, (d) => PERSIAN[Number(d)]!);
 }
+
+/** Arabic yeh/kaf (common from Windows-1256 files and Arabic keyboards) -> Persian ی/ک. */
+export function normalizePersianText(input: string): string {
+  return input.replace(/[يى]/g, "ی").replace(/ك/g, "ک");
+}

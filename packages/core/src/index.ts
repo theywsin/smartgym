@@ -12,3 +12,6 @@ export * from "./staff";
 export * from "./members";
 export * from "./memberships";
 export * from "./attendance";
+export * from "./members/notes";
+export * from "./members/io";
+export * from "./coaches";

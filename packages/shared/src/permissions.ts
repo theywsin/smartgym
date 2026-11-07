@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   "members.create",
   "members.update",
   "members.delete",
+  "members.export", // CSV export of member data (personal data: owner and gym managers only)
   "memberships.manage", // sell, renew, suspend member subscriptions
   "plans.manage", // create and price membership plans
   "attendance.read",

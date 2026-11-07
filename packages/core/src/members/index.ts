@@ -1,11 +1,12 @@
 import { withTenant, type Tx } from "@smartgym/db";
-import { toLatinDigits } from "@smartgym/shared";
+import { normalizePersianText, toLatinDigits } from "@smartgym/shared";
 import type { ListMembersInput, MemberInput, UpdateMemberInput } from "@smartgym/validation";
 import { AppError, notFound } from "../errors";
 import { type CoreDeps, nowOf } from "../deps";
 import { writeAudit } from "../audit";
 import { type TenantContext, requirePermission, requireWritableGym, primaryRole, canAccessBranch } from "../rbac/access";
 import { membershipSummary, runningWhere, SUMMARY_SUBS_INCLUDE } from "../memberships/state";
+import { currentCoaches } from "./coach-lookup";
 
 const DAY = 86_400_000;
 
@@ -22,7 +23,7 @@ export async function findAccessibleMember(tx: Tx, ctx: TenantContext, memberId:
 
 function searchWhere(q: string | undefined) {
   if (!q) return {};
-  const latin = toLatinDigits(q).trim();
+  const latin = normalizePersianText(toLatinDigits(q)).trim();
   if (/^\d+$/.test(latin)) {
     const or: object[] = [{ phone: { contains: latin.replace(/^0/, "") } }];
     if (latin.length <= 9) or.push({ code: Number(latin) });
@@ -60,6 +61,7 @@ export async function listMembers(deps: CoreDeps, ctx: TenantContext, input: Lis
     gymId: ctx.gymId,
     status: input.status,
     ...(input.branchId ? { homeBranchId: input.branchId } : {}),
+    ...(input.coachUserId ? { coaches: { some: { coachUserId: input.coachUserId, endedAt: null } } } : {}),
     AND: [memberScope(ctx), searchWhere(input.q), membershipFilter],
   };
   return withTenant(deps.db, ctx, async (tx) => {
@@ -77,8 +79,13 @@ export async function listMembers(deps: CoreDeps, ctx: TenantContext, input: Lis
       ...(["active", "expiring", "expired", "suspended"] as const).map((k) => tx.member.count({ where: { ...base, AND: [...base.AND, filters[k]] } })),
     ]);
     const [all, active, expiring, expired, suspended] = tabCounts as [number, number, number, number, number];
+    const coach = await currentCoaches(tx, ctx, rows.map((r) => r.id));
     return {
-      items: rows.map(({ subscriptions, ...m }) => ({ ...pickMember(m), membership: membershipSummary(subscriptions, now) })),
+      items: rows.map(({ subscriptions, ...m }) => ({
+        ...pickMember(m),
+        membership: membershipSummary(subscriptions, now),
+        coach: coach.get(m.id) ?? null,
+      })),
       total,
       page: input.page,
       pageSize: input.pageSize,
@@ -130,8 +137,10 @@ export async function getMember(deps: CoreDeps, ctx: TenantContext, memberId: st
         select: { id: true, branchId: true, checkedInAt: true, checkedOutAt: true, method: true },
       }),
     ]);
+    const coach = await currentCoaches(tx, ctx, [m.id]);
     return {
       ...pickMember(m),
+      coach: coach.get(m.id) ?? null,
       membership: membershipSummary(subs, now),
       subscriptions: subs.map((s) => ({
         id: s.id,
@@ -201,6 +210,7 @@ export async function createMember(deps: CoreDeps, ctx: TenantContext, input: Me
       return await withTenant(deps.db, ctx, async (tx) => {
         await assertBranch(tx, ctx, homeBranchId);
         await assertPhoneFree(tx, ctx, input.phone);
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`member-code:${ctx.gymId}`}))`;
         const last = await tx.member.findFirst({ where: { gymId: ctx.gymId }, orderBy: { code: "desc" }, select: { code: true } });
         const user = input.phone ? await tx.user.findUnique({ where: { phone: input.phone }, select: { id: true } }) : null;
         const m = await tx.member.create({

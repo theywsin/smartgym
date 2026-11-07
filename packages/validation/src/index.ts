@@ -2,7 +2,7 @@
  * Request/response contracts shared by the web app, the mobile app and the API.
  */
 import { z } from "zod";
-import { GYM_ROLES, normalizeIranMobile } from "@smartgym/shared";
+import { GYM_ROLES, normalizeIranMobile, normalizePersianText } from "@smartgym/shared";
 
 /** Accepts any common Iranian mobile format and outputs E.164. */
 export const iranMobile = z
@@ -97,7 +97,7 @@ export const amountRial = z
   .union([z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), z.string().trim().regex(/^\d{1,18}$/)])
   .transform((v) => BigInt(v));
 
-const name = (label: string) => z.string().trim().min(1, `${label} را وارد کنید`).max(60);
+const name = (label: string) => z.string().trim().min(1, `${label} را وارد کنید`).max(60).transform(normalizePersianText);
 const optionalText = (max: number) =>
   z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().trim().max(max).optional());
 const optionalMobile = z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), iranMobile.optional());
@@ -139,6 +139,7 @@ export const listMembersSchema = paginationSchema.extend({
   /** active = has a running period; expiring = ends within 7 days; expired = has none running. */
   membership: z.enum(["active", "expiring", "expired", "suspended", "none"]).optional(),
   branchId: uuid.optional(),
+  coachUserId: uuid.optional(),
 });
 export type ListMembersInput = z.infer<typeof listMembersSchema>;
 
@@ -184,5 +185,18 @@ export const listAttendanceSchema = paginationSchema.extend({
   to: z.iso.datetime({ offset: true }).optional(),
 });
 export type ListAttendanceInput = z.infer<typeof listAttendanceSchema>;
+
+export const memberNoteSchema = z.object({
+  body: z.string().trim().min(1, "متن یادداشت را وارد کنید").max(4000),
+});
+
+export const assignCoachSchema = z.object({ coachUserId: uuid.nullable() });
+
+export const updateCoachSchema = z.object({
+  bio: z.preprocess((v) => (v === "" ? null : v), z.string().trim().max(1000).nullable()).optional(),
+  specializations: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
+  commissionRateBp: z.number().int().min(0).max(10000).nullable().optional(),
+});
+export type UpdateCoachInput = z.infer<typeof updateCoachSchema>;
 
 export { z };

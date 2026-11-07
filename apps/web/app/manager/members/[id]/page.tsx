@@ -23,7 +23,7 @@ type Member = {
   id: string; code: number; firstName: string; lastName: string; phone: string | null; gender: string | null;
   birthDate: string | null; nationalCode: string | null; homeBranchId: string | null; status: "ACTIVE" | "ARCHIVED";
   emergencyContact: { name?: string | null; phone?: string | null } | null; notes: string | null; hasApp: boolean;
-  createdAt: string; membership: MembershipSummary; subscriptions: Sub[];
+  createdAt: string; membership: MembershipSummary; subscriptions: Sub[]; coach: { userId: string; name: string | null } | null;
   recentAttendance: { id: string; branchId: string; checkedInAt: string; checkedOutAt: string | null }[];
 };
 type Plan = { id: string; name: string; durationDays: number; priceAmountRial: string; entryLimit: number | null; allowedBranchIds: string[] };
@@ -247,6 +247,8 @@ export default function MemberPage() {
                 {m.notes && <Info label="یادداشت" value={<span className="whitespace-pre-line">{m.notes}</span>} />}
               </dl>
             </section>
+            <CoachCard member={m} onDone={refresh} />
+            <NotesCard memberId={m.id} canAdd={canUpdate && !archived} />
             <section className="card" aria-labelledby="visits-title">
               <h2 id="visits-title" className="card-title mb-3">آخرین ورودها</h2>
               {m.recentAttendance.length === 0 ? (
@@ -401,5 +403,74 @@ function CheckInButton({ member, branches, scoped, onDone }: { member: Member; b
         )}
       </span>
     </div>
+  );
+}
+
+type Coach = { userId: string; firstName: string | null; lastName: string | null };
+
+function CoachCard({ member, onDone }: { member: Member; onDone: () => void }) {
+  const canRead = useCan("coaches.read");
+  const canManage = useCan("coaches.manage");
+  const coaches = useQuery({ queryKey: ["coaches"], queryFn: () => api<Coach[]>("/coaches"), enabled: canManage });
+  const assign = useMutation({
+    mutationFn: (coachUserId: string | null) => api(`/members/${member.id}/coach`, { method: "POST", body: { coachUserId } }),
+    onSuccess: onDone,
+  });
+  if (!canRead && !member.coach) return null;
+  return (
+    <section className="card space-y-3" aria-labelledby="coach-title">
+      <h2 id="coach-title" className="card-title">مربی</h2>
+      {canManage && member.status === "ACTIVE" ? (
+        <select
+          aria-label="انتخاب مربی"
+          className="input"
+          value={member.coach?.userId ?? ""}
+          disabled={assign.isPending || coaches.isPending}
+          onChange={(e) => assign.mutate(e.target.value || null)}
+        >
+          <option value="">بدون مربی</option>
+          {coaches.data?.map((c) => (
+            <option key={c.userId} value={c.userId}>{[c.firstName, c.lastName].filter(Boolean).join(" ") || "بی‌نام"}</option>
+          ))}
+        </select>
+      ) : (
+        <p className="text-sm font-semibold">{member.coach?.name ?? "—"}</p>
+      )}
+      {assign.error && <p role="alert" className="field-error">{(assign.error as ApiError).message}</p>}
+    </section>
+  );
+}
+
+type Note = { id: string; body: string; createdAt: string; authorName: string | null };
+
+function NotesCard({ memberId, canAdd }: { memberId: string; canAdd: boolean }) {
+  const qc = useQueryClient();
+  const notes = useQuery({ queryKey: ["member-notes", memberId], queryFn: () => api<Note[]>(`/members/${memberId}/notes`) });
+  const [text, setText] = useState("");
+  const add = useMutation({
+    mutationFn: () => api(`/members/${memberId}/notes`, { method: "POST", body: { body: text } }),
+    onSuccess: () => { setText(""); void qc.invalidateQueries({ queryKey: ["member-notes", memberId] }); },
+  });
+  return (
+    <section className="card space-y-3" aria-labelledby="notes-title">
+      <h2 id="notes-title" className="card-title">یادداشت‌ها</h2>
+      {canAdd && (
+        <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) add.mutate(); }}>
+          <label className="sr-only" htmlFor="note-body">یادداشت جدید</label>
+          <textarea id="note-body" rows={2} className="input h-auto py-2" placeholder="مثلاً: آسیب زانو، تمرین سبک" value={text} onChange={(e) => setText(e.target.value)} />
+          {add.error && <p role="alert" className="field-error">{(add.error as ApiError).message}</p>}
+          <button type="submit" className="btn-secondary h-8 px-3 text-xs" disabled={add.isPending || !text.trim()}>افزودن یادداشت</button>
+        </form>
+      )}
+      {notes.data?.length === 0 && <p className="text-sm text-ink-2">یادداشتی ثبت نشده است.</p>}
+      <ul className="space-y-3">
+        {notes.data?.map((n) => (
+          <li key={n.id} className="border-t border-line pt-3 text-sm first:border-0 first:pt-0">
+            <p className="whitespace-pre-line">{n.body}</p>
+            <p className="mt-1 text-xs text-ink-3">{n.authorName ?? "همکار"}، {jdate(n.createdAt)}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
