@@ -10,6 +10,7 @@ import type { MemberInput } from "@smartgym/validation";
 import { api, ApiError } from "@/lib/client/api";
 import { useCan, useMe } from "@/lib/client/me";
 import { fa, jdate, toman, tomanInputToRial } from "@/lib/client/format";
+import { FormDialog, type DialogRequest } from "@/components/form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
 import { MembershipBadge, type MembershipSummary } from "@/components/membership-badge";
 import { MemberForm, applyServerFieldErrors, memberToForm } from "@/components/member-form";
@@ -578,6 +579,7 @@ function PaymentsCard({ memberId, onDone }: { memberId: string; onDone: () => vo
   const qc = useQueryClient();
   const canRefund = useCan("finance.manage");
   const payments = useQuery({ queryKey: ["member-payments", memberId], queryFn: () => api<PaymentRow[]>(`/members/${memberId}/payments`) });
+  const [dlg, setDlg] = useState<DialogRequest | null>(null);
   const refund = useMutation({
     mutationFn: ({ id, amountRial, reason }: { id: string; amountRial: string; reason: string }) =>
       api(`/payments/${id}/refund`, { method: "POST", body: { amountRial, method: "CASH", reason } }),
@@ -601,13 +603,22 @@ function PaymentsCard({ memberId, onDone }: { memberId: string; onDone: () => vo
                   type="button"
                   className="btn-ghost h-7 px-2 text-xs text-err-tx"
                   disabled={refund.isPending}
-                  onClick={() => {
-                    const t = prompt(`مبلغ بازگشت به تومان (حداکثر ${(left / 10n).toString()})`, (left / 10n).toString());
-                    if (!t) return;
-                    const rial = tomanInputToRial(t);
-                    const reason = rial ? prompt("دلیل بازگشت وجه") : null;
-                    if (rial && reason) refund.mutate({ id: p.id, amountRial: rial, reason });
-                  }}
+                  onClick={() => setDlg({
+                    title: "بازگشت وجه",
+                    description: `پرداخت ${toman(p.amountRial)}؛ حداکثر قابل بازگشت ${toman(left.toString())}`,
+                    fields: [
+                      { name: "amount", label: "مبلغ بازگشت (تومان)", kind: "number", defaultValue: (left / 10n).toString() },
+                      { name: "reason", label: "دلیل بازگشت" },
+                    ],
+                    confirmLabel: "ثبت بازگشت وجه",
+                    danger: true,
+                    onSubmit: (v) => {
+                      const rial = tomanInputToRial(v.amount!);
+                      if (!rial || BigInt(rial) <= 0n) return "مبلغ معتبر نیست.";
+                      if (BigInt(rial) > left) return "مبلغ از باقی‌مانده‌ی قابل بازگشت بیشتر است.";
+                      refund.mutate({ id: p.id, amountRial: rial, reason: v.reason! });
+                    },
+                  })}
                 >
                   بازگشت وجه
                 </button>
@@ -617,6 +628,7 @@ function PaymentsCard({ memberId, onDone }: { memberId: string; onDone: () => vo
         })}
       </ul>
       {refund.error && <p role="alert" className="field-error">{(refund.error as ApiError).message}</p>}
+      <FormDialog request={dlg} onClose={() => setDlg(null)} />
     </section>
   );
 }

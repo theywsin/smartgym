@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { toPersianDigits } from "@smartgym/shared";
 import { api, ApiError } from "@/lib/client/api";
+import { FormDialog, type DialogRequest } from "@/components/form-dialog";
 import { useCan } from "@/lib/client/me";
 import { useBranchPicker } from "@/lib/client/branches";
 import { toman, tomanInputToRial } from "@/lib/client/format";
@@ -13,7 +14,6 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
 type Product = { id: string; kind: "STORE" | "BUFFET"; name: string; priceRial: string; trackStock: boolean; isActive: boolean; quantity: number | null };
 const KIND_LABEL = { BUFFET: "بوفه", STORE: "فروشگاه" } as const;
-const toLatin = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).trim();
 
 export default function ProductsPage() {
   const qc = useQueryClient();
@@ -42,24 +42,28 @@ export default function ProductsPage() {
     mutationFn: ({ path, body }: { path: string; body: unknown }) => api(path, { method: path.endsWith("/stock") ? "POST" : "PATCH", body }),
     onSuccess: refresh,
   });
-  const stock = (p: Product, reason: "PURCHASE" | "ADJUST") => {
-    const v = prompt(reason === "PURCHASE" ? `چند عدد «${p.name}» وارد انبار شد؟` : `موجودی شمارش‌شده‌ی «${p.name}»؟`);
-    if (v === null) return;
-    const n = Number(toLatin(v));
-    if (!Number.isInteger(n) || n < 0) return alert("عدد صحیح وارد کنید.");
-    act.mutate({ path: `/store/products/${p.id}/stock`, body: { branchId, reason, quantity: n } });
-  };
-  const reprice = (p: Product) => {
-    const v = prompt(`قیمت جدید «${p.name}» (تومان)`, (BigInt(p.priceRial) / 10n).toString());
-    if (v === null) return;
-    const priceRial = tomanInputToRial(v);
-    if (priceRial === null) return alert("قیمت را به عدد وارد کنید.");
-    act.mutate({ path: `/store/products/${p.id}`, body: { priceRial } });
-  };
+  const [dlg, setDlg] = useState<DialogRequest | null>(null);
+  const stock = (p: Product, reason: "PURCHASE" | "ADJUST") =>
+    setDlg({
+      title: reason === "PURCHASE" ? `ورود به انبار: ${p.name}` : `شمارش موجودی: ${p.name}`,
+      fields: [{ name: "n", label: reason === "PURCHASE" ? "تعداد واردشده" : "موجودی شمارش‌شده", kind: "number" }],
+      onSubmit: (v) => { act.mutate({ path: `/store/products/${p.id}/stock`, body: { branchId, reason, quantity: Number(v.n) } }); },
+    });
+  const reprice = (p: Product) =>
+    setDlg({
+      title: `قیمت جدید: ${p.name}`,
+      fields: [{ name: "price", label: "قیمت (تومان)", kind: "number", defaultValue: (BigInt(p.priceRial) / 10n).toString() }],
+      onSubmit: (v) => {
+        const priceRial = tomanInputToRial(v.price!);
+        if (priceRial === null) return "قیمت را به عدد وارد کنید.";
+        act.mutate({ path: `/store/products/${p.id}`, body: { priceRial } });
+      },
+    });
   const err = create.error as ApiError | null;
 
   return (
     <div className="space-y-6">
+      <FormDialog request={dlg} onClose={() => setDlg(null)} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/manager/store" className="btn-ghost -mr-3 mb-1 h-8 px-3 text-xs"><ArrowRight className="size-3.5" aria-hidden />فروش</Link>
