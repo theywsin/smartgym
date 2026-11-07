@@ -372,6 +372,16 @@ export const workoutProgramSchema = z.object({
 });
 export type WorkoutProgramInput = z.infer<typeof workoutProgramSchema>;
 
+export const aiWorkoutDraftSchema = z.object({
+  goal: z.string().trim().min(2, "هدف را بنویسید").max(200),
+  level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED"]),
+  daysPerWeek: z.number().int().min(1).max(7),
+  sex: z.enum(["MALE", "FEMALE"]).optional(),
+  equipment: optionalText(200),
+  limitations: optionalText(300),
+});
+export type AiWorkoutDraftInput = z.infer<typeof aiWorkoutDraftSchema>;
+
 // Platform admin
 export const adminGymListSchema = paginationSchema.extend({
   q: z.string().trim().max(100).optional(),

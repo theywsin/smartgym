@@ -1,6 +1,6 @@
 import "server-only";
 import { getPrisma } from "@smartgym/db";
-import { createSmsProviderFromEnv, createGatewayFromEnv, DEFAULT_CONFIG, type CoreDeps, type PaymentGateway } from "@smartgym/core";
+import { createSmsProviderFromEnv, createAiProviderFromEnv, createGatewayFromEnv, DEFAULT_CONFIG, type CoreDeps, type PaymentGateway } from "@smartgym/core";
 import { env } from "./env";
 
 let deps: CoreDeps | undefined;
@@ -11,7 +11,8 @@ export function coreDeps(): CoreDeps {
   deps = {
     db: getPrisma(),
     sms: createSmsProviderFromEnv(process.env),
-    config: { ...DEFAULT_CONFIG, otpPepper: e.OTP_PEPPER, jwtSecret: e.JWT_SECRET },
+    ai: createAiProviderFromEnv(process.env),
+    config: { ...DEFAULT_CONFIG, otpPepper: e.OTP_PEPPER, jwtSecret: e.JWT_SECRET, aiDailyLimitPerGym: Number(process.env.AI_DAILY_LIMIT_PER_GYM) || 50 },
   };
   return deps;
 }
