@@ -92,6 +92,19 @@ docker compose -f docker/compose.prod.yml --env-file /etc/smartgym/smartgym.env 
 
 Open `https://YOUR.DOMAIN/login`, sign in with your mobile number (the OTP comes by SMS), then create the gym. Do not set `SEED_DEV` on the server: it creates demo gyms.
 
+## 8. Platform admin (super admin)
+
+Super admin can see every gym, record a paid SaaS subscription and suspend or close a gym, at `https://YOUR.DOMAIN/admin`. It can only be granted from the server, never through the app:
+
+```bash
+# the person signs in once with OTP first, then:
+docker compose -f docker/compose.prod.yml run --rm migrate npm run superadmin -w @smartgym/db -- +989121234567
+# revoke:
+docker compose -f docker/compose.prod.yml run --rm migrate npm run superadmin -w @smartgym/db -- +989121234567 --revoke
+```
+
+Every admin change is written to the audit log (`platform.*` actions).
+
 ## Podman instead of Docker
 
 `podman compose` reads the same file. Use `podman` everywhere `docker` appears, and run `loginctl enable-linger` plus `podman generate systemd` (or Quadlet) so containers start on boot.

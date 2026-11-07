@@ -46,6 +46,11 @@ export default function SelectGymPage() {
               </li>
             ))}
           </ul>
+          {me.data?.user.isSuperAdmin && (
+            <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/admin")}>
+              مدیریت پلتفرم
+            </button>
+          )}
           <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/athlete")}>
             پنل ورزشکار (اشتراک و برنامه‌ی من)
           </button>
