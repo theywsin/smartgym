@@ -3,10 +3,11 @@
 /*
  * SmartGym 2.0 design tokens, taken from the approved design board
  * (project files: smartgym-design/*.html). Light theme is the default.
- * Font: Vazirmatn is self-hosted (OFL). IRANYekan slots in first once its web licence is in place.
+ * Font: Peyda (the brand font used on smartgymapp.ir) comes first once its licensed woff2 files are added
+ * to public/fonts/peyda/ with an @font-face here. Until then Vazirmatn (self-hosted, OFL) is used.
  */
 @theme {
-  --font-sans: "IRANYekan", "Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif;
+  --font-sans: "Peyda", "Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif;
 
   --color-brand-50: #f0fdf4;
   --color-brand-100: #dcfce7;

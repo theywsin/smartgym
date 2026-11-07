@@ -127,7 +127,7 @@ Every job carries an idempotency key; repeated jobs are no-ops.
 ## 9. Frontend
 
 - Design source of truth: SmartGym 2.0 design board (Figma + `smartgym-design/*.html`). Tokens observed there: primary `#16A34A` (green-600), neutrals `#111827/#6B7280/#9CA3AF`, borders `#E5E7EB`, background `#F9FAFB`, radii 4–24 px, four elevation levels. These become Tailwind theme tokens in `packages/ui`.
-- Font: **IRANYekan** self-hosted (license required), Persian digits via `font-feature-settings` or a formatter. Light theme default, full RTL (`dir="rtl"`, logical CSS properties).
+- Font: **Peyda** self-hosted (the brand font of smartgymapp.ir; Vazirmatn until its files are added), Persian digits via `font-feature-settings` or a formatter. Light theme default, full RTL (`dir="rtl"`, logical CSS properties).
 - Jalali calendar for display; all storage in UTC `timestamptz`.
 - Data: TanStack Query; forms: React Hook Form + Zod resolvers from `packages/validation`; tables: TanStack Table with server-side pagination/sort/filter.
 - Each page implements loading / empty / error / unauthorized / offline states via shared components.

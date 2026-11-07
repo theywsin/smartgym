@@ -1,6 +1,7 @@
 /**
  * SMS provider abstraction. Credentials come from server env only.
  *   SMS_PROVIDER=console    (default outside production) logs codes, never sends
+ *   SMS_PROVIDER=melipayamak needs MELIPAYAMAK_API_KEY and MELIPAYAMAK_OTP_BODY_ID (approved shared-line template)
  *   SMS_PROVIDER=kavenegar  needs KAVENEGAR_API_KEY and KAVENEGAR_OTP_TEMPLATE
  */
 export interface SmsProvider {
@@ -48,6 +49,43 @@ export class KavenegarSmsProvider implements SmsProvider {
   }
 }
 
+/**
+ * Melipayamak shared service line ("خط خدماتی اشتراکی"): sends an approved template (bodyId)
+ * with the code as its only argument. API key from the Melipayamak console (توسعه‌دهندگان).
+ * POST https://console.melipayamak.com/api/send/shared/{apiKey}  {bodyId, to, args}
+ * A successful send returns a large recId; small numbers are Melipayamak error codes.
+ */
+export class MelipayamakSmsProvider implements SmsProvider {
+  readonly name = "melipayamak";
+  constructor(
+    private readonly apiKey: string,
+    private readonly bodyId: number,
+    private readonly fetchImpl: typeof fetch = fetch
+  ) {
+    if (!apiKey || !Number.isInteger(bodyId) || bodyId <= 0) {
+      throw new Error("Melipayamak needs MELIPAYAMAK_API_KEY and a numeric MELIPAYAMAK_OTP_BODY_ID");
+    }
+  }
+
+  async sendOtp(phoneE164: string, code: string) {
+    const to = `0${phoneE164.replace(/^\+98/, "")}`;
+    const url = `https://console.melipayamak.com/api/send/shared/${encodeURIComponent(this.apiKey)}`;
+    const res = await this.fetchImpl(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bodyId: this.bodyId, to, args: [code] }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as { recId?: number | string; status?: string } | null;
+    const recId = Number(body?.recId ?? 0);
+    if (!res.ok || !Number.isFinite(recId) || recId < 1000) {
+      // Never include the API key or the code in the error.
+      throw new Error(`Melipayamak send failed (HTTP ${res.status}, recId ${body?.recId ?? "?"}, ${body?.status ?? "no status"})`);
+    }
+    return { providerRef: String(body?.recId) };
+  }
+}
+
 export function createSmsProviderFromEnv(env: NodeJS.ProcessEnv = process.env): SmsProvider {
   const kind = env.SMS_PROVIDER ?? (env.NODE_ENV === "production" ? "" : "console");
   switch (kind) {
@@ -56,6 +94,8 @@ export function createSmsProviderFromEnv(env: NodeJS.ProcessEnv = process.env): 
         throw new Error("SMS_PROVIDER=console is not allowed in production");
       }
       return new ConsoleSmsProvider();
+    case "melipayamak":
+      return new MelipayamakSmsProvider(env.MELIPAYAMAK_API_KEY ?? "", Number(env.MELIPAYAMAK_OTP_BODY_ID ?? ""));
     case "kavenegar":
       return new KavenegarSmsProvider(env.KAVENEGAR_API_KEY ?? "", env.KAVENEGAR_OTP_TEMPLATE ?? "");
     default:

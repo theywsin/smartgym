@@ -94,6 +94,9 @@ Collections:
 | GET/PATCH/DELETE | `/branches/:id` | `branches.manage` |
 
 ### 2.5 Members — `/api/members` — P2
+
+Implemented in Phase 2 (under `/api/v1`): list (`q, status, membership=active|expiring|expired|suspended|none, branchId, page, pageSize`; the response includes per-tab `counts`), create, get, update, archive, restore. Notes, timeline, coach assignment, import and export are still to do.
+
 | Method | Path | perm |
 |---|---|---|
 | GET | `/members` | `members.read` — filters: `q, status, branchId, planId, coachId, expiringWithinDays` |
@@ -111,14 +114,18 @@ Collections:
 ### 2.6 Memberships — `/api/memberships` — P2
 | Method | Path | perm |
 |---|---|---|
-| GET/POST | `/memberships/plans` | `memberships.manage` |
-| PATCH/DELETE | `/memberships/plans/:id` | `memberships.manage` |
-| GET | `/memberships?memberId=` | `members.read` |
-| POST | `/memberships` | `memberships.manage` — `{memberId, planId, branchId, startsAt, discountCode?, payment?}` |
-| POST | `/memberships/:id/renew` · `/suspend` · `/resume` · `/cancel` | `memberships.manage` |
+| GET | `/memberships/plans` (`?all=1` includes inactive) | `members.read` |
+| POST | `/memberships/plans` | `plans.manage` |
+| PATCH | `/memberships/plans/:id` | `plans.manage` (deactivate with `isActive:false`; plans are never hard-deleted) |
+| GET | `/members/:id` returns the member's periods | `members.read` |
+| POST | `/memberships` | `memberships.manage` — `{memberId, planId, branchId?, startsAt?, discountAmountRial?, note?}`. Without `startsAt`, a sale for a member with a running period is a renewal that starts when that period ends. Payment recording arrives with finance (P3). |
+| POST | `/memberships/:id/suspend` · `/resume` · `/cancel` | `memberships.manage` — resume adds the suspended days back |
 | GET/POST | `/memberships/discounts` | `memberships.manage` |
 
 ### 2.7 Attendance — `/api/attendance` — P2
+
+Implemented in Phase 2: manual `check-in` `{memberId, branchId}`, `check-out`, and `GET /attendance` (defaults to today in Tehran; returns `total` and `inside`). QR check-in, stats and `my-qr` are still to do. A second check-in while a visit is open (no check-out, under 4 hours) returns 409.
+
 | Method | Path | perm |
 |---|---|---|
 | POST | `/attendance/check-in` | `attendance.manage` — `{memberId \| qrToken, branchId}` + Idempotency-Key |

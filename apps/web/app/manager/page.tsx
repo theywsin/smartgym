@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CheckCircle2, Circle, Users } from "lucide-react";
+import { Building2, CalendarCheck, CheckCircle2, Circle, Hourglass, UserRound, Users } from "lucide-react";
 import { toPersianDigits } from "@smartgym/shared";
 import { api } from "@/lib/client/api";
 import { useCan, useMe } from "@/lib/client/me";
@@ -10,6 +10,9 @@ import { ErrorState, LoadingState } from "@/components/states";
 
 type Branch = { id: string; name: string };
 type Staff = { userId: string; role: string };
+type MemberCounts = { total: number; counts: { all: number; active: number; expiring: number; expired: number; suspended: number } };
+type Plan = { id: string };
+type Day = { total: number; inside: number };
 
 function greeting(): string {
   const h = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Tehran" }).format(new Date()));
@@ -19,8 +22,8 @@ function greeting(): string {
 }
 
 /**
- * Phase 1 dashboard: only real data (branches, staff). KPI cards for members, revenue and
- * attendance arrive with those modules in Phase 2; nothing here is mocked.
+ * Dashboard: only real data (members, attendance, branches, staff). Revenue cards arrive with the
+ * finance module; nothing here is mocked.
  */
 export default function ManagerDashboard() {
   const me = useMe();
@@ -29,14 +32,23 @@ export default function ManagerDashboard() {
   const branches = useQuery({ queryKey: ["branches"], queryFn: () => api<Branch[]>("/branches"), enabled: canBranches });
   const staff = useQuery({ queryKey: ["staff"], queryFn: () => api<Staff[]>("/users/staff"), enabled: canStaff });
 
+  const canMembers = useCan("members.read");
+  const canAttendance = useCan("attendance.read");
+  const members = useQuery({ queryKey: ["members", "dashboard"], queryFn: () => api<MemberCounts>("/members?pageSize=1"), enabled: canMembers });
+  const plans = useQuery({ queryKey: ["plans"], queryFn: () => api<Plan[]>("/memberships/plans"), enabled: canMembers });
+  const today = useQuery({ queryKey: ["attendance", "dashboard"], queryFn: () => api<Day>("/attendance?pageSize=1"), enabled: canAttendance });
+
   const name = me.user.firstName ?? "";
-  const loading = (canBranches && branches.isPending) || (canStaff && staff.isPending);
-  const error = branches.error ?? staff.error;
+  const loading =
+    (canBranches && branches.isPending) || (canStaff && staff.isPending) || (canMembers && members.isPending) || (canAttendance && today.isPending);
+  const error = branches.error ?? staff.error ?? members.error ?? today.error;
 
   const steps = [
     { done: true, label: "ساخت باشگاه", href: null },
     { done: (branches.data?.length ?? 0) > 0, label: "تعریف شعبه", href: "/manager/branches", show: canBranches },
     { done: (staff.data?.length ?? 0) > 1, label: "افزودن همکاران (پذیرش، مربی، مدیر شعبه)", href: "/manager/staff", show: canStaff },
+    { done: (plans.data?.length ?? 0) > 0, label: "تعریف پلن‌های عضویت", href: "/manager/plans", show: canMembers },
+    { done: (members.data?.counts.all ?? 0) > 0, label: "ثبت اولین عضو و فروش اشتراک", href: "/manager/members/new", show: canMembers },
   ].filter((s) => s.show !== false);
 
   return (
@@ -50,11 +62,20 @@ export default function ManagerDashboard() {
       </div>
 
       {loading && <LoadingState />}
-      {error && <ErrorState error={error} onRetry={() => { void branches.refetch(); void staff.refetch(); }} />}
+      {error && <ErrorState error={error} onRetry={() => { void branches.refetch(); void staff.refetch(); void members.refetch(); void today.refetch(); }} />}
 
       {!loading && !error && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {canMembers && (
+              <Kpi href="/manager/members" icon={<UserRound className="size-5" aria-hidden />} tone="bg-brand-50 text-brand-700" label="اعضای فعال" value={members.data?.counts.active} />
+            )}
+            {canMembers && (
+              <Kpi href="/manager/members" icon={<Hourglass className="size-5" aria-hidden />} tone="bg-warn-bg text-warn-tx" label="رو به اتمام (۷ روز)" value={members.data?.counts.expiring} />
+            )}
+            {canAttendance && (
+              <Kpi href="/manager/attendance" icon={<CalendarCheck className="size-5" aria-hidden />} tone="bg-info-bg text-info-tx" label="ورود امروز" value={today.data?.total} />
+            )}
             {canBranches && (
               <Link href="/manager/branches" className="card flex items-center gap-4 hover:border-brand-200">
                 <div className="flex size-11 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
@@ -101,5 +122,17 @@ export default function ManagerDashboard() {
         </>
       )}
     </div>
+  );
+}
+
+function Kpi({ href, icon, tone, label, value }: { href: string; icon: React.ReactNode; tone: string; label: string; value: number | undefined }) {
+  return (
+    <Link href={href} className="card flex items-center gap-4 hover:border-brand-200">
+      <div className={`flex size-11 items-center justify-center rounded-xl ${tone}`}>{icon}</div>
+      <div>
+        <p className="text-sm text-ink-2">{label}</p>
+        <p className="text-2xl font-extrabold">{toPersianDigits(value ?? 0)}</p>
+      </div>
+    </Link>
   );
 }

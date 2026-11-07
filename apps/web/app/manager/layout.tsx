@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Building2, LayoutDashboard, LogOut, Menu, Users, X } from "lucide-react";
+import { Building2, CalendarCheck, ClipboardList, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
 import { formatIranMobile, toPersianDigits, ROLE_LABELS_FA, type GymRole } from "@smartgym/shared";
 import { api, ApiError, type Me } from "@/lib/client/api";
 import { Logo } from "@/components/logo";
@@ -13,6 +13,9 @@ import { MeContext } from "@/lib/client/me";
 
 const NAV = [
   { href: "/manager", label: "داشبورد", icon: LayoutDashboard, permission: null },
+  { href: "/manager/members", label: "اعضا", icon: UserRound, permission: "members.read" },
+  { href: "/manager/attendance", label: "حضور و غیاب", icon: CalendarCheck, permission: "attendance.read" },
+  { href: "/manager/plans", label: "پلن‌های عضویت", icon: ClipboardList, permission: "members.read" },
   { href: "/manager/branches", label: "شعب", icon: Building2, permission: "branches.read" },
   { href: "/manager/staff", label: "کارکنان", icon: Users, permission: "staff.read" },
 ] as const;
@@ -56,7 +59,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
       </div>
       <p className="px-3 pt-3 pb-1.5 text-[11px] font-semibold text-ink-3">مدیریت باشگاه</p>
       {nav.map((n) => (
-        <Link key={n.href} href={n.href} className="nav-item" aria-current={pathname === n.href ? "page" : undefined}>
+        <Link key={n.href} href={n.href} className="nav-item" aria-current={pathname === n.href || (n.href !== "/manager" && pathname.startsWith(`${n.href}/`)) ? "page" : undefined}>
           <n.icon className="size-[18px]" aria-hidden />
           {n.label}
         </Link>

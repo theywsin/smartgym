@@ -16,7 +16,7 @@ Small PR against the existing code. Does not change features. **Needs owner conf
 - Add `db_fallback.json` to `.gitignore`; remove secrets from `.env.example`; delete the `JWT_SECRET` fallback.
 - Owner actions: rotate all passwords, lock Firebase project, remove `easy_installer.php` from the web root.
 
-## Phase 1 — Audit and foundation  ← **current**
+## Phase 1 — Audit and foundation  ✅ (PRs #1–#3)
 
 | # | Task | Output |
 |---|---|---|
@@ -27,19 +27,25 @@ Small PR against the existing code. Does not change features. **Needs owner conf
 | F-5 | Tenant context | Prisma extension + `SET LOCAL` + RLS; isolation integration tests |
 | F-6 | Auth | phone + OTP (sandbox SMS adapter + Kavenegar/Melipayamak adapter), optional password (argon2id), web session cookies + CSRF, mobile access/refresh with rotation, logout, device list, rate limiting + lockout (Redis) |
 | F-7 | RBAC | permission catalogue, role→permission seed, `requirePermission()` policy helpers, tests per role |
-| F-8 | Design system | tokens from the design board, IRANYekan, RTL, shadcn components (button, input, select, table, dialog, toast, empty/error states), app shell for manager/coach/super-admin |
+| F-8 | Design system | tokens from the design board, Peyda (Vazirmatn until the font files arrive), RTL, shadcn components (button, input, select, table, dialog, toast, empty/error states), app shell for manager/coach/super-admin |
 | F-9 | Legacy import (if needed) | script to import an existing MySQL dump into the new schema, re-hashing nothing (forces password reset/OTP on first login) |
 | F-10 | Ops baseline | `/api/health`, structured logging, Dockerfiles, Nginx config, backup + restore scripts |
 
 **Exit criteria:** a gym owner can sign up with phone + OTP, create a gym and a branch, invite a manager by phone, and the manager logs in and sees an empty manager shell; tenant isolation tests pass; CI green.
 
-## Phase 2 — Manager core
+## Phase 2 — Manager core  ← **current**
+
+Decisions (2026-11-07): the prototype is not live and holds no real data, so F-9 (legacy import) is dropped. SMS: **Melipayamak**. Payments: **Saman (SEP)**. Hosting: AlmaLinux VPS. Font: **Peyda** (the brand font on smartgymapp.ir; files to be supplied).
+
+Done in the first Phase 2 PR: Melipayamak OTP adapter; members (create, edit, archive/restore, search by name/phone/number with Persian digits, membership tabs with counts, branch scoping); membership plans (`plans.manage`); sell, renew, suspend, resume, cancel; manual check-in/check-out with entry limits, branch rules and concurrency safety; dashboard KPIs from real data; Jalali date helpers.
+Still to do in Phase 2: profile image, member notes/timeline, CSV/XLSX import and export, discount and gift codes, expiry job and SMS reminders (needs the worker), QR check-in, attendance stats and peak hours, coaches.
+
 
 Members (CRUD, archive, search/filters, profile image, emergency contact, notes, timeline, CSV/XLSX import with error report, export), membership plans (pricing, duration, entry limits, branch restriction, discounts, gift codes), member subscriptions (activate, renew, suspend, cancel, history, automatic expiry job + reminders), attendance (manual + signed rotating QR check-in, validation against active subscription, entry/exit, daily/branch/peak-hour stats), coaches (profiles, specializations, assignments, availability), manager dashboard (real aggregates with date/branch/plan filters).
 
 ## Phase 3 — Business operations
 
-Finance (payments with idempotency keys, transactions ledger, expenses, categories, debts, refunds, coach commissions/settlements, P&L, reconciliation; Zarinpal/SEP adapters), store (products, categories, suppliers, purchases, sales, returns, inventory movements for every stock change, low-stock alerts), buffet (menu, orders, status, payment, inventory), multi-branch (branch inventory, member transfer, consolidated reports), loyalty (accounts, earn/redeem rules), reports.
+Finance (payments with idempotency keys, transactions ledger, expenses, categories, debts, refunds, coach commissions/settlements, P&L, reconciliation; Saman (SEP) adapter), store (products, categories, suppliers, purchases, sales, returns, inventory movements for every stock change, low-stock alerts), buffet (menu, orders, status, payment, inventory), multi-branch (branch inventory, member transfer, consolidated reports), loyalty (accounts, earn/redeem rules), reports.
 
 ## Phase 4 — Coach portal
 
