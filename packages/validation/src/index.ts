@@ -460,3 +460,18 @@ export const ticketListSchema = z.object({
   status: z.enum(["OPEN", "ANSWERED", "CLOSED"]).optional(),
 });
 export type TicketListInput = z.infer<typeof ticketListSchema>;
+
+// Blog
+export const articleSchema = z.object({
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "نامک فقط حروف کوچک لاتین، عدد و خط تیره").max(100),
+  title: z.string().trim().min(3).max(160),
+  excerpt: z.string().trim().min(10, "خلاصه کوتاه است.").max(400),
+  body: z.string().trim().min(50, "متن مقاله کوتاه است.").max(100_000),
+  coverUrl: z.union([z.literal(""), z.url().refine((u) => u.startsWith("https://") || u.startsWith("/"), "آدرس تصویر باید https باشد.")]).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).default([]),
+  status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
+  seoTitle: z.string().trim().max(70).optional(),
+  seoDescription: z.string().trim().max(170).optional(),
+});
+export type ArticleInput = z.infer<typeof articleSchema>;
+export const articleListSchema = paginationSchema.extend({ tag: z.string().trim().max(30).optional() });

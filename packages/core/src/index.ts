@@ -27,3 +27,4 @@ export * from "./attendance/pass";
 export * from "./admin";
 export * from "./admin/platform";
 export * from "./tickets";
+export * from "./articles";

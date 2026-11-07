@@ -6,6 +6,7 @@
  */
 import { DEFAULT_ROLE_PERMISSIONS, GYM_ROLES, MODULES, PERMISSIONS, ROLE_LABELS_FA } from "@smartgym/shared";
 import { createPrismaClient, withSystem, type Tx } from "../src/index";
+import { LAUNCH_ARTICLES } from "./content/articles";
 
 const PLANS = [
   {
@@ -69,10 +70,20 @@ export async function seedBase(tx: Tx): Promise<void> {
   }
 }
 
+/** Launch blog content: created once per slug. Admin edits and archives are never overwritten (archived rows still exist). */
+async function seedArticles(tx: Tx) {
+  const now = new Date();
+  for (const a of LAUNCH_ARTICLES) {
+    if (await tx.article.findUnique({ where: { slug: a.slug }, select: { id: true } })) continue;
+    const words = a.body.split(/\s+/).filter(Boolean).length;
+    await tx.article.create({ data: { ...a, status: "PUBLISHED", publishedAt: now, readMinutes: Math.max(1, Math.round(words / 180)) } });
+  }
+}
+
 async function main() {
   const db = createPrismaClient(process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL);
   try {
-    await withSystem(db, (tx) => seedBase(tx), { timeout: 60_000 });
+    await withSystem(db, async (tx) => { await seedBase(tx); await seedArticles(tx); }, { timeout: 60_000 });
     console.log("✔ base reference data seeded");
     if (process.env.SEED_DEV === "true") {
       if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed demo data in production");
