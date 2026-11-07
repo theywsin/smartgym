@@ -20,11 +20,24 @@ app.use(
     crossOriginEmbedderPolicy: false,
   })
 );
-app.use(cors());
+// The SPA is served from the same origin, so cross-origin API calls are off unless
+// CORS_ORIGIN lists the allowed origins (comma-separated).
+const corsOrigins = (process.env.CORS_ORIGIN || "").split(",").map((o) => o.trim()).filter(Boolean);
+if (corsOrigins.length > 0) {
+  app.use(cors({ origin: corsOrigins }));
+}
 
-// Request Parsing
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+// Behind cPanel/Passenger or Nginx: trust the first proxy so rate limits see the client IP.
+app.set("trust proxy", 1);
+
+// Request Parsing (logos and blog images are sent as data URLs, hence the 10 MB cap)
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Liveness check
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
 
 // Request Logger
 app.use(requestLogger);

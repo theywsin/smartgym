@@ -24,7 +24,8 @@ interface Reply {
 interface Ticket {
   id: string;
   memberName: string;
-  department: "ACCOUNTING" | "TECHNICAL" | "PUBLIC";
+  department: "ACCOUNTING" | "TECHNICAL" | "PUBLIC" | "COACHING" | "GENERAL";
+  clubId?: string;
   subject: string;
   priority: "LOW" | "MEDIUM" | "HIGH";
   status: "OPEN" | "CLOSED" | "ANSWERED";
@@ -101,7 +102,7 @@ export default function TicketSystem({
     };
 
     // Update status to answered if admin replied, or open if tenant replied
-    const updatedStatus = isSuperAdmin ? "ANSWERED" : "OPEN";
+    const updatedStatus: Ticket["status"] = isSuperAdmin ? "ANSWERED" : "OPEN";
 
     const updatedTickets = tickets.map(t => {
       if (t.id === selectedTicket.id) {
