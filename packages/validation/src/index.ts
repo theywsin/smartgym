@@ -391,3 +391,54 @@ export const adminSetGymPlanSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 export type AdminSetGymPlanInput = z.infer<typeof adminSetGymPlanSchema>;
+
+export const adminPlanSchema = z.object({
+  key: z.string().trim().regex(/^[a-z][a-z0-9_-]{1,30}$/, "شناسه فقط حروف کوچک لاتین، عدد، - و _").optional(),
+  nameFa: z.string().trim().min(2).max(60),
+  monthlyAmountRial: amountRial,
+  annualAmountRial: amountRial,
+  trialDays: z.coerce.number().int().min(0).max(90),
+  limits: z.object({
+    members: z.coerce.number().int().min(1).max(1_000_000).nullable(),
+    branches: z.coerce.number().int().min(1).max(1000).nullable(),
+  }),
+  modules: z.array(z.string().trim().min(1).max(40)).max(30),
+  isActive: z.boolean(),
+});
+export type AdminPlanInput = z.infer<typeof adminPlanSchema>;
+
+const shortText = (max: number) => z.string().trim().max(max);
+export const PLATFORM_SETTING_SCHEMAS = {
+  site: z.object({
+    name: shortText(60).min(2),
+    tagline: shortText(160),
+    supportPhone: shortText(30),
+    supportEmail: z.union([z.literal(""), z.email()]),
+    address: shortText(300),
+    instagram: shortText(100),
+    telegram: shortText(100),
+  }),
+  landing: z.object({
+    heroTitle: shortText(120).min(2),
+    heroSubtitle: shortText(400),
+    ctaText: shortText(40).min(2),
+    features: z.array(z.object({ title: shortText(80).min(1), body: shortText(400) })).max(12),
+    faq: z.array(z.object({ q: shortText(200).min(1), a: shortText(1500) })).max(20),
+    showPricing: z.boolean(),
+  }),
+  signup: z.object({
+    allowGymSignup: z.boolean(),
+    trialPlanKey: shortText(40).min(1),
+  }),
+} as const;
+export type PlatformSettingKey = keyof typeof PLATFORM_SETTING_SCHEMAS;
+export type PlatformSettings = { [K in PlatformSettingKey]: z.infer<(typeof PLATFORM_SETTING_SCHEMAS)[K]> };
+
+export const adminUserListSchema = paginationSchema.extend({ q: z.string().trim().max(40).optional() });
+export type AdminUserListInput = z.infer<typeof adminUserListSchema>;
+export const adminUserStatusSchema = z.object({ status: z.enum(["ACTIVE", "DISABLED"]), reason: z.string().trim().min(3).max(300) });
+export const adminAuditListSchema = paginationSchema.extend({
+  gymId: uuid.optional(),
+  action: z.string().trim().max(60).optional(),
+});
+export type AdminAuditListInput = z.infer<typeof adminAuditListSchema>;

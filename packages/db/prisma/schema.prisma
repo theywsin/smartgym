@@ -895,3 +895,13 @@ model WorkoutProgram {
   @@index([gymId, coachUserId])
   @@map("workout_program")
 }
+
+/// Platform-wide settings edited by the super admin (site name, support contacts, landing content).
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("platform_setting")
+}
