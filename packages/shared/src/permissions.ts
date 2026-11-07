@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   "nutrition.manage",
   "store.read",
   "store.manage",
+  "store.sell", // ring up shop and buffet sales at the counter
   "buffet.manage",
   "loyalty.manage",
   "reports.read",
@@ -67,7 +68,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<GymRole, readonly Permission[]> = 
     "finance.read",
     "coaches.read",
     "workouts.read", "nutrition.read",
-    "store.read", "store.manage", "buffet.manage",
+    "store.read", "store.manage", "store.sell", "buffet.manage",
     "reports.read",
     "branches.read",
     "staff.read",
@@ -87,10 +88,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<GymRole, readonly Permission[]> = 
     "memberships.manage",
     "attendance.read", "attendance.manage",
     "coaches.read",
+    "store.read", "store.sell",
     "branches.read",
   ],
   ACCOUNTANT: ["members.read", "finance.read", "finance.manage", "reports.read", "branches.read"],
-  STORE_MANAGER: ["store.read", "store.manage", "buffet.manage", "branches.read"],
+  STORE_MANAGER: ["store.read", "store.manage", "store.sell", "buffet.manage", "branches.read"],
 };
 
 export const ROLE_LABELS_FA: Record<GymRole, string> = {
