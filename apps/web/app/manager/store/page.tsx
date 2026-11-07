@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Minus, Package, Plus, Trash2 } from "lucide-react";
 import { formatTehranTime, toPersianDigits } from "@smartgym/shared";
 import { api, ApiError } from "@/lib/client/api";
+import { FormDialog, type DialogRequest } from "@/components/form-dialog";
 import { useCan } from "@/lib/client/me";
 import { useBranchPicker } from "@/lib/client/branches";
 import { toman } from "@/lib/client/format";
@@ -56,8 +57,10 @@ export default function StorePage() {
   });
   const visible = (products.data ?? []).filter((p) => p.isActive && p.kind === kind);
 
+  const [dlg, setDlg] = useState<DialogRequest | null>(null);
   return (
     <div className="space-y-6">
+      <FormDialog request={dlg} onClose={() => setDlg(null)} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-extrabold">فروشگاه و بوفه</h1>
         <div className="flex items-center gap-2">
@@ -145,7 +148,7 @@ export default function StorePage() {
                   <span className={`font-bold ${s.voidedAt ? "line-through" : ""}`}>{toman(s.totalRial)}</span>
                   {canVoid && !s.voidedAt && (
                     <button type="button" className="btn-ghost h-8 px-2 text-xs text-err-tx" disabled={voidM.isPending}
-                      onClick={() => { const r = prompt("دلیل ابطال فروش؟"); if (r?.trim()) voidM.mutate({ id: s.id, reason: r.trim() }); }}>ابطال</button>
+                      onClick={() => setDlg({ title: "ابطال فروش", description: `${toman(s.totalRial)}؛ موجودی کالاها برمی‌گردد.`, fields: [{ name: "reason", label: "دلیل ابطال" }], confirmLabel: "ابطال فروش", danger: true, onSubmit: (v) => { voidM.mutate({ id: s.id, reason: v.reason! }); } })}>ابطال</button>
                   )}
                 </div>
               </li>

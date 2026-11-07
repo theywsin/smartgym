@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { gregorianToJalali, parseJalaliDate, toPersianDigits } from "@smartgym/shared";
 import { api, ApiError } from "@/lib/client/api";
+import { FormDialog, type DialogRequest } from "@/components/form-dialog";
 import { useCan, useMe } from "@/lib/client/me";
 import { jdate, toman, tomanInputToRial } from "@/lib/client/format";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -53,8 +54,10 @@ export default function ExpensesPage() {
     return n < 1 ? { y: y - 1, m: 12 } : n > 12 ? { y: y + 1, m: 1 } : { y, m: n };
   });
 
+  const [dlg, setDlg] = useState<DialogRequest | null>(null);
   return (
     <div className="space-y-6">
+      <FormDialog request={dlg} onClose={() => setDlg(null)} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-extrabold">هزینه‌ها و سود</h1>
         <div className="flex items-center gap-1" role="group" aria-label="انتخاب ماه">
@@ -112,7 +115,7 @@ export default function ExpensesPage() {
                   <span className={`font-bold ${e.voidedAt ? "line-through" : ""}`}>{toman(e.amountRial)}</span>
                   {canManage && !e.voidedAt && (
                     <button type="button" className="btn-ghost h-8 px-2 text-xs text-err-tx" disabled={voidM.isPending}
-                      onClick={() => { const reason = prompt("دلیل ابطال این هزینه؟"); if (reason?.trim()) voidM.mutate({ id: e.id, reason: reason.trim() }); }}>
+                      onClick={() => setDlg({ title: "ابطال هزینه", description: `${e.category.name}، ${toman(e.amountRial)}`, fields: [{ name: "reason", label: "دلیل ابطال" }], confirmLabel: "ابطال هزینه", danger: true, onSubmit: (v) => { voidM.mutate({ id: e.id, reason: v.reason! }); } })}>
                       ابطال
                     </button>
                   )}
@@ -137,14 +140,10 @@ function CommissionsCard({ year, month, onDone }: { year: number; month: number;
   const canManage = useCan("finance.manage");
   const qs = `year=${year}&month=${month}`;
   const q = useQuery({ queryKey: ["commissions", qs], queryFn: () => api<{ coaches: CommissionRow[] }>(`/coaches/commissions?${qs}`) });
+  const [dlg, setDlg] = useState<DialogRequest | null>(null);
   const pay = useMutation({
-    mutationFn: (r: CommissionRow) => {
-      const input = prompt(`مبلغ پرداختی به مربی (تومان)؛ باقی‌مانده ${toman(r.remainingRial)}`, (BigInt(r.remainingRial) / 10n).toString());
-      if (input === null) throw new ApiError(0, "CANCELLED", "");
-      const amountRial = tomanInputToRial(input);
-      if (!amountRial) throw new ApiError(400, "BAD", "مبلغ را به عدد وارد کنید.");
-      return api("/coaches/payouts", { method: "POST", body: { coachUserId: r.userId, year, month, amountRial, method: "TRANSFER" } });
-    },
+    mutationFn: ({ r, amountRial }: { r: CommissionRow; amountRial: string }) =>
+      api("/coaches/payouts", { method: "POST", body: { coachUserId: r.userId, year, month, amountRial, method: "TRANSFER" } }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["commissions"] }); onDone(); },
   });
   const rows = q.data?.coaches ?? [];
@@ -181,7 +180,17 @@ function CommissionsCard({ year, month, onDone }: { year: number; month: number;
                   {canManage && (
                     <td className="px-4 py-3">
                       {BigInt(r.remainingRial) > 0n && (
-                        <button type="button" className="btn-ghost h-8 px-2 text-xs text-brand-700" disabled={pay.isPending} onClick={() => pay.mutate(r)}>تسویه</button>
+                        <button type="button" className="btn-ghost h-8 px-2 text-xs text-brand-700" disabled={pay.isPending} onClick={() => setDlg({
+                          title: "تسویه کمیسیون مربی",
+                          description: `باقی‌مانده ${toman(r.remainingRial)}. به‌صورت هزینه‌ی «حقوق و دستمزد» ثبت می‌شود.`,
+                          fields: [{ name: "amount", label: "مبلغ پرداختی (تومان)", kind: "number", defaultValue: (BigInt(r.remainingRial) / 10n).toString() }],
+                          confirmLabel: "ثبت پرداخت",
+                          onSubmit: (v) => {
+                            const amountRial = tomanInputToRial(v.amount!);
+                            if (!amountRial || BigInt(amountRial) <= 0n) return "مبلغ معتبر نیست.";
+                            pay.mutate({ r, amountRial });
+                          },
+                        })}>تسویه</button>
                       )}
                     </td>
                   )}
@@ -191,7 +200,8 @@ function CommissionsCard({ year, month, onDone }: { year: number; month: number;
           </table>
         </div>
       )}
-      {err && err.code !== "CANCELLED" && <p role="alert" className="field-error px-5 pb-3">{err.message}</p>}
+      <FormDialog request={dlg} onClose={() => setDlg(null)} />
+      {err && <p role="alert" className="field-error px-5 pb-3">{err.message}</p>}
     </section>
   );
 }
