@@ -182,6 +182,7 @@ model Gym {
   expenses      Expense[]
   coachPayouts  CoachPayout[]
   products      Product[]
+  notifications NotificationLog[]
   sales         Sale[]
   ledger        LedgerEntry[]
 
@@ -841,4 +842,31 @@ model SaleItem {
 
   @@index([saleId])
   @@map("sale_item")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// One automatic message to a member. (kind, dedupe_key) is unique so a job can never send twice.
+model NotificationLog {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  gymId          String             @map("gym_id") @db.Uuid
+  memberId       String?            @map("member_id") @db.Uuid
+  kind           String
+  dedupeKey      String             @map("dedupe_key")
+  channel        String             @default("sms")
+  status         NotificationStatus @default(PENDING)
+  providerRef    String?            @map("provider_ref")
+  error          String?
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  sentAt         DateTime?          @map("sent_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, dedupeKey])
+  @@index([gymId, createdAt])
+  @@map("notification_log")
 }

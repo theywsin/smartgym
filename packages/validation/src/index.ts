@@ -339,3 +339,8 @@ export const listSalesSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   branchId: uuid.optional(),
 });
+
+export const reminderSettingsSchema = z.object({
+  enabled: z.boolean(),
+  daysBefore: z.number().int().min(1, "حداقل ۱ روز").max(14, "حداکثر ۱۴ روز"),
+});
