@@ -1,140 +1,217 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, Check, Dumbbell, QrCode, ShoppingCart, Users, Wallet } from "lucide-react";
+import {
+  ArrowLeft, BrainCircuit, CalendarDays, ChartNoAxesCombined, CirclePlay, CreditCard, Dumbbell, Headset, LayoutDashboard,
+  Rocket, Settings, ShieldCheck, ShoppingCart, TrendingUp, Users, Wallet,
+} from "lucide-react";
 import { getPlatformSettings, listPublicPlans, listPublishedArticles } from "@smartgym/core";
-import { toPersianDigits } from "@smartgym/shared";
+import { formatJalali, toPersianDigits } from "@smartgym/shared";
 import { coreDeps } from "@/lib/server/deps";
 import { SiteFooter, SiteHeader } from "@/components/site/chrome";
-import { ArticleCard } from "@/components/site/article-card";
+import { Pricing, type PricingPlan } from "@/components/site/pricing";
 
 export const dynamic = "force-dynamic";
 
-const toman = (rial: bigint) => `${toPersianDigits((rial / 10n).toLocaleString("en-US")).replace(/,/g, "٬")} تومان`;
-const ICONS = [Users, QrCode, Wallet, ShoppingCart, Dumbbell, CalendarCheck];
+const FEATURE_ICONS = [Users, CalendarDays, CreditCard, ShoppingCart, Dumbbell, ChartNoAxesCombined, BrainCircuit, Headset];
+const PLAN_NOTES = ["مناسب برای باشگاه‌های کوچک", "مناسب برای باشگاه‌های حرفه‌ای", "برای مجموعه‌های بزرگ"];
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getPlatformSettings(coreDeps());
   return { title: { absolute: `${s.site.name} | ${s.site.tagline}` }, description: s.landing.heroSubtitle };
 }
 
+/** "text *highlight* text": the starred part is shown in brand green. */
+function Highlighted({ text }: { text: string }) {
+  return <>{text.split(/(\*[^*]+\*)/).map((part, i) => (part.startsWith("*") && part.endsWith("*") ? <span key={i} className="text-brand-500">{part.slice(1, -1)}</span> : part))}</>;
+}
+
 export default async function Landing() {
   const deps = coreDeps();
   const [s, plans, articles] = await Promise.all([getPlatformSettings(deps), listPublicPlans(deps), listPublishedArticles(deps, { page: 1, pageSize: 3 })]);
   const { site, landing } = s;
-  const jsonLd = { "@context": "https://schema.org", "@type": "SoftwareApplication", name: site.name, applicationCategory: "BusinessApplication", operatingSystem: "Web", description: landing.heroSubtitle, inLanguage: "fa" };
+  const plainTitle = landing.heroTitle.replace(/\*/g, "");
+  const jsonLd = { "@context": "https://schema.org", "@type": "SoftwareApplication", name: site.name, applicationCategory: "BusinessApplication", operatingSystem: "Web, Android, iOS", description: landing.heroSubtitle, inLanguage: "fa" };
+  const pricing: PricingPlan[] = plans.slice(0, 3).map((p, i) => {
+    const limits = p.limits as { members?: number | null; branches?: number | null };
+    return {
+      key: p.key, nameFa: p.nameFa, monthly: p.monthlyAmountRial.toString(), annual: p.annualAmountRial.toString(), trialDays: p.trialDays,
+      note: PLAN_NOTES[i] ?? "", featured: plans.length >= 3 ? i === 1 : false,
+      features: [limits.members ? `تا ${toPersianDigits(limits.members)} عضو` : "اعضای نامحدود", limits.branches ? `${toPersianDigits(limits.branches)} شعبه` : "شعبه‌ی نامحدود", ...p.modules.slice(0, 4).map((m) => m.nameFa)],
+    };
+  });
+
   return (
     <>
-      <SiteHeader cta={landing.ctaText} />
-      <main>
-        <section className="bg-gradient-to-b from-brand-50 to-canvas">
-          <div className="mx-auto max-w-[1120px] px-4 py-16 text-center sm:py-24">
-            <p className="mb-3 inline-block rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm">{site.tagline}</p>
-            <h1 className="mx-auto max-w-3xl text-3xl leading-tight font-black sm:text-5xl">{landing.heroTitle}</h1>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-ink-2 sm:text-lg">{landing.heroSubtitle}</p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/login" className="btn-primary h-12 px-6 text-base">{landing.ctaText}</Link>
-              <Link href="#features" className="btn-secondary h-12 px-6 text-base">امکانات را ببینید</Link>
+      {/* ───────── Hero ───────── */}
+      <div className="relative overflow-hidden bg-[#07130d] text-white">
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_40%,rgba(34,197,94,0.18),transparent_55%),linear-gradient(180deg,#0b1d14_0%,#07130d_100%)]" />
+        <div aria-hidden className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:64px_64px]" />
+        <SiteHeader cta={landing.ctaText} dark />
+        <section className="relative mx-auto grid max-w-[1180px] items-center gap-8 px-4 pt-6 pb-0 lg:grid-cols-2 lg:pt-10" aria-labelledby="hero-t">
+          <div className="space-y-6 py-6 lg:py-16">
+            <h1 id="hero-t" className="text-4xl leading-[1.35] font-black sm:text-5xl"><Highlighted text={landing.heroTitle} /></h1>
+            <p className="max-w-xl text-base leading-8 text-white/75 sm:text-lg">{landing.heroSubtitle}</p>
+            <ul className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-white/85">
+              <li className="flex items-center gap-2"><Headset className="size-5 text-brand-500" aria-hidden />پشتیبانی حرفه‌ای</li>
+              <li className="flex items-center gap-2"><ShieldCheck className="size-5 text-brand-500" aria-hidden />امن و مطمئن</li>
+              <li className="flex items-center gap-2"><Rocket className="size-5 text-brand-500" aria-hidden />راه‌اندازی سریع</li>
+            </ul>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Link href="/login" className="btn h-12 gap-2 rounded-full bg-brand-500 px-7 text-base text-white shadow-[0_8px_24px_rgba(34,197,94,0.35)] hover:bg-brand-600">{landing.ctaText}<ArrowLeft className="size-4" aria-hidden /></Link>
+              <Link href="#platform" className="btn h-12 gap-2 rounded-full px-6 text-base text-white ring-1 ring-white/40 hover:bg-white/10"><CirclePlay className="size-5" aria-hidden />مشاهده دموی محصول</Link>
             </div>
+          </div>
+          <div className="relative mx-auto h-[360px] w-full max-w-[460px] sm:h-[460px] lg:h-[520px]">
+            <svg aria-hidden viewBox="0 0 400 400" className="absolute inset-x-0 bottom-0 mx-auto h-full w-full text-brand-500">
+              <path d="M40 380 L250 70 Q290 20 330 70 Q370 120 320 190 L250 290" fill="none" stroke="currentColor" strokeWidth="64" strokeLinecap="round" opacity="0.95" />
+            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element -- static marketing image */}
+            <img src="/landing/hero-athlete.jpg" alt="ورزشکار در باشگاه" className="absolute bottom-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 object-cover [mask-image:linear-gradient(to_top,transparent,black_12%),radial-gradient(ellipse_at_center,black_60%,transparent_75%)] [mask-composite:intersect]" />
+          </div>
+        </section>
+      </div>
+
+      <main>
+        {/* ───────── Platform ───────── */}
+        <section id="platform" className="relative scroll-mt-20 overflow-hidden bg-gradient-to-b from-white to-brand-50/60" aria-labelledby="pl-t">
+          <div className="mx-auto grid max-w-[1180px] items-center gap-10 px-4 py-16 lg:grid-cols-[1fr_1.25fr]">
+            <div className="space-y-4">
+              <span className="chip-brand">راهکار کامل باشگاه‌های ورزشی</span>
+              <h2 id="pl-t" className="text-3xl leading-snug font-black">یک پلتفرم جامع برای مدیریت حرفه‌ای باشگاه شما</h2>
+              <p className="leading-8 text-ink-2">تمام نیازهای باشگاه شما در یک پنل قدرتمند: از مدیریت اعضا و برنامه‌های تمرینی تا فروش آنلاین، صندوق و گزارش‌های تحلیلی.</p>
+              <Link href="#features" className="btn-primary h-11 gap-2 rounded-full px-6">بیشتر بدانید<ArrowLeft className="size-4" aria-hidden /></Link>
+            </div>
+            <ProductMockup />
           </div>
         </section>
 
-        <section id="features" className="mx-auto max-w-[1120px] scroll-mt-20 px-4 py-16" aria-labelledby="f-t">
-          <h2 id="f-t" className="mb-10 text-center text-2xl font-extrabold sm:text-3xl">هر چیزی که باشگاه لازم دارد</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* ───────── Features ───────── */}
+        <section id="features" className="mx-auto max-w-[1180px] scroll-mt-20 px-4 py-16" aria-labelledby="f-t">
+          <div className="mb-10 space-y-3 text-center">
+            <span className="chip-brand">قابلیت‌های کلیدی</span>
+            <h2 id="f-t" className="text-3xl font-black">همه چیز برای مدیریت بهتر باشگاه</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             {landing.features.map((f, i) => {
-              const Icon = ICONS[i % ICONS.length]!;
+              const Icon = FEATURE_ICONS[i % FEATURE_ICONS.length]!;
               return (
-                <article key={i} className="card space-y-2">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon className="size-5" aria-hidden /></div>
-                  <h3 className="font-bold">{f.title}</h3>
-                  <p className="text-sm leading-7 text-ink-2">{f.body}</p>
+                <article key={i} className="group rounded-2xl bg-white p-5 text-center shadow-sm ring-1 ring-line transition hover:-translate-y-1 hover:shadow-md hover:ring-brand-200">
+                  <Icon className="mx-auto mb-3 size-8 text-brand-600" aria-hidden strokeWidth={1.75} />
+                  <h3 className="font-extrabold">{f.title}</h3>
+                  <p className="mt-2 text-xs leading-6 text-ink-2">{f.body}</p>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <section className="bg-white" aria-labelledby="h-t">
-          <div className="mx-auto max-w-[1120px] px-4 py-16">
-            <h2 id="h-t" className="mb-10 text-center text-2xl font-extrabold sm:text-3xl">در سه قدم شروع کنید</h2>
-            <ol className="grid gap-6 sm:grid-cols-3">
-              {[
-                ["ثبت‌نام با موبایل", "با شماره موبایل و کد پیامکی وارد شوید و باشگاهتان را بسازید؛ بدون رمز و بدون کارت بانکی."],
-                ["تعریف پلن و اعضا", "پلن‌های عضویت را بسازید، اعضا را وارد کنید یا از فایل اکسل بارگذاری کنید."],
-                ["شروع کار روزانه", "فروش اشتراک، ثبت ورود، صندوق و گزارش‌ها از همان روز اول آماده است."],
-              ].map(([t, b], i) => (
-                <li key={t} className="space-y-2 text-center">
-                  <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-brand-600 font-black text-white">{toPersianDigits(i + 1)}</span>
-                  <h3 className="font-bold">{t}</h3>
-                  <p className="text-sm leading-7 text-ink-2">{b}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        {landing.showPricing && plans.length > 0 && (
-          <section id="pricing" className="mx-auto max-w-[1120px] scroll-mt-20 px-4 py-16" aria-labelledby="p-t">
-            <h2 id="p-t" className="mb-2 text-center text-2xl font-extrabold sm:text-3xl">قیمت‌ها</h2>
-            <p className="mb-10 text-center text-ink-2">همه‌ی پلن‌ها با دوره‌ی آزمایشی رایگان</p>
-            <div className="grid gap-4 md:grid-cols-3">
-              {plans.map((p) => {
-                const limits = p.limits as { members?: number | null; branches?: number | null };
-                const featured = p.key === "pro";
-                return (
-                  <article key={p.key} className={`card flex flex-col gap-4 ${featured ? "border-2 border-brand-600" : ""}`}>
-                    {featured && <span className="chip self-start border-brand-200 bg-brand-50 font-semibold text-brand-700">پیشنهاد ما</span>}
-                    <h3 className="text-xl font-extrabold">{p.nameFa}</h3>
-                    <p><span className="text-3xl font-black">{toman(p.monthlyAmountRial)}</span> <span className="text-sm text-ink-2">ماهانه</span></p>
-                    <p className="text-sm text-ink-2">پرداخت سالانه: {toman(p.annualAmountRial)}</p>
-                    <ul className="flex-1 space-y-2 text-sm">
-                      <li className="flex gap-2"><Check className="size-4 flex-none text-brand-600" aria-hidden />{limits.members ? `تا ${toPersianDigits(limits.members)} عضو` : "اعضای نامحدود"}</li>
-                      <li className="flex gap-2"><Check className="size-4 flex-none text-brand-600" aria-hidden />{limits.branches ? `${toPersianDigits(limits.branches)} شعبه` : "شعبه‌ی نامحدود"}</li>
-                      {p.modules.map((m) => <li key={m.key} className="flex gap-2"><Check className="size-4 flex-none text-brand-600" aria-hidden />{m.nameFa}</li>)}
-                    </ul>
-                    <Link href="/login" className={featured ? "btn-primary" : "btn-secondary"}>{p.trialDays > 0 ? `${toPersianDigits(p.trialDays)} روز رایگان امتحان کنید` : "شروع"}</Link>
-                  </article>
-                );
-              })}
+        {/* ───────── Pricing ───────── */}
+        {landing.showPricing && pricing.length > 0 && (
+          <section id="pricing" className="relative scroll-mt-20 overflow-hidden bg-gradient-to-l from-brand-50 via-white to-white" aria-labelledby="p-t">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static marketing image */}
+            <img src="/landing/pricing-gear.jpg" alt="" aria-hidden className="absolute inset-y-0 left-0 hidden h-full w-[22%] object-cover [mask-image:linear-gradient(to_left,transparent,black_40%)] xl:block" />
+            <div className="relative mx-auto max-w-[1180px] px-4 py-16 xl:pl-[20%]">
+              <Pricing plans={pricing} />
             </div>
           </section>
         )}
 
+        {/* ───────── Blog ───────── */}
         {articles.items.length > 0 && (
-          <section className="bg-white" aria-labelledby="b-t">
-            <div className="mx-auto max-w-[1120px] px-4 py-16">
-              <div className="mb-8 flex items-end justify-between">
-                <h2 id="b-t" className="text-2xl font-extrabold sm:text-3xl">از وبلاگ</h2>
-                <Link href="/blog" className="text-sm font-semibold text-brand-700">همه‌ی مقالات</Link>
+          <section className="mx-auto max-w-[1180px] px-4 py-16" aria-labelledby="b-t">
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+              <div className="space-y-2">
+                <span className="chip-brand">مقالات و آموزش‌ها</span>
+                <h2 id="b-t" className="text-3xl font-black">آخرین مطالب وبلاگ</h2>
               </div>
-              <div className="grid gap-4 md:grid-cols-3">{articles.items.map((a) => <ArticleCard key={a.slug} a={a} />)}</div>
+              <Link href="/blog" className="flex items-center gap-1 text-sm font-bold text-brand-700">مشاهده همه مقالات<ArrowLeft className="size-4" aria-hidden /></Link>
             </div>
-          </section>
-        )}
-
-        {landing.faq.length > 0 && (
-          <section id="faq" className="mx-auto max-w-[760px] scroll-mt-20 px-4 py-16" aria-labelledby="q-t">
-            <h2 id="q-t" className="mb-8 text-center text-2xl font-extrabold sm:text-3xl">پرسش‌های متداول</h2>
-            <div className="space-y-3">
-              {landing.faq.map((f, i) => (
-                <details key={i} className="card group">
-                  <summary className="cursor-pointer font-bold">{f.q}</summary>
-                  <p className="mt-3 text-sm leading-7 text-ink-2">{f.a}</p>
-                </details>
+            <div className="grid gap-5 md:grid-cols-3">
+              {articles.items.map((a) => (
+                <article key={a.slug} className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-line">
+                  {a.coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- admin-provided cover
+                    <img src={a.coverUrl} alt="" className="aspect-[16/8] w-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="flex aspect-[16/8] w-full items-center justify-center bg-gradient-to-br from-[#0b1d14] to-brand-700" aria-hidden><Dumbbell className="size-10 text-brand-500" /></div>
+                  )}
+                  <div className="flex flex-1 flex-col gap-3 p-5">
+                    <h3 className="font-extrabold leading-7"><Link href={`/blog/${a.slug}`} className="hover:text-brand-700">{a.title}</Link></h3>
+                    <div className="mt-auto flex items-center justify-between text-xs text-ink-3">
+                      <span>{a.publishedAt ? formatJalali(a.publishedAt) : ""} · {toPersianDigits(a.readMinutes)} دقیقه</span>
+                      <Link href={`/blog/${a.slug}`} className="flex items-center gap-1 font-bold text-brand-700">مطالعه بیشتر<ArrowLeft className="size-3.5" aria-hidden /></Link>
+                    </div>
+                  </div>
+                </article>
               ))}
             </div>
           </section>
         )}
 
-        <section className="bg-brand-700 text-white">
-          <div className="mx-auto max-w-[1120px] px-4 py-14 text-center">
-            <h2 className="text-2xl font-extrabold sm:text-3xl">آماده‌اید باشگاهتان را منظم کنید؟</h2>
-            <Link href="/login" className="btn mt-6 inline-flex h-12 bg-white px-6 text-base text-brand-700 hover:bg-brand-50">{landing.ctaText}</Link>
+        {/* ───────── FAQ + CTA ───────── */}
+        <section id="faq" className="mx-auto grid max-w-[1180px] scroll-mt-20 items-start gap-6 px-4 pb-16 lg:grid-cols-2" aria-labelledby="q-t">
+          {landing.faq.length > 0 && (
+            <div>
+              <h2 id="q-t" className="mb-4 text-2xl font-black">سوالات متداول</h2>
+              <div className="divide-y divide-line rounded-2xl bg-white shadow-sm ring-1 ring-line">
+                {landing.faq.map((f, i) => (
+                  <details key={i} className="group px-5 py-4">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold [&::-webkit-details-marker]:hidden">
+                      {f.q}<span className="text-xl leading-none text-ink-3 transition group-open:rotate-45" aria-hidden>+</span>
+                    </summary>
+                    <p className="mt-3 text-sm leading-7 text-ink-2">{f.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-[#0b2a1a] to-[#0f3d24] p-8 text-white lg:mt-12">
+            <Dumbbell aria-hidden className="absolute -bottom-6 -left-6 size-40 rotate-[-20deg] text-white/5" />
+            <h2 className="text-2xl font-black">آماده‌اید باشگاه خود را هوشمندتر کنید؟</h2>
+            <p className="mt-2 text-sm text-white/75">همین حالا شروع کنید و از قدرت {site.name} بهره‌مند شوید.</p>
+            <Link href="/login" className="btn mt-6 h-11 gap-2 rounded-full bg-white px-6 text-brand-800 hover:bg-brand-50">{landing.ctaText}<ArrowLeft className="size-4" aria-hidden /></Link>
           </div>
         </section>
       </main>
       <SiteFooter site={site} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ ...jsonLd, name: site.name, alternateName: plainTitle }).replace(/</g, "\\u003c") }} />
     </>
+  );
+}
+
+/** Illustrative product preview (not live data): a manager dashboard and the athlete app. */
+function ProductMockup() {
+  const nav: [typeof LayoutDashboard, string][] = [[LayoutDashboard, "داشبورد"], [Users, "اعضا"], [Dumbbell, "تمرینات"], [ChartNoAxesCombined, "گزارش‌ها"], [Wallet, "مالی"], [Settings, "تنظیمات"]];
+  return (
+    <div aria-hidden className="relative mx-auto w-full max-w-[640px] pt-4 pb-6 select-none">
+      <div className="absolute -top-6 -left-6 size-40 rounded-full bg-brand-500/25 blur-2xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 lg:ml-24">
+        <div className="flex">
+          <div className="w-28 flex-none bg-[#0b1d14] p-3 text-[10px] text-white/70">
+            <p className="mb-4 flex items-center gap-1 font-extrabold text-white"><Dumbbell className="size-3.5 text-brand-500" />{"SmartGym"}</p>
+            {nav.map(([I, t], i) => <p key={t} className={`mb-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 ${i === 0 ? "bg-brand-600/25 text-brand-500" : ""}`}><I className="size-3" />{t}</p>)}
+          </div>
+          <div className="flex-1 space-y-3 bg-canvas p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-white p-2 ring-1 ring-line"><p className="text-[9px] text-ink-3">اعضای فعال</p><p className="text-sm font-black">۲٬۸۵۰</p></div>
+              <div className="rounded-lg bg-white p-2 ring-1 ring-line"><p className="text-[9px] text-ink-3">درآمد ماهانه</p><p className="text-sm font-black">۴۲۰ میلیون تومان</p></div>
+            </div>
+            <div className="rounded-lg bg-white p-2 ring-1 ring-line">
+              <div className="mb-1 flex items-center justify-between"><p className="text-[10px] font-bold">روند رشد اعضا</p><span className="flex items-center gap-0.5 rounded bg-brand-600 px-1 text-[9px] font-bold text-white"><TrendingUp className="size-2.5" />۴۲٪</span></div>
+              <svg viewBox="0 0 300 90" className="h-32 w-full">
+                <defs><linearGradient id="lg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#22c55e" stopOpacity=".35" /><stop offset="1" stopColor="#22c55e" stopOpacity="0" /></linearGradient></defs>
+                <path d="M0 70 C30 60 40 40 70 48 S110 75 140 55 S190 20 215 38 S260 60 300 12 L300 90 L0 90Z" fill="url(#lg)" />
+                <path d="M0 70 C30 60 40 40 70 48 S110 75 140 55 S190 20 215 38 S260 60 300 12" fill="none" stroke="#16a34a" strokeWidth="2.5" />
+              </svg>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-white p-2 ring-1 ring-line"><p className="text-[10px] font-bold">اعضای جدید</p><div className="flex -space-x-1.5 space-x-reverse">{["#86efac", "#4ade80", "#22c55e", "#16a34a", "#15803d"].map((c) => <span key={c} className="size-5 rounded-full ring-2 ring-white" style={{ background: c }} />)}</div></div>
+          </div>
+        </div>
+      </div>
+      <div className="absolute -bottom-4 left-0 aspect-[9/17] w-[28%] max-w-[170px] overflow-hidden rounded-[24px] border-[6px] border-[#111] bg-white shadow-2xl">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static screenshot of the athlete app */}
+        <img src="/landing/app-athlete.png" alt="" className="w-full object-cover object-top" />
+      </div>
+    </div>
   );
 }
