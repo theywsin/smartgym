@@ -1,6 +1,6 @@
 import "server-only";
 import { getPrisma } from "@smartgym/db";
-import { createSmsProviderFromEnv, DEFAULT_CONFIG, type CoreDeps } from "@smartgym/core";
+import { createSmsProviderFromEnv, createGatewayFromEnv, DEFAULT_CONFIG, type CoreDeps, type PaymentGateway } from "@smartgym/core";
 import { env } from "./env";
 
 let deps: CoreDeps | undefined;
@@ -14,4 +14,19 @@ export function coreDeps(): CoreDeps {
     config: { ...DEFAULT_CONFIG, otpPepper: e.OTP_PEPPER, jwtSecret: e.JWT_SECRET },
   };
   return deps;
+}
+
+let gw: PaymentGateway | undefined;
+
+/** Bank gateway: Saman in production, the in-app sandbox in development (PAYMENT_GATEWAY overrides). */
+export function paymentGateway(): PaymentGateway {
+  gw ??= createGatewayFromEnv(process.env, env().JWT_SECRET);
+  return gw;
+}
+
+/** Public base URL for links sent to members and for the bank callback. */
+export function appUrl(): string {
+  const url = env().APP_URL;
+  if (!url) throw new Error("APP_URL must be set for online payments.");
+  return url.replace(/\/$/, "");
 }

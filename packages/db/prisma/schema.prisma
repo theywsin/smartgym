@@ -177,6 +177,7 @@ model Gym {
   coachProfiles CoachProfile[]
   coachAthletes CoachAthlete[]
   payments      Payment[]
+  onlinePaymentRequests OnlinePaymentRequest[]
   ledger        LedgerEntry[]
 
   @@map("gym")
@@ -634,4 +635,41 @@ model LedgerEntry {
   @@index([gymId, occurredAt])
   @@index([gymId, branchId, occurredAt])
   @@map("ledger_entry")
+}
+
+enum OnlinePaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+/// A pay-by-link request for a member's debt, settled through the bank gateway (Saman SEP).
+/// res_num is the unguessable public id in the link and the gateway's ResNum.
+model OnlinePaymentRequest {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  gymId          String              @map("gym_id") @db.Uuid
+  branchId       String?             @map("branch_id") @db.Uuid
+  memberId       String              @map("member_id") @db.Uuid
+  subscriptionId String              @map("subscription_id") @db.Uuid
+  amountRial     BigInt              @map("amount_rial")
+  resNum         String              @unique @map("res_num")
+  gateway        String              @default("saman")
+  token          String?
+  status         OnlinePaymentStatus @default(PENDING)
+  refNum         String?             @unique @map("ref_num")
+  rrn            String?
+  cardMask       String?             @map("card_mask")
+  failureReason  String?             @map("failure_reason")
+  paymentId      String?             @unique @map("payment_id") @db.Uuid
+  createdByUserId String?            @map("created_by_user_id") @db.Uuid
+  expiresAt      DateTime            @map("expires_at") @db.Timestamptz(3)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  settledAt      DateTime?           @map("settled_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, createdAt])
+  @@index([subscriptionId])
+  @@map("online_payment_request")
 }
