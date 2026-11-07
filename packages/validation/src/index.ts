@@ -371,3 +371,23 @@ export const workoutProgramSchema = z.object({
     .max(7),
 });
 export type WorkoutProgramInput = z.infer<typeof workoutProgramSchema>;
+
+// Platform admin
+export const adminGymListSchema = paginationSchema.extend({
+  q: z.string().trim().max(100).optional(),
+  status: z.enum(["TRIAL", "ACTIVE", "SUSPENDED", "CLOSED"]).optional(),
+});
+export type AdminGymListInput = z.infer<typeof adminGymListSchema>;
+
+export const adminSetGymStatusSchema = z.object({
+  status: z.enum(["TRIAL", "ACTIVE", "SUSPENDED", "CLOSED"]),
+  reason: z.string().trim().min(3, "دلیل را بنویسید.").max(300),
+});
+export type AdminSetGymStatusInput = z.infer<typeof adminSetGymStatusSchema>;
+
+export const adminSetGymPlanSchema = z.object({
+  planKey: z.string().trim().min(1).max(40),
+  months: z.coerce.number().int().min(1).max(36),
+  note: z.string().trim().max(300).optional(),
+});
+export type AdminSetGymPlanInput = z.infer<typeof adminSetGymPlanSchema>;
