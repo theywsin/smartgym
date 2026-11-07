@@ -1,0 +1,6 @@
+[Unit]
+Description=SmartGym database backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/smartgym/deploy/backup.sh

@@ -69,3 +69,7 @@ npm run lint && npm test && npm run build   # legacy prototype
 ## Money
 
 All amounts are stored as `BigInt` **rial**. Convert at the edges with `tomanToRial` / `formatToman` from `@smartgym/shared`.
+
+## Production
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) (AlmaLinux VPS, Docker Compose, Nginx, HTTPS, backups).
