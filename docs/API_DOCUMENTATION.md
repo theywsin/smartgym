@@ -95,7 +95,7 @@ Collections:
 
 ### 2.5 Members — `/api/members` — P2
 
-Implemented in Phase 2 (under `/api/v1`): list (`q, status, membership=active|expiring|expired|suspended|none, branchId, page, pageSize`; the response includes per-tab `counts`), create, get, update, archive, restore. Notes, timeline, coach assignment, import and export are still to do.
+Implemented in Phase 2 (under `/api/v1`): list (`q, status, membership=active|expiring|expired|suspended|none, branchId, page, pageSize`; the response includes per-tab `counts`), create, get, update, archive, restore. Part 2 adds: `GET/POST /members/:id/notes` (append-only; `members.read` / `members.update`), `POST /members/:id/coach {coachUserId|null}` (`coaches.manage`), `GET /members/export` (`members.export`, CSV with BOM, formula-safe), `POST /members/import` (`members.create`, body `text/csv`, `?dryRun=1`; all rows or none, report lists row/column/message). Timeline is still to do.
 
 | Method | Path | perm |
 |---|---|---|
@@ -137,7 +137,8 @@ Implemented in Phase 2: manual `check-in` `{memberId, branchId}`, `check-out`, a
 ### 2.8 Coaches — `/api/coaches` — P2/P4
 | Method | Path | perm |
 |---|---|---|
-| GET/POST | `/coaches` | `coaches.read` / `coaches.manage` |
+| GET | `/coaches` | `coaches.read` — coaches are staff with the COACH role (added via `/users/staff/invite`); includes profile and current athlete count |
+| PATCH | `/coaches/:userId` | `coaches.manage` — `{bio?, specializations?, commissionRateBp?}` |
 | GET/PATCH | `/coaches/:id` | |
 | GET/PUT | `/coaches/:id/availability` | |
 | GET | `/coaches/:id/athletes` | coach self or `coaches.read` |

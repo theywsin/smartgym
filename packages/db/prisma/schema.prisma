@@ -173,6 +173,9 @@ model Gym {
   plans         MembershipPlan[]
   memberSubs    MemberSubscription[]
   attendance    Attendance[]
+  memberNotes   MemberNote[]
+  coachProfiles CoachProfile[]
+  coachAthletes CoachAthlete[]
 
   @@map("gym")
 }
@@ -414,6 +417,8 @@ model Member {
   homeBranch    Branch?              @relation(fields: [homeBranchId], references: [id])
   subscriptions MemberSubscription[]
   attendance    Attendance[]
+  notesLog      MemberNote[]
+  coaches       CoachAthlete[]
 
   @@unique([gymId, code])
   @@index([gymId, status])
@@ -511,4 +516,56 @@ model Attendance {
   @@index([gymId, branchId, checkedInAt(sort: Desc)])
   @@index([memberId, checkedInAt(sort: Desc)])
   @@map("attendance")
+}
+
+model MemberNote {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  gymId        String   @map("gym_id") @db.Uuid
+  memberId     String   @map("member_id") @db.Uuid
+  authorUserId String   @map("author_user_id") @db.Uuid
+  body         String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@map("member_note")
+}
+
+// ───────────────────────────── Coaching (Phase 2) ─────────────────────────────
+
+/// Gym-specific details of a user who holds the COACH role in that gym. Created on first edit.
+model CoachProfile {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  gymId             String   @map("gym_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  bio               String?
+  specializations   String[] @default([])
+  commissionRateBp  Int?     @map("commission_rate_bp") // basis points, used by finance (Phase 3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, userId])
+  @@map("coach_profile")
+}
+
+/// Coach ↔ member assignment history. The current coach is the row with ended_at NULL (at most one).
+model CoachAthlete {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  gymId       String    @map("gym_id") @db.Uuid
+  coachUserId String    @map("coach_user_id") @db.Uuid
+  memberId    String    @map("member_id") @db.Uuid
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt     DateTime? @map("ended_at") @db.Timestamptz(3)
+  assignedBy  String?   @map("assigned_by") @db.Uuid
+
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([gymId, coachUserId, endedAt])
+  @@index([memberId])
+  @@map("coach_athlete")
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Building2, CalendarCheck, ClipboardList, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
+import { Building2, CalendarCheck, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
 import { formatIranMobile, toPersianDigits, ROLE_LABELS_FA, type GymRole } from "@smartgym/shared";
 import { api, ApiError, type Me } from "@/lib/client/api";
 import { Logo } from "@/components/logo";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/manager/members", label: "اعضا", icon: UserRound, permission: "members.read" },
   { href: "/manager/attendance", label: "حضور و غیاب", icon: CalendarCheck, permission: "attendance.read" },
   { href: "/manager/plans", label: "پلن‌های عضویت", icon: ClipboardList, permission: "members.read" },
+  { href: "/manager/coaches", label: "مربیان", icon: Dumbbell, permission: "coaches.read" },
   { href: "/manager/branches", label: "شعب", icon: Building2, permission: "branches.read" },
   { href: "/manager/staff", label: "کارکنان", icon: Users, permission: "staff.read" },
 ] as const;

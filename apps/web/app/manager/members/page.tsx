@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Search, UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search, Upload, UserPlus, X } from "lucide-react";
 import { formatIranMobile, toPersianDigits } from "@smartgym/shared";
 import { api } from "@/lib/client/api";
 import { useCan } from "@/lib/client/me";
@@ -19,6 +20,7 @@ type Row = {
   phone: string | null;
   homeBranchId: string | null;
   membership: MembershipSummary;
+  coach: { userId: string; name: string | null } | null;
 };
 type ListResponse = {
   items: Row[];
@@ -28,6 +30,7 @@ type ListResponse = {
   counts: { all: number; active: number; expiring: number; expired: number; suspended: number };
 };
 type Branch = { id: string; name: string };
+type Coach = { userId: string; firstName: string | null; lastName: string | null };
 
 const TABS = [
   { key: "", label: "همه", count: "all" },
@@ -37,8 +40,20 @@ const TABS = [
   { key: "suspended", label: "تعلیق", count: "suspended" },
 ] as const;
 
-export default function MembersPage() {
+export default function MembersPageWrapper() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <MembersPage />
+    </Suspense>
+  );
+}
+
+function MembersPage() {
+  const router = useRouter();
+  const coachFilter = useSearchParams().get("coach") ?? "";
   const canCreate = useCan("members.create");
+  const canExport = useCan("members.export");
+  const canCoaches = useCan("coaches.read");
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("");
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -48,11 +63,14 @@ export default function MembersPage() {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
     return () => clearTimeout(t);
   }, [q]);
-  useEffect(() => setPage(1), [debounced, tab, archived]);
+  useEffect(() => setPage(1), [debounced, tab, archived, coachFilter]);
 
   const params = new URLSearchParams({ page: String(page), pageSize: "25", status: archived ? "ARCHIVED" : "ACTIVE" });
   if (debounced) params.set("q", debounced);
   if (tab) params.set("membership", tab);
+  if (coachFilter) params.set("coachUserId", coachFilter);
+  const coaches = useQuery({ queryKey: ["coaches"], queryFn: () => api<Coach[]>("/coaches"), enabled: canCoaches });
+  const setCoach = (id: string) => router.replace(id ? `/manager/members?coach=${id}` : "/manager/members");
   const list = useQuery({
     queryKey: ["members", params.toString()],
     queryFn: () => api<ListResponse>(`/members?${params}`),
@@ -71,12 +89,26 @@ export default function MembersPage() {
             {list.data ? `${toPersianDigits(list.data.counts.active)} عضو با اشتراک فعال` : " "}
           </p>
         </div>
-        {canCreate && (
-          <Link href="/manager/members/new" className="btn-primary">
-            <UserPlus className="size-4" aria-hidden />
-            افزودن عضو
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canExport && (
+            <a href="/api/v1/members/export" className="btn-secondary" download>
+              <Download className="size-4" aria-hidden />
+              خروجی اکسل
+            </a>
+          )}
+          {canCreate && (
+            <Link href="/manager/members/import" className="btn-secondary">
+              <Upload className="size-4" aria-hidden />
+              ورود گروهی
+            </Link>
+          )}
+          {canCreate && (
+            <Link href="/manager/members/new" className="btn-primary">
+              <UserPlus className="size-4" aria-hidden />
+              افزودن عضو
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="card p-0">
@@ -103,6 +135,22 @@ export default function MembersPage() {
             <Search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
             <input className="input pr-9" placeholder="نام، موبایل یا کد عضویت" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
+          {canCoaches && (coaches.data?.length ?? 0) > 0 && (
+            <label className="flex items-center gap-2 text-sm text-ink-2">
+              مربی
+              <select className="input h-10 w-auto" value={coachFilter} onChange={(e) => setCoach(e.target.value)}>
+                <option value="">همه</option>
+                {coaches.data?.map((c) => (
+                  <option key={c.userId} value={c.userId}>{[c.firstName, c.lastName].filter(Boolean).join(" ") || "بی‌نام"}</option>
+                ))}
+              </select>
+              {coachFilter && (
+                <button type="button" className="btn-ghost h-8 px-2" onClick={() => setCoach("")} aria-label="حذف فیلتر مربی">
+                  <X className="size-4" aria-hidden />
+                </button>
+              )}
+            </label>
+          )}
           <label className="flex items-center gap-2 text-sm text-ink-2">
             <input type="checkbox" className="accent-brand-600" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
             نمایش بایگانی‌شده‌ها
@@ -113,7 +161,7 @@ export default function MembersPage() {
         {list.isError && <div className="p-4"><ErrorState error={list.error} onRetry={() => list.refetch()} /></div>}
         {list.data && list.data.items.length === 0 && (
           <EmptyState
-            title={debounced || tab ? "عضوی با این مشخصات پیدا نشد" : "هنوز عضوی ثبت نشده است"}
+            title={debounced || tab || coachFilter ? "عضوی با این مشخصات پیدا نشد" : "هنوز عضوی ثبت نشده است"}
             hint={!debounced && !tab && canCreate ? "اولین عضو باشگاه را ثبت کنید تا بتوانید برایش اشتراک بفروشید." : undefined}
             action={!debounced && !tab && canCreate ? <Link href="/manager/members/new" className="btn-primary">افزودن عضو</Link> : undefined}
           />
@@ -128,6 +176,7 @@ export default function MembersPage() {
                     <th scope="col" className="px-4 py-3 font-semibold">موبایل</th>
                     <th scope="col" className="px-4 py-3 font-semibold">پلن</th>
                     <th scope="col" className="px-4 py-3 font-semibold">وضعیت</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">مربی</th>
                     <th scope="col" className="px-4 py-3 font-semibold">شعبه</th>
                     <th scope="col" className="px-4 py-3 font-semibold">انقضا</th>
                   </tr>
@@ -149,6 +198,7 @@ export default function MembersPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{m.phone ? <span className="ltr-nums">{toPersianDigits(formatIranMobile(m.phone))}</span> : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{m.membership.planName ?? "—"}</td>
                       <td className="px-4 py-3"><MembershipBadge m={m.membership} /></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-ink-2">{m.coach?.name ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-ink-2">{m.homeBranchId ? branchName.get(m.homeBranchId) ?? "—" : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{jdate(m.membership.endsAt)}</td>
                     </tr>
