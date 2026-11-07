@@ -22,3 +22,4 @@ export * from "./coaches/commissions";
 export * from "./store";
 export * from "./jobs";
 export * from "./workouts";
+export * from "./athlete";

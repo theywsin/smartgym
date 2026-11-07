@@ -46,7 +46,10 @@ export default function SelectGymPage() {
               </li>
             ))}
           </ul>
-          <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/onboarding")}>
+          <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/athlete")}>
+            پنل ورزشکار (اشتراک و برنامه‌ی من)
+          </button>
+          <button type="button" className="btn-secondary mt-2 w-full" onClick={() => router.push("/onboarding")}>
             ساخت باشگاه جدید
           </button>
         </div>

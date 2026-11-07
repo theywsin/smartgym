@@ -50,7 +50,10 @@ export default function LoginPage() {
               onVerified={(r) => {
                 if (r.activeGymId) router.replace("/manager");
                 else if (r.gyms.length > 1) router.replace("/select-gym");
-                else router.replace("/onboarding");
+                else
+                  void api<unknown[]>("/athlete/profiles")
+                    .then((p) => router.replace(p.length > 0 ? "/athlete" : "/onboarding"))
+                    .catch(() => router.replace("/onboarding"));
               }}
             />
           )}
