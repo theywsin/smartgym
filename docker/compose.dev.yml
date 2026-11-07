@@ -1,0 +1,29 @@
+# Local development services for SmartGym 2.0.
+#   docker compose -f docker/compose.dev.yml up -d
+# Then: see docs/PLATFORM_DEVELOPMENT.md
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: smartgym_owner
+      POSTGRES_PASSWORD: owner
+      POSTGRES_DB: smartgym
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: smartgym
+      MINIO_ROOT_PASSWORD: smartgym-dev-secret
+    ports: ["9000:9000", "9001:9001"]
+    volumes:
+      - miniodata:/data
+volumes:
+  pgdata:
+  miniodata:

@@ -29,7 +29,7 @@ The prototype's server and data model must be replaced, not extended: every endp
 ### ADR-3 — PostgreSQL + Prisma, tenant isolation enforced twice
 
 - **PostgreSQL 16** with **Prisma** migrations (replaces MySQL; there is no relational schema worth preserving, and Postgres gives row-level security).
-- Isolation layer 1 (application): every request resolves a `TenantContext` (`gymId`, `branchIds`, `userId`, `permissions`) **from the session, never from the request body**. Repositories receive the context and a Prisma client extension injects `gymId` into every `where`/`data` for tenant-owned models; a query on a tenant-owned model without a context throws.
+- Isolation layer 1 (application): every request resolves a `TenantContext` (`gymId`, `branchIds`, `userId`, `permissions`) **from the session, never from the request body**. Core services receive the context, filter every tenant-owned query by `ctx.gymId` explicitly, and run inside `withTenant(db, ctx, fn)`, which opens a transaction and sets the `app.gym_id` / `app.user_id` settings that layer 2 (RLS) checks. A service that forgets the explicit filter still cannot read another gym's rows, because RLS rejects them. (An earlier draft proposed a Prisma client extension that injects `gymId`; explicit filters plus RLS proved simpler and easier to review.)
 - Isolation layer 2 (database): **Postgres Row-Level Security** on tenant-owned tables using `current_setting('app.gym_id')`, set with `SET LOCAL` inside each request transaction. The app connects as a non-owner role so RLS cannot be bypassed; migrations run as the owner role. Super admin cross-tenant access uses a separate code path that sets `app.bypass_rls` **and writes an `AuditLog` row**.
 - Integration tests prove that tenant A cannot read or write tenant B through every endpoint (see roadmap QA).
 
@@ -61,7 +61,7 @@ smartgym/
 │   └── mobile/              Expo (React Native) athlete app — Android first
 ├── packages/
 │   ├── core/                domain modules (services, repositories, policies) — no HTTP, no React
-│   ├── db/                  Prisma schema, migrations, client + tenant extension, seed
+│   ├── db/                  Prisma schema, migrations, client + withTenant/withUser/withSystem helpers, seed
 │   ├── validation/          Zod schemas (request/response contracts)
 │   ├── shared/              money/date (Jalali)/phone/number helpers, constants, permission catalogue
 │   ├── api-client/          typed fetch client generated from OpenAPI, used by web + mobile

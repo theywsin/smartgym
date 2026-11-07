@@ -141,6 +141,7 @@ export interface BodyMeasurement {
 }
 
 export interface AttendanceRecord {
+  clubId?: string;
   id: string;
   memberId: string;
   memberName: string;
@@ -165,6 +166,7 @@ export interface Invoice {
 }
 
 export interface Booking {
+  clubId?: string;
   id: string;
   className: string;
   coachName: string;
@@ -175,9 +177,10 @@ export interface Booking {
 }
 
 export interface Ticket {
+  clubId?: string;
   id: string;
   memberName: string;
-  department: "TECHNICAL" | "ACCOUNTING" | "COACHING" | "GENERAL";
+  department: "TECHNICAL" | "ACCOUNTING" | "COACHING" | "GENERAL" | "PUBLIC";
   subject: string;
   priority: "HIGH" | "MEDIUM" | "LOW";
   status: "OPEN" | "ANSWERED" | "CLOSED";
@@ -200,6 +203,7 @@ export interface AuditLog {
 }
 
 export interface StoreProduct {
+  clubId?: string;
   id: string;
   name: string;
   category: "SUPPLEMENT" | "EQUIPMENT" | "ACCESSORY";
@@ -211,6 +215,7 @@ export interface StoreProduct {
 }
 
 export interface BlogPost {
+  clubId?: string;
   id: string;
   title: string;
   slug: string;

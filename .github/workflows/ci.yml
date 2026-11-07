@@ -6,7 +6,8 @@ on:
     branches: [main]
 
 jobs:
-  check:
+  prototype:
+    name: Prototype (legacy app)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,3 +19,44 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  platform:
+    name: SmartGym 2.0 platform
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: smartgym_owner
+          POSTGRES_PASSWORD: owner
+          POSTGRES_DB: smartgym_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smartgym_owner"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MIGRATION_DATABASE_URL: postgresql://smartgym_owner:owner@localhost:5432/smartgym_test
+      DATABASE_URL: postgresql://smartgym_app:app@localhost:5432/smartgym_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Create runtime role (non-owner, so row-level security applies)
+        run: PGPASSWORD=owner psql -h localhost -U smartgym_owner -d smartgym_test -c "CREATE ROLE smartgym_app LOGIN PASSWORD 'app';"
+      - name: Migrate and seed
+        working-directory: packages/db
+        run: |
+          npx prisma migrate deploy
+          SEED_DEV=true npx tsx prisma/seed.ts
+      - run: npm run typecheck:platform
+      - name: Tests
+        run: npm run test --workspace @smartgym/shared --workspace @smartgym/db --workspace @smartgym/core
+        env:
+          NODE_ENV: test
+      - name: Build web
+        run: npm run build --workspace @smartgym/web
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

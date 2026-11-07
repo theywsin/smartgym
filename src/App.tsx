@@ -60,7 +60,7 @@ import {
   MOCK_MEMBERS,
   MOCK_COACHES
 } from "./data";
-import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost } from "./types";
+import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost, type Invoice } from "./types";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
@@ -4390,11 +4390,12 @@ export default function App() {
                                 setClubRevenue(prev => prev + req.priceToman);
 
                                 // Add to invoices
-                                const newInvoice = {
+                                const newInvoice: Invoice = {
                                   id: `inv_renewal_${Date.now()}`,
                                   memberName: req.memberName,
                                   planName: req.planName,
-                                  amount: `${toPersianNums(req.priceToman.toLocaleString())} تومان`,
+                                  amountToman: req.priceToman,
+                                  paymentMethod: "OFFLINE",
                                   date: "1405/04/04",
                                   status: "PAID"
                                 };

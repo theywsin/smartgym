@@ -1,0 +1,370 @@
+// SmartGym 2.0 — database schema v1 (Phase 1: identity, tenancy, RBAC, SaaS plans, audit)
+// Conventions: docs/DATABASE_DESIGN.md. Row-level security policies live in the SQL migrations.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Identity ─────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  phone           String     @unique // E.164, e.g. +989121234567
+  phoneVerifiedAt DateTime?  @map("phone_verified_at") @db.Timestamptz(3)
+  passwordHash    String?    @map("password_hash")
+  status          UserStatus @default(ACTIVE)
+  isSuperAdmin    Boolean    @default(false) @map("is_super_admin")
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  profile     UserProfile?
+  sessions    Session[]
+  memberships GymMembership[]
+  ownedGyms   Gym[]           @relation("GymOwner")
+
+  @@map("user")
+}
+
+model UserProfile {
+  userId      String    @id @map("user_id") @db.Uuid
+  firstName   String?   @map("first_name")
+  lastName    String?   @map("last_name")
+  birthDate   DateTime? @map("birth_date") @db.Date
+  gender      String?
+  avatarFileId String?  @map("avatar_file_id") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profile")
+}
+
+enum SessionKind {
+  WEB
+  MOBILE
+}
+
+/// Web sessions and mobile refresh tokens. Only SHA-256 hashes of tokens are stored.
+model Session {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  kind          SessionKind
+  tokenHash     String      @unique @map("token_hash")
+  familyId      String      @map("family_id") @db.Uuid
+  activeGymId   String?     @map("active_gym_id") @db.Uuid
+  deviceName    String?     @map("device_name")
+  ip            String?
+  userAgent     String?     @map("user_agent")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt    DateTime    @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  expiresAt     DateTime    @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime?   @map("revoked_at") @db.Timestamptz(3)
+  replacedById  String?     @map("replaced_by_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("session")
+}
+
+enum OtpPurpose {
+  LOGIN
+  RESET_PASSWORD
+  VERIFY_PHONE
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  phone      String
+  purpose    OtpPurpose
+  codeHash   String     @map("code_hash")
+  attempts   Int        @default(0)
+  ip         String?
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz(3)
+
+  @@index([phone, createdAt])
+  @@index([ip, createdAt])
+  @@map("otp_challenge")
+}
+
+// ───────────────────────────── RBAC ─────────────────────────────
+
+model Role {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  key       String // GYM_OWNER, COACH, … (custom roles later)
+  gymId     String?  @map("gym_id") @db.Uuid // null = system role
+  nameFa    String   @map("name_fa")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym         Gym?             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  memberships GymMembership[]
+  branchStaff BranchStaff[]
+
+  @@unique([gymId, key])
+  @@map("role")
+}
+
+model Permission {
+  id    String           @id @default(uuid(7)) @db.Uuid
+  key   String           @unique
+  roles RolePermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permission")
+}
+
+// ───────────────────────────── Tenancy ─────────────────────────────
+
+enum GymStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+model Gym {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  name         String
+  slug         String    @unique
+  status       GymStatus @default(TRIAL)
+  ownerUserId  String    @map("owner_user_id") @db.Uuid
+  logoFileId   String?   @map("logo_file_id") @db.Uuid
+  primaryColor String?   @map("primary_color")
+  timezone     String    @default("Asia/Tehran")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  owner         User              @relation("GymOwner", fields: [ownerUserId], references: [id])
+  memberships   GymMembership[]
+  branches      Branch[]
+  branchStaff   BranchStaff[]
+  settings      GymSetting[]
+  subscriptions GymSubscription[]
+  roles         Role[]
+  auditLogs     AuditLog[]
+  files         FileAsset[]
+
+  @@map("gym")
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+/// A user's role in a gym (a user can belong to several gyms).
+model GymMembership {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  gymId     String           @map("gym_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  roleId    String           @map("role_id") @db.Uuid
+  status    MembershipStatus @default(ACTIVE)
+  invitedBy String?          @map("invited_by") @db.Uuid
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([gymId, userId, roleId])
+  @@index([userId])
+  @@index([gymId, status])
+  @@map("gym_membership")
+}
+
+model Branch {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  gymId         String    @map("gym_id") @db.Uuid
+  name          String
+  address       String?
+  phone         String?
+  managerUserId String?   @map("manager_user_id") @db.Uuid
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  gym   Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff BranchStaff[]
+
+  @@index([gymId])
+  @@map("branch")
+}
+
+/// Limits branch-scoped roles (branch manager, receptionist, store manager) to specific branches.
+model BranchStaff {
+  gymId    String @map("gym_id") @db.Uuid
+  branchId String @map("branch_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  roleId   String @map("role_id") @db.Uuid
+
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([branchId, userId, roleId])
+  @@index([gymId, userId])
+  @@map("branch_staff")
+}
+
+model GymSetting {
+  gymId     String   @map("gym_id") @db.Uuid
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@id([gymId, key])
+  @@map("gym_setting")
+}
+
+// ───────────────────────────── SaaS plans ─────────────────────────────
+
+model Module {
+  id     String                 @id @default(uuid(7)) @db.Uuid
+  key    String                 @unique
+  nameFa String                 @map("name_fa")
+  plans  SubscriptionPlanModule[]
+
+  @@map("module")
+}
+
+model SubscriptionPlan {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  key               String   @unique
+  nameFa            String   @map("name_fa")
+  monthlyAmountRial BigInt   @map("monthly_amount_rial")
+  annualAmountRial  BigInt   @map("annual_amount_rial")
+  trialDays         Int      @default(0) @map("trial_days")
+  limits            Json     @default("{}") // { members, branches, aiTokensPerMonth }
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  modules       SubscriptionPlanModule[]
+  subscriptions GymSubscription[]
+
+  @@map("subscription_plan")
+}
+
+model SubscriptionPlanModule {
+  planId   String @map("plan_id") @db.Uuid
+  moduleId String @map("module_id") @db.Uuid
+
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  module Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@id([planId, moduleId])
+  @@map("subscription_plan_module")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingPeriod {
+  MONTHLY
+  ANNUAL
+}
+
+model GymSubscription {
+  id          String             @id @default(uuid(7)) @db.Uuid
+  gymId       String             @map("gym_id") @db.Uuid
+  planId      String             @map("plan_id") @db.Uuid
+  status      SubscriptionStatus
+  period      BillingPeriod      @default(MONTHLY)
+  startsAt    DateTime           @map("starts_at") @db.Timestamptz(3)
+  endsAt      DateTime           @map("ends_at") @db.Timestamptz(3)
+  trialEndsAt DateTime?          @map("trial_ends_at") @db.Timestamptz(3)
+  cancelAt    DateTime?          @map("cancel_at") @db.Timestamptz(3)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym  Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([gymId, status])
+  @@index([endsAt])
+  @@map("gym_subscription")
+}
+
+// ───────────────────────────── Audit & files ─────────────────────────────
+
+/// Append-only. The runtime DB role has no UPDATE/DELETE grant on this table.
+model AuditLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  gymId       String?  @map("gym_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorRole   String?  @map("actor_role")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  before      Json?
+  after       Json?
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym Gym? @relation(fields: [gymId], references: [id])
+
+  @@index([gymId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
+
+enum FileVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+model FileAsset {
+  id          String         @id @default(uuid(7)) @db.Uuid
+  gymId       String         @map("gym_id") @db.Uuid
+  ownerUserId String?        @map("owner_user_id") @db.Uuid
+  bucket      String
+  key         String
+  mimeType    String         @map("mime_type")
+  sizeBytes   Int            @map("size_bytes")
+  sha256      String
+  visibility  FileVisibility @default(PRIVATE)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([bucket, key])
+  @@index([gymId])
+  @@map("file_asset")
+}
