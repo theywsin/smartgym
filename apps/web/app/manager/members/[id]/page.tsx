@@ -207,7 +207,10 @@ export default function MemberPage() {
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex gap-1">
                                   {BigInt(s.dueAmountRial) > 0n && s.status !== "CANCELLED" && (
-                                    <PayDueButton sub={s} onDone={refresh} />
+                                    <>
+                                      <PayDueButton sub={s} onDone={refresh} />
+                                      <PayLinkButton sub={s} />
+                                    </>
                                   )}
                                   {s.status === "ACTIVE" && !ended && (
                                     <button type="button" className="btn-ghost h-8 px-2 text-xs" disabled={subAction.isPending}
@@ -537,6 +540,35 @@ function PayDueButton({ sub, onDone }: { sub: Sub; onDone: () => void }) {
       <button type="submit" className="btn-primary h-8 px-2 text-xs" disabled={pay.isPending}>ثبت</button>
       {pay.error && <span className="w-full text-xs text-err-tx">{(pay.error as ApiError).message}</span>}
     </form>
+  );
+}
+
+function PayLinkButton({ sub }: { sub: Sub }) {
+  const qc = useQueryClient();
+  const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const create = useMutation({
+    mutationFn: () => api<{ url: string }>("/payments/links", { method: "POST", body: { subscriptionId: sub.id } }),
+    onSuccess: (r) => { setUrl(r.url); void qc.invalidateQueries({ queryKey: ["payment-links"] }); },
+  });
+  if (url) {
+    return (
+      <span className="flex items-center gap-1">
+        <input readOnly aria-label="لینک پرداخت" className="input h-8 w-44 text-left text-xs ltr-nums" value={url} onFocus={(e) => e.currentTarget.select()} />
+        <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => { void navigator.clipboard?.writeText(url).then(() => setCopied(true)); }}>
+          {copied ? "کپی شد" : "کپی"}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span className="flex flex-col">
+      <button type="button" className="btn-ghost h-8 px-2 text-xs" disabled={create.isPending} onClick={() => create.mutate()}
+        title="لینکی می‌سازد که عضو با آن بدهی را از درگاه بانک سامان پرداخت کند">
+        لینک پرداخت
+      </button>
+      {create.error && <span className="max-w-56 text-xs text-err-tx">{(create.error as ApiError).message}</span>}
+    </span>
   );
 }
 

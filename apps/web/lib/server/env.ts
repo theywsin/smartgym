@@ -10,6 +10,7 @@ const schema = z.object({
   JWT_SECRET: secret,
   SMS_PROVIDER: z.enum(["console", "melipayamak", "kavenegar"]).optional(),
   APP_URL: z.url().optional(),
+  PAYMENT_GATEWAY: z.enum(["saman", "sandbox"]).optional(),
 });
 
 export type Env = z.infer<typeof schema>;

@@ -232,3 +232,30 @@ export const cashReportSchema = z.object({
 });
 
 export { z };
+
+export const paymentLinkSchema = z.object({
+  subscriptionId: uuid,
+  amountRial: amountRial.refine((v) => v > 0n, "مبلغ باید بیشتر از صفر باشد").optional(),
+});
+export type PaymentLinkInput = z.infer<typeof paymentLinkSchema>;
+
+export const onlinePaymentSettingsSchema = z.object({
+  terminalId: z
+    .string()
+    .trim()
+    .transform((s) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))))
+    .pipe(z.string().regex(/^\d{6,12}$/, "شماره ترمینال باید ۶ تا ۱۲ رقم باشد"))
+    .nullable(),
+});
+
+/** Saman SEP posts application/x-www-form-urlencoded; only these fields are read. */
+export const gatewayCallbackSchema = z.object({
+  State: z.string().max(100).optional(),
+  Status: z.string().max(10).optional(),
+  RefNum: z.string().max(200).optional(),
+  ResNum: z.string().max(100).optional(),
+  Rrn: z.string().max(50).optional(),
+  SecurePan: z.string().max(50).optional(),
+  TerminalId: z.string().max(20).optional(),
+  Amount: z.string().max(20).optional(),
+});

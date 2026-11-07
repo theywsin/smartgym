@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Banknote, Building2, CalendarCheck, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
+import { Banknote, Building2, Settings, CalendarCheck, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
 import { formatIranMobile, toPersianDigits, ROLE_LABELS_FA, type GymRole } from "@smartgym/shared";
 import { api, ApiError, type Me } from "@/lib/client/api";
 import { Logo } from "@/components/logo";
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/manager/finance", label: "صندوق و بدهی‌ها", icon: Banknote, permission: "finance.read|memberships.manage" },
   { href: "/manager/branches", label: "شعب", icon: Building2, permission: "branches.read" },
   { href: "/manager/staff", label: "کارکنان", icon: Users, permission: "staff.read" },
+  { href: "/manager/settings", label: "تنظیمات", icon: Settings, permission: "settings.manage" },
 ] as const;
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
