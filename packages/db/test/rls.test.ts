@@ -61,4 +61,26 @@ describe.skipIf(!hasDb)("row-level security", () => {
       withTenant(app, { gymId: gymA.id }, (tx) => tx.auditLog.deleteMany({ where: { action: "test.write" } }))
     ).rejects.toThrow();
   });
+
+  it("isolates Phase 2 tables (members, plans, subscriptions, attendance)", async () => {
+    const created = await withSystem(app, async (tx) => {
+      const last = await tx.member.findFirst({ where: { gymId: gymB.id }, orderBy: { code: "desc" }, select: { code: true } });
+      const member = await tx.member.create({ data: { gymId: gymB.id, code: (last?.code ?? 1000) + 1, firstName: "rls", lastName: "test" } });
+      const plan = await tx.membershipPlan.create({ data: { gymId: gymB.id, name: "rls", durationDays: 30, priceAmountRial: 1n } });
+      return { member, plan };
+    });
+    const seen = await withTenant(app, { gymId: gymA.id }, async (tx) => ({
+      members: await tx.member.count({ where: { id: created.member.id } }),
+      plans: await tx.membershipPlan.count({ where: { id: created.plan.id } }),
+      subs: await tx.memberSubscription.count({ where: { gymId: gymB.id } }),
+      visits: await tx.attendance.count({ where: { gymId: gymB.id } }),
+    }));
+    expect(seen).toEqual({ members: 0, plans: 0, subs: 0, visits: 0 });
+    await expect(
+      withTenant(app, { gymId: gymA.id }, (tx) => tx.member.update({ where: { id: created.member.id }, data: { firstName: "hijack" } }))
+    ).rejects.toThrow();
+    await expect(
+      withTenant(app, { gymId: gymA.id }, (tx) => tx.membershipPlan.create({ data: { gymId: gymB.id, name: "x", durationDays: 1, priceAmountRial: 1n } }))
+    ).rejects.toThrow();
+  });
 });

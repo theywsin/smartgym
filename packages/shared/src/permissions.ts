@@ -7,7 +7,8 @@ export const PERMISSIONS = [
   "members.create",
   "members.update",
   "members.delete",
-  "memberships.manage",
+  "memberships.manage", // sell, renew, suspend member subscriptions
+  "plans.manage", // create and price membership plans
   "attendance.read",
   "attendance.manage",
   "finance.read",

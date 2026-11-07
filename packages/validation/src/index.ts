@@ -90,4 +90,99 @@ export const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
 
+// ───────────── Phase 2: members, memberships, attendance ─────────────
+
+/** Money in rial: a non-negative integer, sent as a JSON number or a digit string. Output is bigint. */
+export const amountRial = z
+  .union([z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER), z.string().trim().regex(/^\d{1,18}$/)])
+  .transform((v) => BigInt(v));
+
+const name = (label: string) => z.string().trim().min(1, `${label} را وارد کنید`).max(60);
+const optionalText = (max: number) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().trim().max(max).optional());
+const optionalMobile = z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), iranMobile.optional());
+
+/** YYYY-MM-DD (Gregorian). The UI converts from Jalali. */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "تاریخ معتبر نیست");
+
+export const nationalCode = z
+  .string()
+  .trim()
+  .regex(/^\d{10}$/, "کد ملی باید ۱۰ رقم باشد")
+  .refine((code) => {
+    if (/^(\d)\1{9}$/.test(code)) return false;
+    const digits = code.split("").map(Number);
+    const check = digits[9]!;
+    const sum = digits.slice(0, 9).reduce((acc, d, i) => acc + d * (10 - i), 0) % 11;
+    return sum < 2 ? check === sum : check === 11 - sum;
+  }, "کد ملی معتبر نیست");
+
+export const memberInputSchema = z.object({
+  firstName: name("نام"),
+  lastName: name("نام خانوادگی"),
+  phone: optionalMobile,
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  birthDate: z.preprocess((v) => (v === "" ? undefined : v), isoDate.optional()),
+  nationalCode: z.preprocess((v) => (v === "" ? undefined : v), nationalCode.optional()),
+  homeBranchId: z.preprocess((v) => (v === "" ? undefined : v), uuid.optional()),
+  emergencyContactName: optionalText(80),
+  emergencyContactPhone: optionalMobile,
+  notes: optionalText(2000),
+});
+export type MemberInput = z.infer<typeof memberInputSchema>;
+export const updateMemberSchema = memberInputSchema.partial();
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
+export const listMembersSchema = paginationSchema.extend({
+  q: z.string().trim().max(60).optional(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).default("ACTIVE"),
+  /** active = has a running period; expiring = ends within 7 days; expired = has none running. */
+  membership: z.enum(["active", "expiring", "expired", "suspended", "none"]).optional(),
+  branchId: uuid.optional(),
+});
+export type ListMembersInput = z.infer<typeof listMembersSchema>;
+
+export const membershipPlanSchema = z.object({
+  name: z.string().trim().min(1, "نام پلن را وارد کنید").max(80),
+  description: optionalText(500),
+  durationDays: z.coerce.number().int().min(1, "مدت باید حداقل ۱ روز باشد").max(3650),
+  priceAmountRial: amountRial,
+  entryLimit: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.coerce.number().int().min(1).max(10000).optional()),
+  allowedBranchIds: z.array(uuid).max(50).default([]),
+  isActive: z.boolean().default(true),
+});
+export type MembershipPlanInput = z.infer<typeof membershipPlanSchema>;
+// No defaults on update: a PATCH that omits a field must leave it unchanged.
+export const updateMembershipPlanSchema = membershipPlanSchema
+  .extend({ allowedBranchIds: z.array(uuid).max(50), isActive: z.boolean() })
+  .partial();
+export type UpdateMembershipPlanInput = z.infer<typeof updateMembershipPlanSchema>;
+
+export const sellMembershipSchema = z.object({
+  memberId: uuid,
+  planId: uuid,
+  branchId: uuid.optional(),
+  /** Defaults to now, or to the end of the member's current period when renewing. */
+  startsAt: z.iso.datetime({ offset: true }).optional(),
+  discountAmountRial: amountRial.default(0n),
+  note: optionalText(500),
+});
+export type SellMembershipInput = z.infer<typeof sellMembershipSchema>;
+
+export const membershipActionSchema = z.object({ note: optionalText(500) });
+
+export const checkInSchema = z.object({
+  memberId: uuid,
+  branchId: uuid,
+});
+export type CheckInInput = z.infer<typeof checkInSchema>;
+
+export const listAttendanceSchema = paginationSchema.extend({
+  branchId: uuid.optional(),
+  memberId: uuid.optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+});
+export type ListAttendanceInput = z.infer<typeof listAttendanceSchema>;
+
 export { z };

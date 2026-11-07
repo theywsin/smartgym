@@ -8,7 +8,7 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   OTP_PEPPER: secret,
   JWT_SECRET: secret,
-  SMS_PROVIDER: z.enum(["console", "kavenegar"]).optional(),
+  SMS_PROVIDER: z.enum(["console", "melipayamak", "kavenegar"]).optional(),
   APP_URL: z.url().optional(),
 });
 

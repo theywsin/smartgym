@@ -1,4 +1,4 @@
-// SmartGym 2.0 — database schema v1 (Phase 1: identity, tenancy, RBAC, SaaS plans, audit)
+// SmartGym 2.0 — database schema (Phase 1: identity, tenancy, RBAC, SaaS plans, audit; Phase 2: members, memberships, attendance)
 // Conventions: docs/DATABASE_DESIGN.md. Row-level security policies live in the SQL migrations.
 
 generator client {
@@ -169,6 +169,10 @@ model Gym {
   roles         Role[]
   auditLogs     AuditLog[]
   files         FileAsset[]
+  members       Member[]
+  plans         MembershipPlan[]
+  memberSubs    MemberSubscription[]
+  attendance    Attendance[]
 
   @@map("gym")
 }
@@ -212,8 +216,11 @@ model Branch {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  gym   Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  staff BranchStaff[]
+  gym         Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff       BranchStaff[]
+  homeMembers Member[]
+  memberSubs  MemberSubscription[]
+  attendance  Attendance[]
 
   @@index([gymId])
   @@map("branch")
@@ -367,4 +374,141 @@ model FileAsset {
   @@unique([bucket, key])
   @@index([gymId])
   @@map("file_asset")
+}
+
+// ───────────────────────────── Members (Phase 2) ─────────────────────────────
+
+enum MemberStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+/// A person registered at a gym. Whether they may enter is derived from their subscriptions,
+/// not stored here. user_id links the athlete app account once they sign in with the same phone.
+model Member {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  gymId            String       @map("gym_id") @db.Uuid
+  userId           String?      @map("user_id") @db.Uuid
+  homeBranchId     String?      @map("home_branch_id") @db.Uuid
+  code             Int // per-gym member number shown on cards and receipts
+  firstName        String       @map("first_name")
+  lastName         String       @map("last_name")
+  phone            String? // E.164
+  gender           Gender?
+  birthDate        DateTime?    @map("birth_date") @db.Date
+  nationalCode     String?      @map("national_code")
+  emergencyContact Json?        @map("emergency_contact")
+  notes            String?
+  status           MemberStatus @default(ACTIVE)
+  createdByUserId  String?      @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt       DateTime?    @map("archived_at") @db.Timestamptz(3)
+
+  gym           Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  homeBranch    Branch?              @relation(fields: [homeBranchId], references: [id])
+  subscriptions MemberSubscription[]
+  attendance    Attendance[]
+
+  @@unique([gymId, code])
+  @@index([gymId, status])
+  @@index([gymId, phone])
+  @@map("member")
+}
+
+model MembershipPlan {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  gymId            String    @map("gym_id") @db.Uuid
+  name             String
+  description      String?
+  durationDays     Int       @map("duration_days")
+  priceAmountRial  BigInt    @map("price_amount_rial")
+  entryLimit       Int?      @map("entry_limit") // null = unlimited entries during the period
+  allowedBranchIds String[]  @default([]) @map("allowed_branch_ids") @db.Uuid // empty = every branch
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  gym           Gym                  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  subscriptions MemberSubscription[]
+
+  @@index([gymId, isActive])
+  @@map("membership_plan")
+}
+
+enum MemberSubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+/// One sold period of a plan. "Expired" is not stored: an ACTIVE row whose ends_at has passed is expired.
+/// Plan terms (entry limit, branches) are copied at sale time so later plan edits do not change sold periods.
+model MemberSubscription {
+  id                 String                   @id @default(uuid(7)) @db.Uuid
+  gymId              String                   @map("gym_id") @db.Uuid
+  memberId           String                   @map("member_id") @db.Uuid
+  planId             String                   @map("plan_id") @db.Uuid
+  branchId           String?                  @map("branch_id") @db.Uuid // branch where it was sold
+  status             MemberSubscriptionStatus @default(ACTIVE)
+  startsAt           DateTime                 @map("starts_at") @db.Timestamptz(3)
+  endsAt             DateTime                 @map("ends_at") @db.Timestamptz(3)
+  entryLimit         Int?                     @map("entry_limit")
+  entriesUsed        Int                      @default(0) @map("entries_used")
+  allowedBranchIds   String[]                 @default([]) @map("allowed_branch_ids") @db.Uuid
+  priceAmountRial    BigInt                   @map("price_amount_rial")
+  discountAmountRial BigInt                   @default(0) @map("discount_amount_rial")
+  suspendedAt        DateTime?                @map("suspended_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?                @map("cancelled_at") @db.Timestamptz(3)
+  renewedFromId      String?                  @map("renewed_from_id") @db.Uuid
+  note               String?
+  createdByUserId    String?                  @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym        Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member     Member         @relation(fields: [memberId], references: [id])
+  plan       MembershipPlan @relation(fields: [planId], references: [id])
+  branch     Branch?        @relation(fields: [branchId], references: [id])
+  attendance Attendance[]
+
+  @@index([gymId, status, endsAt])
+  @@index([memberId, startsAt(sort: Desc)])
+  @@map("member_subscription")
+}
+
+// ───────────────────────────── Attendance (Phase 2) ─────────────────────────────
+
+enum CheckinMethod {
+  MANUAL
+  QR
+}
+
+model Attendance {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  gymId            String        @map("gym_id") @db.Uuid
+  branchId         String        @map("branch_id") @db.Uuid
+  memberId         String        @map("member_id") @db.Uuid
+  subscriptionId   String        @map("subscription_id") @db.Uuid
+  checkedInAt      DateTime      @default(now()) @map("checked_in_at") @db.Timestamptz(3)
+  checkedOutAt     DateTime?     @map("checked_out_at") @db.Timestamptz(3)
+  method           CheckinMethod @default(MANUAL)
+  recordedByUserId String?       @map("recorded_by_user_id") @db.Uuid
+  idempotencyKey   String?       @map("idempotency_key")
+
+  gym          Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branch       Branch             @relation(fields: [branchId], references: [id])
+  member       Member             @relation(fields: [memberId], references: [id])
+  subscription MemberSubscription @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([gymId, idempotencyKey])
+  @@index([gymId, branchId, checkedInAt(sort: Desc)])
+  @@index([memberId, checkedInAt(sort: Desc)])
+  @@map("attendance")
 }

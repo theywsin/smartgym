@@ -41,6 +41,8 @@ cp apps/web/.env.example apps/web/.env.local   # then fill in the secrets
 npm run dev -w @smartgym/web
 ```
 
+SMS providers: `console` (development), `melipayamak` (production: set `MELIPAYAMAK_API_KEY` and `MELIPAYAMAK_OTP_BODY_ID`, the id of an approved shared-line template whose text contains `{0}` for the code), and `kavenegar`.
+
 With `SMS_PROVIDER=console` the OTP code is printed in the server log. The console provider refuses to start in production unless `ALLOW_CONSOLE_SMS=true`, which is only for local `next start` testing.
 
 Demo owners after `SEED_DEV`: `09120000001` (demo-arian) and `09120000002` (demo-negin).
