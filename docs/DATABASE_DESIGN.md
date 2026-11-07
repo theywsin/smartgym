@@ -104,6 +104,8 @@ Check-in runs in one transaction: lock the active subscription row (`SELECT … 
 | `Commission` | gym_id, coach_id, source_payment_id, amount_rial, status (`ACCRUED`/`SETTLED`), settlement_id |
 | `CoachSettlement` | gym_id, coach_id, period_start, period_end, total_amount_rial, paid_at |
 
+**As built (Phase 3 part 1):** `payment` (positive amount, `refunded_amount_rial` ≤ amount; the runtime role may only INSERT and update `refunded_amount_rial`, never DELETE) and `ledger_entry` (append-only, signed amount with a CHECK per type: INCOME > 0, REFUND/EXPENSE < 0). Debt is derived: price − discount − (payments − refunds) per period, so there is no separate `MemberDebt` table to drift.
+
 ### 2.7 Store, inventory, buffet
 
 | Model | Key fields |

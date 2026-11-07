@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Building2, CalendarCheck, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
+import { Banknote, Building2, CalendarCheck, ClipboardList, Dumbbell, LayoutDashboard, LogOut, Menu, UserRound, Users, X } from "lucide-react";
 import { formatIranMobile, toPersianDigits, ROLE_LABELS_FA, type GymRole } from "@smartgym/shared";
 import { api, ApiError, type Me } from "@/lib/client/api";
 import { Logo } from "@/components/logo";
@@ -17,6 +17,7 @@ const NAV = [
   { href: "/manager/attendance", label: "حضور و غیاب", icon: CalendarCheck, permission: "attendance.read" },
   { href: "/manager/plans", label: "پلن‌های عضویت", icon: ClipboardList, permission: "members.read" },
   { href: "/manager/coaches", label: "مربیان", icon: Dumbbell, permission: "coaches.read" },
+  { href: "/manager/finance", label: "صندوق و بدهی‌ها", icon: Banknote, permission: "finance.read|memberships.manage" },
   { href: "/manager/branches", label: "شعب", icon: Building2, permission: "branches.read" },
   { href: "/manager/staff", label: "کارکنان", icon: Users, permission: "staff.read" },
 ] as const;
@@ -50,7 +51,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
   const access = data.access!;
   const gym = data.gyms.find((g) => g.id === data.activeGymId);
   const perms = new Set(access.permissions);
-  const nav = NAV.filter((n) => n.permission === null || perms.has(n.permission));
+  const nav = NAV.filter((n) => n.permission === null || n.permission.split("|").some((p) => perms.has(p)));
   const roleLabel = access.roles.map((r) => ROLE_LABELS_FA[r as GymRole] ?? r).join("، ");
 
   const sidebar = (

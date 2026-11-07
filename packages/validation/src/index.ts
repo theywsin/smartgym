@@ -167,6 +167,8 @@ export const sellMembershipSchema = z.object({
   startsAt: z.iso.datetime({ offset: true }).optional(),
   discountAmountRial: amountRial.default(0n),
   note: optionalText(500),
+  /** Money taken at the counter with the sale. Less than the price leaves a debt. */
+  payment: z.lazy(() => paymentInputSchema).optional(),
 });
 export type SellMembershipInput = z.infer<typeof sellMembershipSchema>;
 
@@ -198,5 +200,35 @@ export const updateCoachSchema = z.object({
   commissionRateBp: z.number().int().min(0).max(10000).nullable().optional(),
 });
 export type UpdateCoachInput = z.infer<typeof updateCoachSchema>;
+
+// ───────────── Phase 3: payments ─────────────
+
+export const paymentMethod = z.enum(["CASH", "CARD_POS", "TRANSFER"]);
+
+export const paymentInputSchema = z.object({
+  amountRial: amountRial.refine((v) => v > 0n, "مبلغ باید بیشتر از صفر باشد"),
+  method: paymentMethod,
+  reference: optionalText(64),
+});
+export type PaymentInput = z.infer<typeof paymentInputSchema>;
+
+export const recordPaymentSchema = paymentInputSchema.extend({
+  subscriptionId: uuid,
+  note: optionalText(500),
+});
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
+
+export const refundSchema = z.object({
+  amountRial: amountRial.refine((v) => v > 0n, "مبلغ باید بیشتر از صفر باشد"),
+  method: paymentMethod,
+  reason: z.string().trim().min(1, "دلیل بازگشت وجه را بنویسید").max(500),
+});
+export type RefundInput = z.infer<typeof refundSchema>;
+
+export const cashReportSchema = z.object({
+  /** Tehran calendar day, YYYY-MM-DD (Gregorian). Defaults to today. */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  branchId: uuid.optional(),
+});
 
 export { z };

@@ -176,6 +176,8 @@ model Gym {
   memberNotes   MemberNote[]
   coachProfiles CoachProfile[]
   coachAthletes CoachAthlete[]
+  payments      Payment[]
+  ledger        LedgerEntry[]
 
   @@map("gym")
 }
@@ -477,6 +479,7 @@ model MemberSubscription {
   createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  payments   Payment[]
   gym        Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   member     Member         @relation(fields: [memberId], references: [id])
   plan       MembershipPlan @relation(fields: [planId], references: [id])
@@ -568,4 +571,67 @@ model CoachAthlete {
   @@index([gymId, coachUserId, endedAt])
   @@index([memberId])
   @@map("coach_athlete")
+}
+
+// ───────────────────────────── Finance (Phase 3) ─────────────────────────────
+
+enum PaymentMethod {
+  CASH
+  CARD_POS
+  TRANSFER
+  ONLINE
+}
+
+/// Money received. Never deleted or edited except refunded_amount_rial (raised by refunds under a row lock).
+model Payment {
+  id                 String        @id @default(uuid(7)) @db.Uuid
+  gymId              String        @map("gym_id") @db.Uuid
+  branchId           String?       @map("branch_id") @db.Uuid
+  memberId           String?       @map("member_id") @db.Uuid
+  subscriptionId     String?       @map("subscription_id") @db.Uuid
+  amountRial         BigInt        @map("amount_rial")
+  refundedAmountRial BigInt        @default(0) @map("refunded_amount_rial")
+  method             PaymentMethod
+  reference          String? // POS tracking number, transfer reference, gateway ref
+  note               String?
+  receivedByUserId   String?       @map("received_by_user_id") @db.Uuid
+  idempotencyKey     String?       @map("idempotency_key")
+  paidAt             DateTime      @default(now()) @map("paid_at") @db.Timestamptz(3)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym          Gym                 @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  subscription MemberSubscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@unique([gymId, idempotencyKey])
+  @@index([gymId, paidAt])
+  @@index([subscriptionId])
+  @@index([memberId])
+  @@map("payment")
+}
+
+enum LedgerType {
+  INCOME
+  REFUND
+  EXPENSE
+}
+
+/// Append-only money ledger (runtime role has no UPDATE/DELETE). amount_rial is signed: in > 0, out < 0.
+model LedgerEntry {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  gymId           String        @map("gym_id") @db.Uuid
+  branchId        String?       @map("branch_id") @db.Uuid
+  type            LedgerType
+  amountRial      BigInt        @map("amount_rial")
+  method          PaymentMethod
+  memberId        String?       @map("member_id") @db.Uuid
+  paymentId       String?       @map("payment_id") @db.Uuid
+  description     String?
+  createdByUserId String?       @map("created_by_user_id") @db.Uuid
+  occurredAt      DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, occurredAt])
+  @@index([gymId, branchId, occurredAt])
+  @@map("ledger_entry")
 }

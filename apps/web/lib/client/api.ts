@@ -19,11 +19,12 @@ function csrfToken(): string | undefined {
     ?.split("=")[1];
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown; csv?: string } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown; csv?: string; idempotencyKey?: string } = {}): Promise<T> {
   const method = init.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
   if (init.body !== undefined) headers["Content-Type"] = "application/json";
   if (init.csv !== undefined) headers["Content-Type"] = "text/csv; charset=utf-8";
+  if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
   if (method !== "GET") {
     const token = csrfToken();
     if (token) headers["X-CSRF-Token"] = token;

@@ -17,7 +17,7 @@ import { MemberForm, applyServerFieldErrors, memberToForm } from "@/components/m
 type Sub = {
   id: string; planName: string; branchId: string | null; status: "ACTIVE" | "SUSPENDED" | "CANCELLED";
   startsAt: string; endsAt: string; entryLimit: number | null; entriesUsed: number;
-  priceAmountRial: string; discountAmountRial: string; note: string | null;
+  priceAmountRial: string; discountAmountRial: string; paidAmountRial: string; dueAmountRial: string; note: string | null;
 };
 type Member = {
   id: string; code: number; firstName: string; lastName: string; phone: string | null; gender: string | null;
@@ -51,6 +51,9 @@ export default function MemberPage() {
     void qc.invalidateQueries({ queryKey: ["member", id] });
     void qc.invalidateQueries({ queryKey: ["members"] });
     void qc.invalidateQueries({ queryKey: ["attendance"] });
+    void qc.invalidateQueries({ queryKey: ["member-payments", id] });
+    void qc.invalidateQueries({ queryKey: ["cash-report"] });
+    void qc.invalidateQueries({ queryKey: ["debts"] });
   };
 
   const update = useMutation({
@@ -195,11 +198,17 @@ export default function MemberPage() {
                             <td className="px-4 py-3 whitespace-nowrap">
                               {toman(net)}
                               {s.discountAmountRial !== "0" && <span className="block text-xs text-ink-3">تخفیف {toman(s.discountAmountRial)}</span>}
+                              {BigInt(s.dueAmountRial) > 0n && s.status !== "CANCELLED" && (
+                                <span className="block text-xs font-semibold text-err-tx">بدهی {toman(s.dueAmountRial)}</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">{s.status === "ACTIVE" && ended ? "پایان یافته" : SUB_STATUS[s.status]}</td>
                             {canSell && (
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex gap-1">
+                                  {BigInt(s.dueAmountRial) > 0n && s.status !== "CANCELLED" && (
+                                    <PayDueButton sub={s} onDone={refresh} />
+                                  )}
                                   {s.status === "ACTIVE" && !ended && (
                                     <button type="button" className="btn-ghost h-8 px-2 text-xs" disabled={subAction.isPending}
                                       onClick={() => confirm("اشتراک تعلیق شود؟ روزهای تعلیق هنگام ادامه به انتهای دوره اضافه می‌شود.") && subAction.mutate({ subId: s.id, action: "suspend" })}>
@@ -214,7 +223,7 @@ export default function MemberPage() {
                                   )}
                                   {s.status !== "CANCELLED" && !ended && (
                                     <button type="button" className="btn-ghost h-8 px-2 text-xs text-err-tx" disabled={subAction.isPending}
-                                      onClick={() => confirm("این اشتراک لغو شود؟ بازگشت وجه در بخش مالی ثبت می‌شود.") && subAction.mutate({ subId: s.id, action: "cancel" })}>
+                                      onClick={() => confirm("این اشتراک لغو شود؟ بازگشت وجه جداگانه از فهرست پرداخت‌ها ثبت می‌شود.") && subAction.mutate({ subId: s.id, action: "cancel" })}>
                                       لغو
                                     </button>
                                   )}
@@ -247,6 +256,7 @@ export default function MemberPage() {
                 {m.notes && <Info label="یادداشت" value={<span className="whitespace-pre-line">{m.notes}</span>} />}
               </dl>
             </section>
+            <PaymentsCard memberId={m.id} onDone={refresh} />
             <CoachCard member={m} onDone={refresh} />
             <NotesCard memberId={m.id} canAdd={canUpdate && !archived} />
             <section className="card" aria-labelledby="visits-title">
@@ -287,18 +297,26 @@ function SellCard({ member, branches, scoped, onDone }: { member: Member; branch
   const [branchId, setBranchId] = useState(member.homeBranchId ?? allowed[0]?.id ?? "");
   const [discount, setDiscount] = useState("");
   const [note, setNote] = useState("");
+  const [paid, setPaid] = useState("");
+  const [method, setMethod] = useState<PayMethod>("CARD_POS");
+  const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const plan = plans.data?.find((p) => p.id === planId);
   const discountRial = discount.trim() ? tomanInputToRial(discount) : "0";
+  const payable = plan && discountRial !== null && BigInt(discountRial) <= BigInt(plan.priceAmountRial) ? BigInt(plan.priceAmountRial) - BigInt(discountRial) : null;
+  const paidRial = paid.trim() === "" ? (payable !== null ? payable.toString() : "0") : tomanInputToRial(paid);
   const renew = member.membership.state === "active" || member.membership.state === "upcoming" || member.membership.state === "exhausted";
 
   const sell = useMutation({
     mutationFn: () =>
       api("/memberships", {
         method: "POST",
-        body: { memberId: member.id, planId, branchId: branchId || undefined, discountAmountRial: discountRial ?? "0", note: note || undefined },
+        body: {
+          memberId: member.id, planId, branchId: branchId || undefined, discountAmountRial: discountRial ?? "0", note: note || undefined,
+          payment: paidRial && paidRial !== "0" ? { amountRial: paidRial, method, reference: reference || undefined } : undefined,
+        },
       }),
-    onSuccess: () => { setPlanId(""); setDiscount(""); setNote(""); setError(null); onDone(); },
+    onSuccess: () => { setPlanId(""); setDiscount(""); setNote(""); setPaid(""); setReference(""); setError(null); onDone(); },
     onError: (e) => setError(e instanceof ApiError ? Object.values(e.fields ?? {})[0]?.[0] ?? e.message : "خطا در ثبت"),
   });
 
@@ -320,6 +338,7 @@ function SellCard({ member, branches, scoped, onDone }: { member: Member; branch
             e.preventDefault();
             if (!planId) return setError("پلن را انتخاب کنید.");
             if (discountRial === null) return setError("مبلغ تخفیف را به عدد وارد کنید.");
+            if (paidRial === null) return setError("مبلغ دریافتی را به عدد وارد کنید.");
             sell.mutate();
           }}
         >
@@ -351,6 +370,22 @@ function SellCard({ member, branches, scoped, onDone }: { member: Member; branch
             <label className="label" htmlFor="sell-note">توضیح</label>
             <input id="sell-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً: پرداخت نقدی در پذیرش" />
           </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="sell-paid">مبلغ دریافتی (تومان)</label>
+              <input id="sell-paid" className="input ltr-nums text-left" inputMode="numeric" placeholder={payable !== null ? (payable / 10n).toString() : "0"} value={paid} onChange={(e) => setPaid(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="sell-method">روش پرداخت</label>
+              <select id="sell-method" className="input" value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
+                {PAY_METHODS.map((m) => <option key={m} value={m}>{PAY_LABEL[m]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="sell-ref">شماره پیگیری</label>
+              <input id="sell-ref" className="input ltr-nums text-left" value={reference} onChange={(e) => setReference(e.target.value)} />
+            </div>
+          </div>
           {plan && (
             <p className="rounded-lg bg-canvas p-3 text-sm">
               {fa(plan.durationDays)} روز
@@ -361,7 +396,7 @@ function SellCard({ member, branches, scoped, onDone }: { member: Member; branch
             </p>
           )}
           {error && <p role="alert" className="field-error">{error}</p>}
-          <p className="text-xs text-ink-3">ثبت پرداخت و صندوق در ماژول مالی (فاز بعد) اضافه می‌شود؛ فعلاً مبلغ و تخفیف روی اشتراک ثبت می‌شود.</p>
+          <p className="text-xs text-ink-3">خالی گذاشتن مبلغ دریافتی یعنی کل مبلغ دریافت شد؛ برای ثبت بدهی، مبلغ کمتر (یا ۰) وارد کنید.</p>
           <button type="submit" className="btn-primary" disabled={sell.isPending}>
             {sell.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
             {renew ? "ثبت تمدید" : "ثبت اشتراک"}
@@ -471,6 +506,85 @@ function NotesCard({ memberId, canAdd }: { memberId: string; canAdd: boolean }) 
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+type PayMethod = "CASH" | "CARD_POS" | "TRANSFER";
+const PAY_METHODS: PayMethod[] = ["CARD_POS", "CASH", "TRANSFER"];
+const PAY_LABEL: Record<string, string> = { CASH: "نقد", CARD_POS: "کارت‌خوان", TRANSFER: "کارت به کارت", ONLINE: "درگاه آنلاین" };
+
+function PayDueButton({ sub, onDone }: { sub: Sub; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<PayMethod>("CARD_POS");
+  const key = useRef(crypto.randomUUID());
+  const pay = useMutation({
+    mutationFn: () => {
+      const rial = amount.trim() ? tomanInputToRial(amount) : sub.dueAmountRial;
+      if (rial === null) throw new ApiError(400, "BAD", "مبلغ را به عدد وارد کنید.");
+      return api("/payments", { method: "POST", body: { subscriptionId: sub.id, amountRial: rial, method } , idempotencyKey: key.current });
+    },
+    onSuccess: () => { setOpen(false); setAmount(""); key.current = crypto.randomUUID(); onDone(); },
+  });
+  if (!open) return <button type="button" className="btn-ghost h-8 px-2 text-xs text-brand-700" onClick={() => setOpen(true)}>دریافت</button>;
+  return (
+    <form className="flex flex-wrap items-center gap-1" onSubmit={(e) => { e.preventDefault(); pay.mutate(); }}>
+      <input aria-label="مبلغ (تومان)" className="input h-8 w-28 text-xs ltr-nums" placeholder={(BigInt(sub.dueAmountRial) / 10n).toString()} value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <select aria-label="روش پرداخت" className="input h-8 w-auto text-xs" value={method} onChange={(e) => setMethod(e.target.value as PayMethod)}>
+        {PAY_METHODS.map((m) => <option key={m} value={m}>{PAY_LABEL[m]}</option>)}
+      </select>
+      <button type="submit" className="btn-primary h-8 px-2 text-xs" disabled={pay.isPending}>ثبت</button>
+      {pay.error && <span className="w-full text-xs text-err-tx">{(pay.error as ApiError).message}</span>}
+    </form>
+  );
+}
+
+type PaymentRow = { id: string; amountRial: string; refundedAmountRial: string; method: string; reference: string | null; paidAt: string };
+
+function PaymentsCard({ memberId, onDone }: { memberId: string; onDone: () => void }) {
+  const qc = useQueryClient();
+  const canRefund = useCan("finance.manage");
+  const payments = useQuery({ queryKey: ["member-payments", memberId], queryFn: () => api<PaymentRow[]>(`/members/${memberId}/payments`) });
+  const refund = useMutation({
+    mutationFn: ({ id, amountRial, reason }: { id: string; amountRial: string; reason: string }) =>
+      api(`/payments/${id}/refund`, { method: "POST", body: { amountRial, method: "CASH", reason } }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["member-payments", memberId] }); onDone(); },
+  });
+  return (
+    <section className="card space-y-3" aria-labelledby="payments-title">
+      <h2 id="payments-title" className="card-title">پرداخت‌ها</h2>
+      {payments.data?.length === 0 && <p className="text-sm text-ink-2">پرداختی ثبت نشده است.</p>}
+      <ul className="space-y-2 text-sm">
+        {payments.data?.map((p) => {
+          const left = BigInt(p.amountRial) - BigInt(p.refundedAmountRial);
+          return (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong>{toman(p.amountRial)}</strong> <span className="text-ink-2">{PAY_LABEL[p.method] ?? p.method}، {jdate(p.paidAt)}</span>
+                {p.refundedAmountRial !== "0" && <span className="block text-xs text-err-tx">بازگشت {toman(p.refundedAmountRial)}</span>}
+              </span>
+              {canRefund && left > 0n && (
+                <button
+                  type="button"
+                  className="btn-ghost h-7 px-2 text-xs text-err-tx"
+                  disabled={refund.isPending}
+                  onClick={() => {
+                    const t = prompt(`مبلغ بازگشت به تومان (حداکثر ${(left / 10n).toString()})`, (left / 10n).toString());
+                    if (!t) return;
+                    const rial = tomanInputToRial(t);
+                    const reason = rial ? prompt("دلیل بازگشت وجه") : null;
+                    if (rial && reason) refund.mutate({ id: p.id, amountRial: rial, reason });
+                  }}
+                >
+                  بازگشت وجه
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {refund.error && <p role="alert" className="field-error">{(refund.error as ApiError).message}</p>}
     </section>
   );
 }
