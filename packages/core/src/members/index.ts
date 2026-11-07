@@ -128,7 +128,7 @@ export async function getMember(deps: CoreDeps, ctx: TenantContext, memberId: st
         where: { gymId: ctx.gymId, memberId },
         orderBy: { startsAt: "desc" },
         take: 50,
-        include: { plan: { select: { name: true } } },
+        include: { plan: { select: { name: true } }, payments: { select: { amountRial: true, refundedAmountRial: true } } },
       }),
       tx.attendance.findMany({
         where: { gymId: ctx.gymId, memberId },
@@ -154,6 +154,8 @@ export async function getMember(deps: CoreDeps, ctx: TenantContext, memberId: st
         entriesUsed: s.entriesUsed,
         priceAmountRial: s.priceAmountRial,
         discountAmountRial: s.discountAmountRial,
+        paidAmountRial: s.payments.reduce((a, p) => a + p.amountRial - p.refundedAmountRial, 0n),
+        dueAmountRial: s.priceAmountRial - s.discountAmountRial - s.payments.reduce((a, p) => a + p.amountRial - p.refundedAmountRial, 0n),
         suspendedAt: s.suspendedAt,
         cancelledAt: s.cancelledAt,
         note: s.note,

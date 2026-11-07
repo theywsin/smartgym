@@ -44,7 +44,10 @@ Still to do in Phase 2: profile image, member timeline, XLSX (CSV works with Exc
 
 Members (CRUD, archive, search/filters, profile image, emergency contact, notes, timeline, CSV/XLSX import with error report, export), membership plans (pricing, duration, entry limits, branch restriction, discounts, gift codes), member subscriptions (activate, renew, suspend, cancel, history, automatic expiry job + reminders), attendance (manual + signed rotating QR check-in, validation against active subscription, entry/exit, daily/branch/peak-hour stats), coaches (profiles, specializations, assignments, availability), manager dashboard (real aggregates with date/branch/plan filters).
 
-## Phase 3 — Business operations
+## Phase 3 — Business operations  ← **started**
+
+Done in the first Phase 3 PR: payments at the counter (cash, card POS, transfer) with the sale or as instalments, derived debts, refunds, append-only ledger, daily till report per method and branch, debtors list.
+
 
 Finance (payments with idempotency keys, transactions ledger, expenses, categories, debts, refunds, coach commissions/settlements, P&L, reconciliation; Saman (SEP) adapter), store (products, categories, suppliers, purchases, sales, returns, inventory movements for every stock change, low-stock alerts), buffet (menu, orders, status, payment, inventory), multi-branch (branch inventory, member transfer, consolidated reports), loyalty (accounts, earn/redeem rules), reports.
 

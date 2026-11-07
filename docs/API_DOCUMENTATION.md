@@ -169,6 +169,9 @@ Implemented in Phase 2: manual `check-in` `{memberId, branchId}`, `check-out`, a
 | POST | `/measurements/photos` | multipart; private storage |
 
 ### 2.11 Finance — P3
+
+Implemented (Phase 3 part 1, under `/api/v1`): `POST /payments {subscriptionId, amountRial, method: CASH|CARD_POS|TRANSFER, reference?, note?}` with optional `Idempotency-Key` (`memberships.manage`, so counter staff can take instalments; never more than the balance); `POST /memberships` accepts `payment` to take money with the sale; `POST /payments/:id/refund {amountRial, method, reason}` (`finance.manage`); `GET /members/:id/payments`; `GET /finance/cash-report?date=&branchId=` (Tehran day, per-method totals; `finance.read` or `memberships.manage`, branch-scoped); `GET /finance/debts` (`finance.read`). Online gateway (Saman), expenses, categories and commissions are next.
+
 | Method | Path | perm |
 |---|---|---|
 | GET/POST | `/payments` | `finance.read` / `finance.manage` (Idempotency-Key) |

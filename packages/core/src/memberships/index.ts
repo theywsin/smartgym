@@ -5,6 +5,7 @@ import { type CoreDeps, nowOf } from "../deps";
 import { writeAudit } from "../audit";
 import { type TenantContext, requirePermission, requireWritableGym, primaryRole, canAccessBranch } from "../rbac/access";
 import { findAccessibleMember } from "../members";
+import { takePaymentTx } from "../finance";
 
 export * from "./state";
 
@@ -160,6 +161,9 @@ export async function sellMembership(deps: CoreDeps, ctx: TenantContext, input: 
         createdByUserId: ctx.userId,
       },
     });
+    if (input.payment) {
+      await takePaymentTx(tx, ctx, { subscriptionId: sub.id, memberId: member.id, branchId: branchId ?? null, input: input.payment, now });
+    }
     await writeAudit(tx, {
       gymId: ctx.gymId, actorUserId: ctx.userId, actorRole: primaryRole(ctx),
       action: latest && !input.startsAt ? "membership.renew" : "membership.sell",

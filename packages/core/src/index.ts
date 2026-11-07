@@ -15,3 +15,4 @@ export * from "./attendance";
 export * from "./members/notes";
 export * from "./members/io";
 export * from "./coaches";
+export * from "./finance";
