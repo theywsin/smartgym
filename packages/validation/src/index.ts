@@ -285,3 +285,11 @@ export const jalaliMonthQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   branchId: uuid.optional(),
 });
+
+export const coachPayoutSchema = z.object({
+  coachUserId: uuid,
+  year: z.number().int().min(1300).max(1500),
+  month: z.number().int().min(1).max(12),
+  amountRial: amountRial.refine((v) => v > 0n, "مبلغ باید بیشتر از صفر باشد"),
+  method: paymentMethod,
+});

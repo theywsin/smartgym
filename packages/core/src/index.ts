@@ -18,3 +18,4 @@ export * from "./coaches";
 export * from "./finance";
 export * from "./online-payments";
 export * from "./expenses";
+export * from "./coaches/commissions";

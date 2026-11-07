@@ -180,6 +180,7 @@ model Gym {
   onlinePaymentRequests OnlinePaymentRequest[]
   expenseCategories ExpenseCategory[]
   expenses      Expense[]
+  coachPayouts  CoachPayout[]
   ledger        LedgerEntry[]
 
   @@map("gym")
@@ -714,4 +715,23 @@ model Expense {
 
   @@index([gymId, spentAt])
   @@map("expense")
+}
+
+/// Money paid to a coach against a month's commission. Always backed by an expense (category salaries).
+model CoachPayout {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  gymId           String   @map("gym_id") @db.Uuid
+  coachUserId     String   @map("coach_user_id") @db.Uuid
+  /// Jalali period the payout settles.
+  periodYear      Int      @map("period_year")
+  periodMonth     Int      @map("period_month")
+  amountRial      BigInt   @map("amount_rial")
+  expenseId       String   @unique @map("expense_id") @db.Uuid
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, periodYear, periodMonth])
+  @@map("coach_payout")
 }
