@@ -184,6 +184,7 @@ model Gym {
   products      Product[]
   notifications NotificationLog[]
   workoutPrograms WorkoutProgram[]
+  tickets       Ticket[]
   sales         Sale[]
   ledger        LedgerEntry[]
 
@@ -904,4 +905,59 @@ model PlatformSetting {
   updatedBy String?  @map("updated_by") @db.Uuid
 
   @@map("platform_setting")
+}
+
+enum TicketScope {
+  PLATFORM // a gym's staff asking platform support
+  GYM      // a member asking their gym
+}
+
+enum TicketStatus {
+  OPEN      // waiting for support
+  ANSWERED  // support replied, waiting for the requester
+  CLOSED
+}
+
+enum TicketSide {
+  REQUESTER
+  SUPPORT
+}
+
+model Ticket {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  gymId           String       @map("gym_id") @db.Uuid
+  scope           TicketScope
+  memberId        String?      @map("member_id") @db.Uuid
+  openedByUserId  String       @map("opened_by_user_id") @db.Uuid
+  subject         String
+  category        String
+  status          TicketStatus @default(OPEN)
+  lastMessageAt   DateTime     @default(now()) @map("last_message_at") @db.Timestamptz(3)
+  closedAt        DateTime?    @map("closed_at") @db.Timestamptz(3)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym      Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  messages TicketMessage[]
+
+  @@index([scope, status, lastMessageAt])
+  @@index([gymId, scope, status])
+  @@index([memberId])
+  @@map("ticket")
+}
+
+/// Append-only conversation.
+model TicketMessage {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  ticketId     String     @map("ticket_id") @db.Uuid
+  gymId        String     @map("gym_id") @db.Uuid
+  authorUserId String     @map("author_user_id") @db.Uuid
+  side         TicketSide
+  body         String
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_message")
 }

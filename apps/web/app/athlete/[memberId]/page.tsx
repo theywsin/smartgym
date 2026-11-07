@@ -113,6 +113,10 @@ export default function AthleteDashboard() {
         )}
       </section>
 
+      <Link href={`/athlete/${d.member.id}/tickets`} className="card flex items-center justify-between p-5 font-bold hover:border-brand-200">
+        پیام به باشگاه <span className="text-sm font-normal text-ink-2">پرسش، انتقاد یا پیشنهاد</span>
+      </Link>
+
       {d.subscriptions.length > 1 && (
         <section className="card p-5" aria-labelledby="hs">
           <h2 id="hs" className="mb-3 font-bold">سابقه‌ی اشتراک</h2>
