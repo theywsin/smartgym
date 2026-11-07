@@ -55,7 +55,7 @@ export async function getAthleteDashboard(deps: CoreDeps, user: AthleteUser, mem
       include: { gym: { select: { name: true } }, subscriptions: SUMMARY_SUBS_INCLUDE },
     });
     if (!m) throw notFound("عضو");
-    const [subscriptions, visits, monthVisits, program, coach] = await Promise.all([
+    const [subscriptions, visits, monthVisits, program, coach, payments] = await Promise.all([
       tx.memberSubscription.findMany({
         where: { gymId: m.gymId, memberId: m.id, status: { not: "CANCELLED" } },
         orderBy: { startsAt: "desc" },
@@ -74,7 +74,25 @@ export async function getAthleteDashboard(deps: CoreDeps, user: AthleteUser, mem
         select: { id: true, title: true, goal: true, notes: true, days: true, updatedAt: true },
       }),
       tx.coachAthlete.findFirst({ where: { gymId: m.gymId, memberId: m.id, endedAt: null }, select: { coachUserId: true } }),
+      tx.payment.findMany({
+        where: { gymId: m.gymId, memberId: m.id }, orderBy: { paidAt: "desc" }, take: 20,
+        select: { id: true, amountRial: true, refundedAmountRial: true, method: true, paidAt: true },
+      }),
     ]);
+    const balances = await tx.payment.groupBy({
+      by: ["subscriptionId"], where: { subscriptionId: { in: subscriptions.map((s) => s.id) } },
+      _sum: { amountRial: true, refundedAmountRial: true },
+    });
+    const prices = await tx.memberSubscription.findMany({ where: { id: { in: subscriptions.map((s) => s.id) } }, select: { id: true, priceAmountRial: true, discountAmountRial: true } });
+    const debts = prices
+      .map((p) => {
+        const b = balances.find((x) => x.subscriptionId === p.id);
+        const paid = (b?._sum.amountRial ?? 0n) - (b?._sum.refundedAmountRial ?? 0n);
+        return { subscriptionId: p.id, dueRial: p.priceAmountRial - p.discountAmountRial - paid };
+      })
+      .filter((d) => d.dueRial > 0n)
+      .map((d) => ({ ...d, planName: subscriptions.find((s) => s.id === d.subscriptionId)!.plan.name }));
+    const onlinePay = await tx.gymSetting.findUnique({ where: { gymId_key: { gymId: m.gymId, key: "payments.saman" } }, select: { value: true } });
     const coachProfile = coach
       ? await tx.userProfile.findUnique({ where: { userId: coach.coachUserId }, select: { firstName: true, lastName: true } })
       : null;
@@ -85,6 +103,10 @@ export async function getAthleteDashboard(deps: CoreDeps, user: AthleteUser, mem
       visits: visits.map((v) => ({ id: v.id, checkedInAt: v.checkedInAt, checkedOutAt: v.checkedOutAt, branchName: v.branch.name })),
       visitsLast30Days: monthVisits,
       program,
+      payments,
+      debts,
+      onlinePaymentEnabled: !!(onlinePay?.value as { terminalId?: string | null } | null)?.terminalId,
+      profile: { phone: m.phone, birthDate: m.birthDate, gender: m.gender, homeBranch: m.homeBranchId ? (await tx.branch.findUnique({ where: { id: m.homeBranchId }, select: { name: true } }))?.name ?? null : null, memberSince: m.createdAt },
       coachName: coachProfile ? [coachProfile.firstName, coachProfile.lastName].filter(Boolean).join(" ") || null : null,
     };
   });

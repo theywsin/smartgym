@@ -7,7 +7,7 @@ import {
   AppError, ConsoleSmsProvider, DEFAULT_CONFIG, type CoreDeps,
   requestOtp, verifyOtp, registerGym, loadTenantContext, inviteStaff, createMember,
   createMembershipPlan, sellMembership, assignCoach, createProgram, checkIn, listBranches,
-  listMyMemberProfiles, getAthleteDashboard, issueCheckinPass, checkInWithPass, checkOut, type TenantContext,
+  listMyMemberProfiles, getAthleteDashboard, athleteStartDebtPayment, setOnlinePaymentSettings, issueCheckinPass, checkInWithPass, checkOut, type TenantContext,
 } from "../src";
 
 const hasDb = !!process.env.DATABASE_URL;
@@ -45,7 +45,7 @@ describe.skipIf(!hasDb)("athlete app", () => {
     memberB = (await createMember(deps, c2, memberInputSchema.parse({ firstName: "سارا", lastName: "ر", phone: athletePhone }))).id;
     stranger = (await createMember(deps, c1, memberInputSchema.parse({ firstName: "دیگر", lastName: "عضو", phone: phone() }))).id;
     const plan = await createMembershipPlan(deps, c1, membershipPlanSchema.parse({ name: "ماهانه", durationDays: 30, priceAmountRial: 10_000_000 }));
-    await sellMembership(deps, c1, sellMembershipSchema.parse({ memberId: memberA, planId: plan.id }));
+    await sellMembership(deps, c1, sellMembershipSchema.parse({ memberId: memberA, planId: plan.id, payment: { amountRial: 4_000_000, method: "CASH" } }));
     const coach = await loadTenantContext(db, (await inviteStaff(deps, c1, { phone: phone(), role: "COACH", branchIds: [] })).userId, g1.id);
     await assignCoach(deps, c1, memberA, coach.userId);
     await createProgram(deps, coach, memberA, workoutProgramSchema.parse({ title: "برنامه‌ی سارا", days: [{ title: "روز ۱", exercises: [{ name: "اسکات", sets: 4, reps: "10" }] }] }));
@@ -95,5 +95,20 @@ describe.skipIf(!hasDb)("athlete app", () => {
     clock = new Date(Date.now() + 120_000);
     await bad(token);
     clock = undefined;
+  });
+
+  it("shows payments and debt, and lets the member pay the debt online", async () => {
+    const d = await getAthleteDashboard(deps, athlete, memberA);
+    expect(d.payments).toHaveLength(1);
+    expect(d.debts).toEqual([expect.objectContaining({ dueRial: 6_000_000n })]);
+    const subId = d.debts[0]!.subscriptionId;
+    await expect(athleteStartDebtPayment(deps, athlete, memberA, subId)).rejects.toSatisfy((e: unknown) => e instanceof AppError && e.code === "BUSINESS_RULE");
+    await setOnlinePaymentSettings(deps, c1, { terminalId: "12345678" });
+    const r1 = await athleteStartDebtPayment(deps, athlete, memberA, subId);
+    const r2 = await athleteStartDebtPayment(deps, athlete, memberA, subId);
+    expect(r2.resNum).toBe(r1.resNum);
+    await expect(athleteStartDebtPayment(deps, athlete, memberB, subId)).rejects.toSatisfy((e: unknown) => e instanceof AppError && e.code === "NOT_FOUND");
+    const someone = (await signIn(phone())).user;
+    await expect(athleteStartDebtPayment(deps, someone, memberA, subId)).rejects.toSatisfy((e: unknown) => e instanceof AppError && e.code === "NOT_FOUND");
   });
 });

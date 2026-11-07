@@ -257,3 +257,33 @@ export async function settleGatewayCallback(deps: CoreDeps, gateway: PaymentGate
     return { resNum, status: "PAID" } as SettleOutcome;
   });
 }
+
+/**
+ * A member pays their own debt from the athlete app. The member is matched by verified phone
+ * (never by a client-supplied gym id); the amount is always the full remaining debt, computed here.
+ * Reuses a still-valid pending request for the same period instead of creating duplicates.
+ */
+export async function athleteStartDebtPayment(deps: CoreDeps, user: { id: string; phone: string }, memberId: string, subscriptionId: string) {
+  const { getAthleteDashboardMember } = await import("../athlete");
+  const m = await getAthleteDashboardMember(deps, user, memberId);
+  const now = nowOf(deps);
+  return withSystem(deps.db, async (tx) => {
+    const sub = await tx.memberSubscription.findFirst({ where: { id: subscriptionId, gymId: m.gymId, memberId: m.id, status: { not: "CANCELLED" } } });
+    if (!sub) throw notFound("اشتراک");
+    const setting = await tx.gymSetting.findUnique({ where: { gymId_key: { gymId: m.gymId, key: SETTINGS_KEY } } });
+    if (!readSettings(setting?.value).terminalId) throw new AppError("BUSINESS_RULE", "پرداخت آنلاین در این باشگاه فعال نیست. لطفاً در پذیرش پرداخت کنید.");
+    const { due } = await subscriptionBalance(tx, sub.id);
+    if (due <= 0n) throw new AppError("BUSINESS_RULE", "این اشتراک بدهی ندارد.");
+    if (due < MIN_ONLINE_RIAL) throw new AppError("BUSINESS_RULE", "مبلغ بدهی کمتر از حداقل پرداخت آنلاین است.");
+    const existing = await tx.onlinePaymentRequest.findFirst({ where: { subscriptionId: sub.id, status: "PENDING", amountRial: due, expiresAt: { gt: new Date(now.getTime() + 3600_000) } } });
+    if (existing) return { resNum: existing.resNum };
+    const req = await tx.onlinePaymentRequest.create({
+      data: {
+        gymId: m.gymId, branchId: sub.branchId, memberId: m.id, subscriptionId: sub.id, amountRial: due,
+        resNum: crypto.randomBytes(18).toString("base64url"), createdByUserId: user.id, expiresAt: new Date(now.getTime() + LINK_TTL_MS),
+      },
+    });
+    await writeAudit(tx, { gymId: m.gymId, actorUserId: user.id, actorRole: "ATHLETE", action: "payment_link.self", entityType: "online_payment_request", entityId: req.id, after: { subscriptionId: sub.id, amountRial: due.toString() } });
+    return { resNum: req.resNum };
+  });
+}
