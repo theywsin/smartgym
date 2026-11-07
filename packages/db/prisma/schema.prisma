@@ -181,6 +181,8 @@ model Gym {
   expenseCategories ExpenseCategory[]
   expenses      Expense[]
   coachPayouts  CoachPayout[]
+  products      Product[]
+  sales         Sale[]
   ledger        LedgerEntry[]
 
   @@map("gym")
@@ -632,6 +634,7 @@ model LedgerEntry {
   memberId        String?       @map("member_id") @db.Uuid
   paymentId       String?       @map("payment_id") @db.Uuid
   expenseId       String?       @map("expense_id") @db.Uuid
+  saleId          String?       @map("sale_id") @db.Uuid
   description     String?
   createdByUserId String?       @map("created_by_user_id") @db.Uuid
   occurredAt      DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(3)
@@ -734,4 +737,108 @@ model CoachPayout {
 
   @@index([gymId, periodYear, periodMonth])
   @@map("coach_payout")
+}
+
+enum ProductKind {
+  STORE
+  BUFFET
+}
+
+enum StockReason {
+  PURCHASE
+  ADJUST
+  SALE
+  SALE_VOID
+}
+
+model Product {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  gymId      String      @map("gym_id") @db.Uuid
+  kind       ProductKind
+  name       String
+  sku        String?
+  priceRial  BigInt      @map("price_rial")
+  /// false for items made to order (tea, shakes): no stock count.
+  trackStock Boolean     @default(true) @map("track_stock")
+  isActive   Boolean     @default(true) @map("is_active")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  gym    Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  stock  ProductStock[]
+
+  @@unique([gymId, name])
+  @@map("product")
+}
+
+/// Current on-hand quantity per branch. Kept in step with stock_movement inside the same transaction.
+model ProductStock {
+  gymId     String   @map("gym_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, branchId])
+  @@index([gymId, branchId])
+  @@map("product_stock")
+}
+
+/// Every stock change, append-only.
+model StockMovement {
+  id              String      @id @default(uuid(7)) @db.Uuid
+  gymId           String      @map("gym_id") @db.Uuid
+  productId       String      @map("product_id") @db.Uuid
+  branchId        String      @map("branch_id") @db.Uuid
+  delta           Int
+  reason          StockReason
+  saleId          String?     @map("sale_id") @db.Uuid
+  note            String?
+  createdByUserId String?     @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([gymId, productId, createdAt])
+  @@map("stock_movement")
+}
+
+/// A counter sale (shop or buffet). Never edited; voided with a reason, which returns stock and money.
+model Sale {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  gymId           String        @map("gym_id") @db.Uuid
+  branchId        String        @map("branch_id") @db.Uuid
+  memberId        String?       @map("member_id") @db.Uuid
+  totalRial       BigInt        @map("total_rial")
+  method          PaymentMethod
+  idempotencyKey  String?       @map("idempotency_key")
+  createdByUserId String?       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  voidedAt        DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedByUserId  String?       @map("voided_by_user_id") @db.Uuid
+  voidReason      String?       @map("void_reason")
+
+  gym   Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  items SaleItem[]
+
+  @@unique([gymId, idempotencyKey])
+  @@index([gymId, createdAt])
+  @@map("sale")
+}
+
+model SaleItem {
+  id            String @id @default(uuid(7)) @db.Uuid
+  gymId         String @map("gym_id") @db.Uuid
+  saleId        String @map("sale_id") @db.Uuid
+  productId     String @map("product_id") @db.Uuid
+  /// Name and price at the time of sale.
+  name          String
+  quantity      Int
+  unitPriceRial BigInt @map("unit_price_rial")
+  lineTotalRial BigInt @map("line_total_rial")
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("sale_item")
 }

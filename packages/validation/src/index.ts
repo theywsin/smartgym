@@ -293,3 +293,49 @@ export const coachPayoutSchema = z.object({
   amountRial: amountRial.refine((v) => v > 0n, "مبلغ باید بیشتر از صفر باشد"),
   method: paymentMethod,
 });
+
+// ───────────── Phase 3: shop and buffet ─────────────
+
+export const productKind = z.enum(["STORE", "BUFFET"]);
+
+export const productSchema = z.object({
+  kind: productKind,
+  name: z.string().trim().min(1, "نام کالا را بنویسید").max(100),
+  sku: optionalText(50),
+  priceRial: amountRial,
+  trackStock: z.boolean().default(true),
+});
+export type ProductInput = z.infer<typeof productSchema>;
+
+export const updateProductSchema = z.object({
+  name: z.string().trim().min(1, "نام کالا را بنویسید").max(100).optional(),
+  sku: optionalText(50),
+  priceRial: amountRial.optional(),
+  isActive: z.boolean().optional(),
+});
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+export const stockChangeSchema = z.object({
+  branchId: uuid,
+  /** PURCHASE adds stock; ADJUST sets the counted quantity. */
+  reason: z.enum(["PURCHASE", "ADJUST"]),
+  quantity: z.number().int().min(0).max(1_000_000),
+  note: optionalText(300),
+});
+export type StockChangeInput = z.infer<typeof stockChangeSchema>;
+
+export const saleSchema = z.object({
+  branchId: uuid.optional(),
+  memberId: uuid.optional(),
+  method: paymentMethod,
+  items: z
+    .array(z.object({ productId: uuid, quantity: z.number().int().min(1).max(1000) }))
+    .min(1, "حداقل یک قلم کالا انتخاب کنید")
+    .max(50),
+});
+export type SaleInput = z.infer<typeof saleSchema>;
+
+export const listSalesSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  branchId: uuid.optional(),
+});
