@@ -145,6 +145,29 @@ export async function dbGetTable(tableName: string): Promise<any[]> {
   }
 }
 
+export async function dbGetItem(tableName: string, id: string): Promise<any | undefined> {
+  const rows = await dbGetTable(tableName);
+  return rows.find((r) => r.id === id);
+}
+
+/** Updates selected columns of an existing row (no insert). */
+export async function dbUpdateFields(tableName: string, id: string, fields: Record<string, any>): Promise<void> {
+  const keys = Object.keys(fields).filter((k) => /^[a-zA-Z0-9_]+$/.test(k) && k !== "id");
+  if (keys.length === 0) return;
+  if (isUsingRealMySQL) {
+    const activePool = getPool();
+    const setClause = keys.map((k) => `\`${k}\` = ?`).join(", ");
+    await activePool.query(`UPDATE \`${tableName}\` SET ${setClause} WHERE \`id\` = ?`, [...keys.map((k) => fields[k]), id]);
+  } else {
+    const rows = memoryDb[tableName] || [];
+    const idx = rows.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      rows[idx] = { ...rows[idx], ...JSON.parse(JSON.stringify(fields)) };
+      saveFallback();
+    }
+  }
+}
+
 export async function dbSaveItem(tableName: string, item: any): Promise<void> {
   const allowedTables = [
     "tenants", "members", "coaches", "membership_requests", 
@@ -192,7 +215,8 @@ export async function dbSaveItem(tableName: string, item: any): Promise<void> {
     const idx = memoryDb[tableName].findIndex(i => i.id === item.id);
     const clonedItem = JSON.parse(JSON.stringify(item));
     if (idx !== -1) {
-      memoryDb[tableName][idx] = clonedItem;
+      // Merge like MySQL's ON DUPLICATE KEY UPDATE: fields not sent are kept.
+      memoryDb[tableName][idx] = { ...memoryDb[tableName][idx], ...clonedItem };
     } else {
       memoryDb[tableName].push(clonedItem);
     }
@@ -258,7 +282,7 @@ export async function dbSaveTable(tableName: string, items: any[]): Promise<void
       const idx = memoryDb[tableName].findIndex(i => i.id === item.id);
       const clonedItem = JSON.parse(JSON.stringify(item));
       if (idx !== -1) {
-        memoryDb[tableName][idx] = clonedItem;
+        memoryDb[tableName][idx] = { ...memoryDb[tableName][idx], ...clonedItem };
       } else {
         memoryDb[tableName].push(clonedItem);
       }
