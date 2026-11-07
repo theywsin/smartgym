@@ -173,9 +173,11 @@ export async function cashReport(deps: CoreDeps, ctx: TenantContext, opts: { dat
     const methods = ["CASH", "CARD_POS", "TRANSFER", "ONLINE"] as const;
     const byMethod = methods.map((method) => {
       const rows = entries.filter((e) => e.method === method);
-      const income = rows.filter((e) => e.amountRial > 0n).reduce((a, e) => a + e.amountRial, 0n);
-      const out = rows.filter((e) => e.amountRial < 0n).reduce((a, e) => a + e.amountRial, 0n);
-      return { method, incomeRial: income, refundRial: -out, netRial: income + out };
+      const total = (types: string[]) => rows.filter((e) => types.includes(e.type)).reduce((a, e) => a + e.amountRial, 0n);
+      const income = total(["INCOME"]);
+      const refund = -total(["REFUND"]);
+      const expense = -total(["EXPENSE", "EXPENSE_VOID"]);
+      return { method, incomeRial: income, refundRial: refund, expenseRial: expense, netRial: income - refund - expense };
     });
     return {
       from,
@@ -183,6 +185,7 @@ export async function cashReport(deps: CoreDeps, ctx: TenantContext, opts: { dat
       byMethod,
       totalIncomeRial: byMethod.reduce((a, m) => a + m.incomeRial, 0n),
       totalRefundRial: byMethod.reduce((a, m) => a + m.refundRial, 0n),
+      totalExpenseRial: byMethod.reduce((a, m) => a + m.expenseRial, 0n),
       totalNetRial: byMethod.reduce((a, m) => a + m.netRial, 0n),
       entries: entries.map((e) => ({
         id: e.id, type: e.type, amountRial: e.amountRial, method: e.method, description: e.description,

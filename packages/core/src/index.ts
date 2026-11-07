@@ -17,3 +17,4 @@ export * from "./members/io";
 export * from "./coaches";
 export * from "./finance";
 export * from "./online-payments";
+export * from "./expenses";
