@@ -11,6 +11,7 @@ const TABS = [
   ["/admin", "باشگاه‌ها"],
   ["/admin/plans", "پلن‌های اشتراک"],
   ["/admin/settings", "تنظیمات سایت"],
+  ["/admin/tickets", "تیکت‌ها"],
   ["/admin/users", "کاربران"],
   ["/admin/audit", "گزارش ممیزی"],
 ] as const;

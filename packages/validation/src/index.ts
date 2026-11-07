@@ -442,3 +442,21 @@ export const adminAuditListSchema = paginationSchema.extend({
   action: z.string().trim().max(60).optional(),
 });
 export type AdminAuditListInput = z.infer<typeof adminAuditListSchema>;
+
+// Support tickets
+export const TICKET_CATEGORIES = {
+  PLATFORM: ["فنی", "مالی و اشتراک", "پیشنهاد", "سایر"],
+  GYM: ["اشتراک و تمدید", "برنامه‌ی تمرینی", "پرداخت", "انتقاد و پیشنهاد", "سایر"],
+} as const;
+export const ticketCreateSchema = z.object({
+  subject: z.string().trim().min(3, "موضوع کوتاه است.").max(120),
+  category: z.string().trim().min(1).max(40),
+  body: z.string().trim().min(2, "متن پیام را بنویسید.").max(5000),
+});
+export type TicketCreateInput = z.infer<typeof ticketCreateSchema>;
+export const ticketReplySchema = z.object({ body: z.string().trim().min(1, "متن پیام را بنویسید.").max(5000) });
+export const ticketListSchema = z.object({
+  scope: z.enum(["PLATFORM", "GYM"]).default("GYM"),
+  status: z.enum(["OPEN", "ANSWERED", "CLOSED"]).optional(),
+});
+export type TicketListInput = z.infer<typeof ticketListSchema>;

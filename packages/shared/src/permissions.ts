@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   "staff.manage",
   "settings.manage",
   "ai.use",
+  "tickets.manage", // support tickets: answer members and contact platform support
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
