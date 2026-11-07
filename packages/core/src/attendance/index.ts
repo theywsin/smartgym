@@ -23,7 +23,7 @@ export function tehranDayStart(now: Date): Date {
  * pick the running period that ends first and is valid at this branch, then consume one entry with
  * a guarded UPDATE so the entry limit cannot be exceeded under concurrency.
  */
-export async function checkIn(deps: CoreDeps, ctx: TenantContext, input: CheckInInput) {
+export async function checkIn(deps: CoreDeps, ctx: TenantContext, input: CheckInInput, method: "MANUAL" | "QR" = "MANUAL") {
   requirePermission(ctx, "attendance.manage");
   requireWritableGym(ctx);
   if (!canAccessBranch(ctx, input.branchId)) throw new AppError("FORBIDDEN", "به این شعبه دسترسی ندارید.");
@@ -78,14 +78,14 @@ export async function checkIn(deps: CoreDeps, ctx: TenantContext, input: CheckIn
         memberId: member.id,
         subscriptionId: chosen.id,
         checkedInAt: now,
-        method: "MANUAL",
+        method,
         recordedByUserId: ctx.userId,
       },
     });
     await writeAudit(tx, {
       gymId: ctx.gymId, actorUserId: ctx.userId, actorRole: primaryRole(ctx),
       action: "attendance.check_in", entityType: "attendance", entityId: visit.id,
-      after: { memberId: member.id, branchId: input.branchId, subscriptionId: chosen.id },
+      after: { memberId: member.id, branchId: input.branchId, subscriptionId: chosen.id, method },
       ip: ctx.meta?.ip, userAgent: ctx.meta?.userAgent,
     });
     const entriesLeft = chosen.entryLimit === null ? null : chosen.entryLimit - chosen.entriesUsed - 1;

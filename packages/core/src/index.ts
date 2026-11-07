@@ -23,3 +23,4 @@ export * from "./store";
 export * from "./jobs";
 export * from "./workouts";
 export * from "./athlete";
+export * from "./attendance/pass";

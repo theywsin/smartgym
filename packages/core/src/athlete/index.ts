@@ -40,6 +40,13 @@ export async function listMyMemberProfiles(deps: CoreDeps, user: AthleteUser) {
   });
 }
 
+/** The matched member row, or NOT_FOUND. */
+export async function getAthleteDashboardMember(deps: CoreDeps, user: AthleteUser, memberId: string) {
+  const m = await withSystem(deps.db, (tx) => tx.member.findFirst({ where: { id: memberId, ...memberMatch(user) }, select: { id: true, gymId: true } }));
+  if (!m) throw notFound("عضو");
+  return m;
+}
+
 export async function getAthleteDashboard(deps: CoreDeps, user: AthleteUser, memberId: string) {
   const now = nowOf(deps);
   return withSystem(deps.db, async (tx) => {

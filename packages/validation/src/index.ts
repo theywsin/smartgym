@@ -180,6 +180,12 @@ export const checkInSchema = z.object({
 });
 export type CheckInInput = z.infer<typeof checkInSchema>;
 
+export const qrCheckInSchema = z.object({
+  token: z.string().trim().min(10).max(300),
+  branchId: uuid,
+});
+export type QrCheckInInput = z.infer<typeof qrCheckInSchema>;
+
 export const listAttendanceSchema = paginationSchema.extend({
   branchId: uuid.optional(),
   memberId: uuid.optional(),

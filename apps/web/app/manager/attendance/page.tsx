@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, LogIn, LogOut, Search } from "lucide-react";
+import { Camera, Loader2, LogIn, LogOut, QrCode, Search } from "lucide-react";
+import { QrScanner } from "@/components/qr-scanner";
 import { formatIranMobile, formatTehranTime, toPersianDigits } from "@smartgym/shared";
 import { api, ApiError } from "@/lib/client/api";
 import { useCan, useMe } from "@/lib/client/me";
@@ -19,6 +20,8 @@ type Visit = {
 type Day = { total: number; inside: number; items: Visit[] };
 type Found = { id: string; code: number; firstName: string; lastName: string; phone: string | null; membership: MembershipSummary };
 type CheckInResult = { member: { firstName: string; lastName: string }; planName: string; daysLeft: number; entriesLeft: number | null; warning: string | null };
+
+const QR_PREFIX = "sgq1.";
 
 export default function AttendancePage() {
   const qc = useQueryClient();
@@ -38,9 +41,10 @@ export default function AttendancePage() {
   });
 
   const [q, setQ] = useState("");
+  const [scanning, setScanning] = useState(false);
   const [debounced, setDebounced] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(q.trim()), 250);
+    const t = setTimeout(() => setDebounced(q.trim().startsWith(QR_PREFIX) ? "" : q.trim()), 250);
     return () => clearTimeout(t);
   }, [q]);
   const found = useQuery({
@@ -51,7 +55,10 @@ export default function AttendancePage() {
 
   const [result, setResult] = useState<CheckInResult | null>(null);
   const checkIn = useMutation({
-    mutationFn: (memberId: string) => api<CheckInResult>("/attendance/check-in", { method: "POST", body: { memberId, branchId: branch } }),
+    mutationFn: (who: string) =>
+      who.startsWith(QR_PREFIX)
+        ? api<CheckInResult>("/attendance/check-in-qr", { method: "POST", body: { token: who, branchId: branch } })
+        : api<CheckInResult>("/attendance/check-in", { method: "POST", body: { memberId: who, branchId: branch } }),
     onSuccess: (r) => {
       setResult(r);
       setQ("");
@@ -101,8 +108,16 @@ export default function AttendancePage() {
           <label className="relative block">
             <span className="sr-only">جستجوی عضو</span>
             <Search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
-            <input className="input h-12 pr-9 text-base" placeholder="نام، موبایل یا کد عضویت" value={q} onChange={(e) => { setQ(e.target.value); checkIn.reset(); }} autoFocus />
+            <input className="input h-12 pr-9 text-base" placeholder="نام، موبایل یا کد عضویت" value={q} onChange={(e) => { setQ(e.target.value); checkIn.reset(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && q.trim().startsWith(QR_PREFIX) && branch) checkIn.mutate(q.trim()); }} autoFocus />
           </label>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
+            <QrCode className="size-4" aria-hidden /> کد QR عضو را با دستگاه بارکدخوان در همین کادر بخوانید
+            <button type="button" className="btn-secondary h-8 text-xs" onClick={() => setScanning((v) => !v)} disabled={!branch}>
+              <Camera className="size-4" aria-hidden /> {scanning ? "بستن دوربین" : "اسکن با دوربین"}
+            </button>
+          </div>
+          {scanning && <QrScanner onCode={(code) => { if (code.startsWith(QR_PREFIX) && !checkIn.isPending) { setScanning(false); checkIn.mutate(code); } }} />}
           <div role="status" aria-live="polite">
             {checkIn.error && <p className="rounded-lg bg-err-bg p-3 text-sm font-semibold text-err-tx">{(checkIn.error as ApiError).message}</p>}
             {result && (
