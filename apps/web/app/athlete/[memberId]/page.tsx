@@ -8,6 +8,7 @@ import { api } from "@/lib/client/api";
 import { fa, jdate } from "@/lib/client/format";
 import { MembershipBadge, type MembershipSummary } from "@/components/membership-badge";
 import { ErrorState, LoadingState } from "@/components/states";
+import { CheckinPass } from "./checkin-pass";
 
 type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string };
 type Dashboard = {
@@ -35,6 +36,8 @@ export default function AthleteDashboard() {
         <Link href="/athlete" className="text-xs text-ink-2">{d.member.gymName}</Link>
         <h1 className="text-xl font-extrabold">سلام {d.member.firstName}</h1>
       </div>
+
+      {m.state === "active" && <CheckinPass memberId={d.member.id} />}
 
       <section className="card p-5" aria-labelledby="ms">
         <div className="mb-3 flex items-center justify-between">
