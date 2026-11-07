@@ -178,6 +178,8 @@ model Gym {
   coachAthletes CoachAthlete[]
   payments      Payment[]
   onlinePaymentRequests OnlinePaymentRequest[]
+  expenseCategories ExpenseCategory[]
+  expenses      Expense[]
   ledger        LedgerEntry[]
 
   @@map("gym")
@@ -614,6 +616,8 @@ enum LedgerType {
   INCOME
   REFUND
   EXPENSE
+  /// Positive row that cancels a voided expense (the ledger is append-only).
+  EXPENSE_VOID
 }
 
 /// Append-only money ledger (runtime role has no UPDATE/DELETE). amount_rial is signed: in > 0, out < 0.
@@ -626,6 +630,7 @@ model LedgerEntry {
   method          PaymentMethod
   memberId        String?       @map("member_id") @db.Uuid
   paymentId       String?       @map("payment_id") @db.Uuid
+  expenseId       String?       @map("expense_id") @db.Uuid
   description     String?
   createdByUserId String?       @map("created_by_user_id") @db.Uuid
   occurredAt      DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(3)
@@ -672,4 +677,41 @@ model OnlinePaymentRequest {
   @@index([gymId, createdAt])
   @@index([subscriptionId])
   @@map("online_payment_request")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  gymId     String   @map("gym_id") @db.Uuid
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@unique([gymId, name])
+  @@map("expense_category")
+}
+
+/// Money paid out by the gym. Never edited or deleted: a mistake is voided (with a reason) and re-entered.
+model Expense {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  gymId           String        @map("gym_id") @db.Uuid
+  branchId        String?       @map("branch_id") @db.Uuid
+  categoryId      String        @map("category_id") @db.Uuid
+  amountRial      BigInt        @map("amount_rial")
+  method          PaymentMethod
+  description     String?
+  spentAt         DateTime      @map("spent_at") @db.Timestamptz(3)
+  createdByUserId String?       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  voidedAt        DateTime?     @map("voided_at") @db.Timestamptz(3)
+  voidedByUserId  String?       @map("voided_by_user_id") @db.Uuid
+  voidReason      String?       @map("void_reason")
+
+  gym      Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([gymId, spentAt])
+  @@map("expense")
 }

@@ -12,8 +12,8 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 
 type Report = {
   from: string;
-  byMethod: { method: string; incomeRial: string; refundRial: string; netRial: string }[];
-  totalIncomeRial: string; totalRefundRial: string; totalNetRial: string;
+  byMethod: { method: string; incomeRial: string; refundRial: string; expenseRial: string; netRial: string }[];
+  totalIncomeRial: string; totalRefundRial: string; totalExpenseRial: string; totalNetRial: string;
   entries: { id: string; type: string; amountRial: string; method: string; description: string | null; occurredAt: string; member: { id: string; firstName: string; lastName: string } | null }[];
 };
 type Debt = { subscriptionId: string; planName: string; endsAt: string; dueRial: string; member: { id: string; code: number; firstName: string; lastName: string; phone: string | null } };
@@ -70,9 +70,10 @@ export default function FinancePage() {
       {report.isError && <ErrorState error={report.error} onRetry={() => report.refetch()} />}
       {report.data && (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <div className="card"><p className="text-sm text-ink-2">دریافتی</p><p className="text-2xl font-extrabold text-brand-700">{toman(report.data.totalIncomeRial)}</p></div>
             <div className="card"><p className="text-sm text-ink-2">بازگشت وجه</p><p className="text-2xl font-extrabold text-err-tx">{toman(report.data.totalRefundRial)}</p></div>
+            <div className="card"><p className="text-sm text-ink-2">هزینه‌ها</p><p className="text-2xl font-extrabold text-err-tx">{toman(report.data.totalExpenseRial)}</p></div>
             <div className="card"><p className="text-sm text-ink-2">خالص</p><p className="text-2xl font-extrabold">{toman(report.data.totalNetRial)}</p></div>
           </div>
           <section className="card p-0" aria-labelledby="methods-title">
@@ -84,15 +85,17 @@ export default function FinancePage() {
                     <th scope="col" className="px-4 py-2.5 font-semibold">روش</th>
                     <th scope="col" className="px-4 py-2.5 font-semibold">دریافتی</th>
                     <th scope="col" className="px-4 py-2.5 font-semibold">بازگشت</th>
+                    <th scope="col" className="px-4 py-2.5 font-semibold">هزینه</th>
                     <th scope="col" className="px-4 py-2.5 font-semibold">خالص</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {report.data.byMethod.filter((m) => m.method !== "ONLINE" || m.incomeRial !== "0").map((m) => (
+                  {report.data.byMethod.filter((m) => m.method !== "ONLINE" || m.incomeRial !== "0" || m.expenseRial !== "0").map((m) => (
                     <tr key={m.method}>
                       <td className="px-4 py-3 font-semibold">{LABEL[m.method]}</td>
                       <td className="px-4 py-3">{toman(m.incomeRial)}</td>
                       <td className="px-4 py-3">{toman(m.refundRial)}</td>
+                      <td className="px-4 py-3">{toman(m.expenseRial)}</td>
                       <td className="px-4 py-3 font-semibold">{toman(m.netRial)}</td>
                     </tr>
                   ))}
