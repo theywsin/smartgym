@@ -92,6 +92,8 @@ export default function ExpensesPage() {
         </>
       )}
 
+      <CommissionsCard year={ym.y} month={ym.m} onDone={refresh} />
+
       {canManage && <ExpenseForm onDone={refresh} />}
 
       <section className="card p-0" aria-labelledby="list-title">
@@ -122,6 +124,75 @@ export default function ExpensesPage() {
         {voidM.error && <p role="alert" className="field-error px-5 pb-3">{(voidM.error as ApiError).message}</p>}
       </section>
     </div>
+  );
+}
+
+type CommissionRow = {
+  userId: string; firstName: string | null; lastName: string | null; phone: string | null; rateBp: number;
+  payingMembers: number; baseRial: string; earnedRial: string; paidRial: string; remainingRial: string;
+};
+
+function CommissionsCard({ year, month, onDone }: { year: number; month: number; onDone: () => void }) {
+  const qc = useQueryClient();
+  const canManage = useCan("finance.manage");
+  const qs = `year=${year}&month=${month}`;
+  const q = useQuery({ queryKey: ["commissions", qs], queryFn: () => api<{ coaches: CommissionRow[] }>(`/coaches/commissions?${qs}`) });
+  const pay = useMutation({
+    mutationFn: (r: CommissionRow) => {
+      const input = prompt(`مبلغ پرداختی به مربی (تومان)؛ باقی‌مانده ${toman(r.remainingRial)}`, (BigInt(r.remainingRial) / 10n).toString());
+      if (input === null) throw new ApiError(0, "CANCELLED", "");
+      const amountRial = tomanInputToRial(input);
+      if (!amountRial) throw new ApiError(400, "BAD", "مبلغ را به عدد وارد کنید.");
+      return api("/coaches/payouts", { method: "POST", body: { coachUserId: r.userId, year, month, amountRial, method: "TRANSFER" } });
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["commissions"] }); onDone(); },
+  });
+  const rows = q.data?.coaches ?? [];
+  const err = pay.error as ApiError | null;
+  return (
+    <section className="card p-0" aria-labelledby="comm-title">
+      <h2 id="comm-title" className="card-title p-5 pb-1">کمیسیون مربیان</h2>
+      <p className="px-5 pb-3 text-xs text-ink-2">درصد کمیسیون از پرداخت‌های این ماه شاگردانِ هر مربی. نرخ را در صفحه‌ی مربیان تنظیم کنید.</p>
+      {q.isLoading ? <LoadingState /> : q.isError ? <ErrorState error={q.error} /> : rows.length === 0 ? (
+        <EmptyState title="مربی فعالی ثبت نشده است" />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-canvas text-right text-xs text-ink-2">
+              <tr>
+                <th scope="col" className="px-4 py-2.5 font-semibold">مربی</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">نرخ</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">پرداخت شاگردان</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">کمیسیون</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">پرداخت‌شده</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">مانده</th>
+                {canManage && <th scope="col" className="px-4 py-2.5"><span className="sr-only">عملیات</span></th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {rows.map((r) => (
+                <tr key={r.userId}>
+                  <td className="px-4 py-3 font-semibold">{[r.firstName, r.lastName].filter(Boolean).join(" ") || r.phone}</td>
+                  <td className="px-4 py-3">{r.rateBp ? `٪${toPersianDigits(r.rateBp / 100)}` : "—"}</td>
+                  <td className="px-4 py-3">{toman(r.baseRial)} <span className="text-xs text-ink-3">({toPersianDigits(r.payingMembers)} نفر)</span></td>
+                  <td className="px-4 py-3">{toman(r.earnedRial)}</td>
+                  <td className="px-4 py-3">{toman(r.paidRial)}</td>
+                  <td className="px-4 py-3 font-bold">{toman(r.remainingRial)}</td>
+                  {canManage && (
+                    <td className="px-4 py-3">
+                      {BigInt(r.remainingRial) > 0n && (
+                        <button type="button" className="btn-ghost h-8 px-2 text-xs text-brand-700" disabled={pay.isPending} onClick={() => pay.mutate(r)}>تسویه</button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {err && err.code !== "CANCELLED" && <p role="alert" className="field-error px-5 pb-3">{err.message}</p>}
+    </section>
   );
 }
 

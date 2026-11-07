@@ -98,6 +98,9 @@ export async function voidExpense(deps: CoreDeps, ctx: TenantContext, id: string
     await tx.$queryRaw`SELECT id FROM "expense" WHERE id = ${id}::uuid FOR UPDATE`;
     const e = await tx.expense.findUniqueOrThrow({ where: { id } });
     if (e.voidedAt) throw new AppError("CONFLICT", "این هزینه قبلاً باطل شده است.");
+    if (await tx.coachPayout.findUnique({ where: { expenseId: e.id } })) {
+      throw new AppError("BUSINESS_RULE", "این هزینه تسویه‌ی کمیسیون مربی است و ابطال نمی‌شود. برای اصلاح، با مربی تسویه‌ی جبرانی ثبت کنید.");
+    }
     const updated = await tx.expense.update({ where: { id }, data: { voidedAt: now, voidedByUserId: ctx.userId, voidReason: reason } });
     await tx.ledgerEntry.create({
       data: { gymId: ctx.gymId, branchId: e.branchId, type: "EXPENSE_VOID", amountRial: e.amountRial, method: e.method, expenseId: e.id, description: `ابطال هزینه: ${reason}`, createdByUserId: ctx.userId, occurredAt: now },
