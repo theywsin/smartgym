@@ -15,12 +15,21 @@ export default function App() {
   const openMember = useCallback((id: string) => setRoute({ name: "member", id, single: false }), []);
   const logout = async () => { await api("/auth/logout", { method: "POST" }).catch(() => undefined); await clearTokens(); setRoute({ name: "login" }); };
 
+  if (route.name === "login") {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>
+        <StatusBar style="light" />
+        <View style={{ flex: 1, width: "100%", maxWidth: 560, alignSelf: "center" }}>
+          <Login onSignedIn={() => setRoute({ name: "profiles" })} />
+        </View>
+      </View>
+    );
+  }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar style="dark" />
       <View style={{ flex: 1, width: "100%", maxWidth: 560, alignSelf: "center" }}>
         {route.name === "loading" && <Loading />}
-        {route.name === "login" && <Login onSignedIn={() => setRoute({ name: "profiles" })} />}
         {route.name === "profiles" && <Profiles onOpen={openMember} onLogout={logout} />}
         {route.name === "member" && <Member memberId={route.id} onBack={() => setRoute({ name: "profiles" })} />}
       </View>

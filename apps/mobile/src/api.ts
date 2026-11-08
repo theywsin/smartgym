@@ -1,8 +1,22 @@
 import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
+
+/**
+ * In development, talk to the web app on the same computer that serves the JS bundle, so a phone running
+ * Expo Go reaches http://<computer-ip>:3001 instead of its own localhost.
+ */
+function devApiUrl(): string {
+  try {
+    if (Platform.OS === "web") return `${window.location.protocol}//${window.location.hostname}:3001`;
+    const script: string | undefined = NativeModules.SourceCode?.scriptURL;
+    const host = script ? new URL(script).hostname : "";
+    if (host) return `http://${host}:3001`;
+  } catch { /* fall through */ }
+  return "http://localhost:3001";
+}
 
 /** API origin, e.g. https://app.example.ir (set EXPO_PUBLIC_API_URL at build time). */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? devApiUrl() : "http://localhost:3001")).replace(/\/$/, "");
 
 const ACCESS = "sg_access";
 const REFRESH = "sg_refresh";
