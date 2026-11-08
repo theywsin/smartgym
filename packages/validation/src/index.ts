@@ -427,6 +427,15 @@ export const PLATFORM_SETTING_SCHEMAS = {
     address: shortText(300),
     instagram: shortText(100),
     telegram: shortText(100),
+    /** e-Namad trust seal: the id and Code values from the snippet enamad.ir gives you. */
+    enamadId: z.string().trim().regex(/^\d{0,12}$/, "شناسه اینماد فقط عدد است."),
+    enamadCode: z.string().trim().regex(/^[A-Za-z0-9]{0,40}$/, "کد اینماد نامعتبر است."),
+  }),
+  appearance: z.object({
+    font: z.enum(["vazirmatn", "peyda", "custom"]),
+    /** For "custom": the family name and a woff2/woff/ttf file URL (https, or a path under /fonts/). */
+    customFontName: z.string().trim().regex(/^[A-Za-z0-9 _-]{0,40}$/, "نام فونت فقط حروف انگلیسی و عدد."),
+    customFontUrl: z.union([z.literal(""), z.string().trim().max(300).regex(/^(https:\/\/[^\s"'()<>]+|\/fonts\/[A-Za-z0-9_./-]+)\.(woff2|woff|ttf|otf)$/, "آدرس فایل فونت باید https یا /fonts/ و با پسوند woff2، woff، ttf یا otf باشد.")]),
   }),
   landing: z.object({
     heroTitle: shortText(120).min(2),

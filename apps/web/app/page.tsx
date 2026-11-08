@@ -44,14 +44,19 @@ export default async function Landing() {
     <>
       {/* ───────── Hero ───────── */}
       <div className="relative overflow-hidden bg-[#07130d] text-white">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_at_20%_40%,rgba(34,197,94,0.18),transparent_55%),linear-gradient(180deg,#0b1d14_0%,#07130d_100%)]" />
-        <div aria-hidden className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(90deg,#fff_1px,transparent_1px),linear-gradient(#fff_1px,transparent_1px)] [background-size:64px_64px]" />
+        <picture>
+          <source media="(min-width: 768px)" srcSet="/landing/hero.jpg" />
+          {/* eslint-disable-next-line @next/next/no-img-element -- static hero image */}
+          <img src="/landing/hero-sm.jpg" alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover object-[15%_center] md:object-left" fetchPriority="high" />
+        </picture>
+        {/* Darken the text side (right in RTL) so the copy stays readable over the photo. */}
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-l from-[#050d09] via-[#050d09]/85 to-[#050d09]/10 max-md:bg-[#050d09]/70" />
         <SiteHeader cta={landing.ctaText} dark />
-        <section className="relative mx-auto grid max-w-[1180px] items-center gap-8 px-4 pt-6 pb-0 lg:grid-cols-2 lg:pt-10" aria-labelledby="hero-t">
-          <div className="space-y-6 py-6 lg:py-16">
+        <section className="relative mx-auto flex min-h-[560px] max-w-[1180px] items-center px-4 pb-16 pt-6 lg:min-h-[640px]" aria-labelledby="hero-t">
+          <div className="max-w-xl space-y-6">
             <h1 id="hero-t" className="text-4xl leading-[1.35] font-black sm:text-5xl"><Highlighted text={landing.heroTitle} /></h1>
-            <p className="max-w-xl text-base leading-8 text-white/75 sm:text-lg">{landing.heroSubtitle}</p>
-            <ul className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-white/85">
+            <p className="text-base leading-8 text-white/80 sm:text-lg">{landing.heroSubtitle}</p>
+            <ul className="flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-white/90">
               <li className="flex items-center gap-2"><Headset className="size-5 text-brand-500" aria-hidden />پشتیبانی حرفه‌ای</li>
               <li className="flex items-center gap-2"><ShieldCheck className="size-5 text-brand-500" aria-hidden />امن و مطمئن</li>
               <li className="flex items-center gap-2"><Rocket className="size-5 text-brand-500" aria-hidden />راه‌اندازی سریع</li>
@@ -60,13 +65,6 @@ export default async function Landing() {
               <Link href="/login" className="btn h-12 gap-2 rounded-full bg-brand-500 px-7 text-base text-white shadow-[0_8px_24px_rgba(34,197,94,0.35)] hover:bg-brand-600">{landing.ctaText}<ArrowLeft className="size-4" aria-hidden /></Link>
               <Link href="#platform" className="btn h-12 gap-2 rounded-full px-6 text-base text-white ring-1 ring-white/40 hover:bg-white/10"><CirclePlay className="size-5" aria-hidden />مشاهده دموی محصول</Link>
             </div>
-          </div>
-          <div className="relative mx-auto h-[360px] w-full max-w-[460px] sm:h-[460px] lg:h-[520px]">
-            <svg aria-hidden viewBox="0 0 400 400" className="absolute inset-x-0 bottom-0 mx-auto h-full w-full text-brand-500">
-              <path d="M40 380 L250 70 Q290 20 330 70 Q370 120 320 190 L250 290" fill="none" stroke="currentColor" strokeWidth="64" strokeLinecap="round" opacity="0.95" />
-            </svg>
-            {/* eslint-disable-next-line @next/next/no-img-element -- static marketing image */}
-            <img src="/landing/hero-athlete.jpg" alt="ورزشکار در باشگاه" className="absolute bottom-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 object-cover [mask-image:linear-gradient(to_top,transparent,black_12%),radial-gradient(ellipse_at_center,black_60%,transparent_75%)] [mask-composite:intersect]" />
           </div>
         </section>
       </div>

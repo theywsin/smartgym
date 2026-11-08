@@ -49,7 +49,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 }
 
 export interface Me {
-  user: { id: string; phone: string; firstName: string | null; lastName: string | null; hasPassword: boolean; isSuperAdmin: boolean };
+  user: { id: string; phone: string; firstName: string | null; lastName: string | null; hasPassword: boolean; isSuperAdmin: boolean; isAdminSession: boolean };
   gyms: { id: string; name: string; slug: string; status: string; roles: string[] }[];
   activeGymId: string | null;
   access: {

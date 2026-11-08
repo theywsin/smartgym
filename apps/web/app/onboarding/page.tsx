@@ -44,7 +44,7 @@ export default function OnboardingPage() {
         <form onSubmit={submit} noValidate className="card space-y-5 p-6 shadow-[var(--shadow-2)] sm:p-8">
           <div>
             <h1 className="text-xl font-extrabold">باشگاه خود را بسازید</h1>
-            <p className="mt-1 text-sm text-ink-2">۱۴ روز استفاده آزمایشی رایگان. بعداً می‌توانید شعبه‌ها و همکاران را اضافه کنید.</p>
+            <p className="mt-1 text-sm text-ink-2">دوره‌ی آزمایشی رایگان. بعداً می‌توانید شعبه‌ها و همکاران را اضافه کنید.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

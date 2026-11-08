@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
-import { api } from "@/lib/client/api";
+import { api, type Me } from "@/lib/client/api";
+import { LoadingState } from "@/components/states";
 import { Logo } from "@/components/logo";
 
 const TABS = [
@@ -20,7 +22,15 @@ const TABS = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const path = usePathname();
-  const logout = useMutation({ mutationFn: () => api("/auth/logout", { method: "POST" }), onSettled: () => router.replace("/login") });
+  const isLogin = path === "/admin/login";
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/auth/me"), enabled: !isLogin, retry: false });
+  const allowed = !!me.data?.user.isAdminSession;
+  useEffect(() => {
+    if (!isLogin && (me.isError || (me.data && !allowed))) router.replace("/admin/login");
+  }, [isLogin, me.isError, me.data, allowed, router]);
+  const logout = useMutation({ mutationFn: () => api("/auth/logout", { method: "POST" }), onSettled: () => router.replace("/admin/login") });
+  if (isLogin) return <>{children}</>;
+  if (!allowed) return <LoadingState />;
   return (
     <div className="min-h-dvh">
       <header className="flex items-center justify-between border-b border-line bg-white px-4 py-3 sm:px-8">

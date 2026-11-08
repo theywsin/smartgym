@@ -24,6 +24,8 @@ model User {
   passwordHash    String?    @map("password_hash")
   status          UserStatus @default(ACTIVE)
   isSuperAdmin    Boolean    @default(false) @map("is_super_admin")
+  /// Username for the platform admin panel (password login). Null for everyone else.
+  adminUsername   String?    @unique @map("admin_username")
   lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -53,6 +55,7 @@ model UserProfile {
 enum SessionKind {
   WEB
   MOBILE
+  ADMIN // platform admin panel, username + password only
 }
 
 /// Web sessions and mobile refresh tokens. Only SHA-256 hashes of tokens are stored.

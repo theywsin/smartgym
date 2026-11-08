@@ -47,7 +47,7 @@ export default function SelectGymPage() {
             ))}
           </ul>
           {me.data?.user.isSuperAdmin && (
-            <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/admin")}>
+            <button type="button" className="btn-secondary mt-4 w-full" onClick={() => router.push("/admin/login")}>
               مدیریت پلتفرم
             </button>
           )}

@@ -19,6 +19,8 @@ The new platform lives in the npm workspaces `apps/*` and `packages/*`, next to 
 ```
 
 Open http://localhost:3001 and sign in with `09120000001`; the OTP code is printed in the terminal.
+The platform admin panel is at http://localhost:3001/admin/login; the script creates user `admin` and prints its password (also saved in `.dev-admin`).
+Create or reset an admin anywhere with `DATABASE_URL=<owner url> npm run admin -w @smartgym/core -- <username>`.
 On Windows use WSL, or follow the manual steps below.
 
 ## 1. Services

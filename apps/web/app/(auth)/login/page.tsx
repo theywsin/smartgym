@@ -51,8 +51,8 @@ export default function LoginPage() {
                 if (r.activeGymId) router.replace("/manager");
                 else if (r.gyms.length > 1) router.replace("/select-gym");
                 else
-                  void Promise.all([api<{ user: { isSuperAdmin: boolean } }>("/auth/me"), api<unknown[]>("/athlete/profiles")])
-                    .then(([me, p]) => router.replace(me.user.isSuperAdmin ? "/admin" : p.length > 0 ? "/athlete" : "/onboarding"))
+                  void api<unknown[]>("/athlete/profiles")
+                    .then((p) => router.replace(p.length > 0 ? "/athlete" : "/onboarding"))
                     .catch(() => router.replace("/onboarding"));
               }}
             />

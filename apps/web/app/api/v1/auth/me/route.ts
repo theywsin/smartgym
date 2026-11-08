@@ -26,6 +26,7 @@ export const GET = userRoute(async ({ auth }) => {
       lastName: profile?.lastName ?? null,
       hasPassword: !!auth.user.passwordHash,
       isSuperAdmin: auth.user.isSuperAdmin,
+      isAdminSession: auth.session.kind === "ADMIN" && auth.user.isSuperAdmin,
     },
     gyms,
     activeGymId: auth.session.activeGymId,

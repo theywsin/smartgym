@@ -71,6 +71,16 @@ say "Adding base data and two demo gyms"
 DATABASE_URL="$OWNER_URL_DB" npm run -s seed -w @smartgym/db
 DATABASE_URL="$OWNER_URL_DB" SEED_DEV=true npm run -s seed -w @smartgym/db
 
-say "Done. Open http://localhost:3001 and sign in with 09120000001 (the SMS code is printed below)."
+if [ ! -f .dev-admin ] || [ "${1:-}" = "--reset" ]; then
+  say "Creating the platform admin account"
+  ADMIN_PW=$(secret | cut -c1-16)
+  DATABASE_URL="$OWNER_URL_DB" ADMIN_PASSWORD="$ADMIN_PW" npm run -s admin -w @smartgym/core -- admin
+  printf 'username: admin\npassword: %s\n' "$ADMIN_PW" > .dev-admin
+fi
+
+say "Done. Open http://localhost:3001"
+echo "  Gym manager demo:  sign in with 09120000001 (the SMS code is printed below)"
+echo "  Platform admin:    http://localhost:3001/admin/login"
+sed 's/^/                     /' .dev-admin
 [ "${NO_START:-}" = "1" ] && exit 0
 exec npm run dev -w @smartgym/web -- -p 3001

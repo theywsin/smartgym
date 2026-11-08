@@ -22,6 +22,7 @@ export default function SettingsPage() {
         <p className="text-sm text-ink-2">محتوای صفحه‌ی اصلی، اطلاعات تماس و ثبت‌نام باشگاه‌ها.</p>
       </div>
       <SiteForm initial={s.site} />
+      <AppearanceForm initial={s.appearance} />
       <LandingForm initial={s.landing} />
       <SignupForm initial={s.signup} plans={q.data.plans} />
     </div>
@@ -58,6 +59,11 @@ function SiteForm({ initial }: { initial: PlatformSettings["site"] }) {
         <Field label="تلگرام"><input className="input" dir="ltr" value={f.telegram} onChange={set("telegram")} /></Field>
       </div>
       <Field label="نشانی"><input className="input" value={f.address} onChange={set("address")} /></Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="اینماد: شناسه (id)"><input className="input ltr-nums" dir="ltr" placeholder="123456" value={f.enamadId} onChange={set("enamadId")} /></Field>
+        <Field label="اینماد: کد (Code)"><input className="input" dir="ltr" placeholder="AbC123..." value={f.enamadCode} onChange={set("enamadCode")} /></Field>
+      </div>
+      <p className="text-xs text-ink-3">این دو مقدار را از کدی که سایت enamad.ir می‌دهد بردارید: <span dir="ltr">trustseal.enamad.ir/?id=<b>شناسه</b>&amp;Code=<b>کد</b></span>. نشان در فوتر نمایش داده می‌شود.</p>
       <Status m={save} />
       <button className="btn-primary" disabled={save.isPending}>ذخیره</button>
     </form>
@@ -125,6 +131,39 @@ function SignupForm({ initial, plans }: { initial: PlatformSettings["signup"]; p
           {plans.map((p) => <option key={p.key} value={p.key}>{p.nameFa}</option>)}
         </select>
       </Field>
+      <Status m={save} />
+      <button className="btn-primary" disabled={save.isPending}>ذخیره</button>
+    </form>
+  );
+}
+
+const FONTS = [
+  ["vazirmatn", "وزیرمتن (پیش‌فرض، داخل برنامه)"],
+  ["peyda", "پیدا (فایل‌ها باید در public/fonts/peyda باشند)"],
+  ["custom", "فونت دلخواه با آدرس فایل"],
+] as const;
+
+function AppearanceForm({ initial }: { initial: PlatformSettings["appearance"] }) {
+  const [f, setF] = useState(initial);
+  const save = useSave("appearance");
+  return (
+    <form className="card space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(f); }} aria-labelledby="font-t">
+      <h2 id="font-t" className="card-title">فونت سایت</h2>
+      <fieldset className="space-y-2">
+        <legend className="label">فونت همه‌ی صفحه‌ها (سایت، پنل‌ها و وبلاگ)</legend>
+        {FONTS.map(([k, label]) => (
+          <label key={k} className="flex items-center gap-2 text-sm">
+            <input type="radio" name="font" value={k} checked={f.font === k} onChange={() => setF({ ...f, font: k })} />{label}
+          </label>
+        ))}
+      </fieldset>
+      {f.font === "custom" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="نام فونت (انگلیسی)"><input className="input" dir="ltr" placeholder="IRANYekan" value={f.customFontName} onChange={(e) => setF({ ...f, customFontName: e.target.value })} /></Field>
+          <Field label="آدرس فایل فونت"><input className="input" dir="ltr" placeholder="/fonts/iranyekan.woff2" value={f.customFontUrl} onChange={(e) => setF({ ...f, customFontUrl: e.target.value })} /></Field>
+        </div>
+      )}
+      <p className="text-xs text-ink-3">اگر فایل فونت پیدا نشود، مرورگر خودکار وزیرمتن را نشان می‌دهد.</p>
       <Status m={save} />
       <button className="btn-primary" disabled={save.isPending}>ذخیره</button>
     </form>

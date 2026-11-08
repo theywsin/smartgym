@@ -22,8 +22,9 @@ const audit = (tx: Tx, actor: AdminActor, action: string, entityType: string, en
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   site: {
-    name: "اسمارت‌جیم", tagline: "نرم‌افزار ابری مدیریت باشگاه ورزشی", supportPhone: "", supportEmail: "", address: "", instagram: "", telegram: "",
+    name: "اسمارت‌جیم", tagline: "نرم‌افزار ابری مدیریت باشگاه ورزشی", supportPhone: "", supportEmail: "", address: "", instagram: "", telegram: "", enamadId: "", enamadCode: "",
   },
+  appearance: { font: "vazirmatn", customFontName: "", customFontUrl: "" },
   landing: {
     heroTitle: "مدیریت باشگاه، هوشمندتر از *همیشه!*",
     heroSubtitle: "با اسمارت‌جیم، باشگاه خود را به یک کسب‌وکار مدرن تبدیل کنید و تجربه‌ای بی‌نظیر برای اعضا بسازید. عضویت، حضور با QR، صندوق، فروشگاه، پرتال مربی و اپ ورزشکار در یک پنل.",
