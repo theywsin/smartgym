@@ -202,7 +202,7 @@ export async function athleteWorkoutHistory(deps: CoreDeps, user: AthleteUser, m
     const m = await member(tx, user, memberId);
     const rows = await tx.workoutSession.findMany({
       where: { gymId: m.gymId, memberId: m.id, finishedAt: { not: null }, setLogs: { some: {} } },
-      orderBy: { startedAt: "desc" }, take: 30, include: { setLogs: true },
+      orderBy: { startedAt: "desc" }, take: 120, include: { setLogs: true },
     });
     return rows.map((s) => { const v = sessionView(s, now); return { id: v.id, dayTitle: v.dayTitle, startedAt: v.startedAt, finishedAt: v.finishedAt, note: v.note, summary: v.summary }; });
   });

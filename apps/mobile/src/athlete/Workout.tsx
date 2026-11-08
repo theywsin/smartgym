@@ -3,9 +3,11 @@ import { ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollVie
 import Svg, { Circle } from "react-native-svg";
 import { API_URL, api, errorText } from "../api";
 import { fa, jdate, toLatin } from "../format";
-import { BackIcon, BulbIcon, CheckIcon, ClockIcon, DumbbellIcon, PauseIcon, PlayIcon, TrophyIcon } from "./icons";
+import { BackIcon, BulbIcon, CalendarIcon, CheckIcon, ClockIcon, DumbbellIcon, PauseIcon, PlayIcon, TrophyIcon } from "./icons";
 import { T, WEEKDAYS, WEEKDAYS_SHORT, shadow } from "./theme";
 import { mmss, restTimer, useRestTimer } from "./timer";
+const todayWeekday = () => (new Date(Date.now() + 3.5 * 3600e3).getUTCDay() + 1) % 7;
+const jdateLong = () => new Intl.DateTimeFormat("fa-IR-u-ca-persian", { day: "numeric", month: "long", timeZone: "Asia/Tehran" }).format(new Date());
 import type { Exercise, HistoryRow, ProgramDay, Session, Week } from "./types";
 
 const media = (u?: string) => (u ? (u.startsWith("/") ? `${API_URL}${u}` : u) : undefined);
@@ -55,12 +57,14 @@ export function WorkoutTab({ memberId, week, reload, start }: { memberId: string
   return <WeekView week={week} reload={reload} error={error} onDay={(i) => setView({ name: "day", dayIndex: i })} onHistory={() => setView({ name: "history" })} />;
 }
 
-export function Header({ title, onBack, right }: { title: string; onBack?: () => void; right?: React.ReactNode }) {
+export function Header({ title, onBack, right, icon }: { title: string; onBack?: () => void; right?: React.ReactNode; icon?: React.ReactNode }) {
   return (
     <View style={st.header}>
-      {onBack ? <Pressable accessibilityRole="button" accessibilityLabel="بازگشت" onPress={onBack} hitSlop={12}><BackIcon /></Pressable> : <View style={{ width: 22 }} />}
-      <Text style={st.headerTitle}>{title}</Text>
-      {right ?? <View style={{ width: 22 }} />}
+      <View style={st.headerSlot}>{icon ?? null}</View>
+      <Text style={st.headerTitle} numberOfLines={1}>{title}</Text>
+      <View style={[st.headerSlot, { alignItems: "flex-start" }]}>
+        {right ?? (onBack ? <Pressable accessibilityRole="button" accessibilityLabel="بازگشت" onPress={onBack} hitSlop={12}><BackIcon left color="#fff" /></Pressable> : null)}
+      </View>
     </View>
   );
 }
@@ -80,7 +84,7 @@ function WeekView({ week, reload, error, onDay, onHistory }: { week: Week; reloa
   const scheduled = p.days.some((d) => d.weekday != null);
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await reload(); setRefreshing(false); }} />}>
-      <Header title="برنامه تمرینی" right={<Pressable accessibilityRole="button" onPress={onHistory}><Text style={{ color: T.green, fontWeight: "700" }}>سابقه</Text></Pressable>} />
+      <Header title="برنامه تمرینی" icon={<CalendarIcon color="#fff" />} right={<Pressable accessibilityRole="button" onPress={onHistory}><Text style={{ color: T.neon, fontWeight: "800" }}>سابقه</Text></Pressable>} />
       <View style={[st.card, { gap: 4 }]}>
         <Text style={st.h2}>{p.title}</Text>
         {p.goal ? <Text style={st.muted}>هدف: {p.goal}</Text> : null}
@@ -135,7 +139,8 @@ function DayDetail({ day, busy, error, onBack, onStart }: { day: ProgramDay; bus
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110, gap: 10 }}>
-        <Header title={day.title} onBack={onBack} />
+        <Header title={day.title} onBack={onBack} icon={<CalendarIcon color="#fff" />} />
+        <View style={st.todayBanner}><Text style={{ color: T.green, fontWeight: "900", fontSize: 14 }}>{day.weekday != null ? `روز برنامه: ${WEEKDAYS[day.weekday]}` : `امروز: ${WEEKDAYS[todayWeekday()]} ${jdateLong()}`}</Text></View>
         <View style={st.statsRow}>
           <Stat icon={<DumbbellIcon size={20} color={T.green} />} value={fa(day.exercises.length)} label="حرکت" />
           <Stat icon={<ClockIcon size={20} />} value={fa(day.setsTotal)} label="ست" />
@@ -152,6 +157,12 @@ function DayDetail({ day, busy, error, onBack, onStart }: { day: ProgramDay; bus
             {e.imageUrl ? <Image source={{ uri: media(e.imageUrl) }} style={st.thumb} /> : null}
           </Pressable>
         ))}
+        {day.exercises.length > 0 && (
+          <View style={[st.todayBanner, { flexDirection: "row-reverse", gap: 8, justifyContent: "center" }]}>
+            <ClockIcon size={20} />
+            <Text style={{ color: T.ink, fontWeight: "800", fontSize: 13 }}>بین هر ست {fa(day.exercises[0]!.restSeconds)} ثانیه استراحت کنید</Text>
+          </View>
+        )}
         {error ? <Text style={st.err}>{error}</Text> : null}
       </ScrollView>
       <View style={st.footer}>
@@ -306,8 +317,22 @@ function Run({ memberId, sessionId, onFinished, onExit }: { memberId: string; se
         <View style={[st.card, { gap: 10 }]}>
           <Text style={[st.muted, { textAlign: "center" }]}>ست {fa(Math.min(nextSet, ex.sets))} از {fa(ex.sets)}</Text>
           <Text style={[st.h2, { textAlign: "center" }]}>{ex.name}</Text>
-          {ex.imageUrl ? <Image source={{ uri: media(ex.imageUrl) }} style={st.hero} resizeMode="cover" /> : null}
-          <Pressable accessibilityRole="button" onPress={() => setShowInfo(true)} style={{ alignSelf: "center" }}><Text style={{ color: T.green, fontWeight: "700" }}>{ex.videoUrl ? "ویدئو و توضیحات حرکت" : "توضیحات حرکت"}</Text></Pressable>
+          {ex.imageUrl ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={ex.videoUrl ? "پخش ویدئوی حرکت" : "توضیحات حرکت"} onPress={() => (ex.videoUrl ? Linking.openURL(ex.videoUrl) : setShowInfo(true))}>
+              <Image source={{ uri: media(ex.imageUrl) }} style={st.hero} resizeMode="cover" />
+              {ex.videoUrl ? <View style={st.playBtn}><PlayIcon size={30} /></View> : null}
+            </Pressable>
+          ) : null}
+          {ex.tips ? (
+            <View style={{ gap: 6, paddingTop: 4 }}>
+              <Text style={st.h3}>توضیحات حرکت:</Text>
+              {ex.tips.split(/\n+/).filter((t) => t.trim()).map((t, k) => (
+                <View key={k} style={{ flexDirection: "row-reverse", gap: 6, alignItems: "center" }}><CheckIcon size={16} color={T.green} /><Text style={[st.body, { flex: 1, fontSize: 13 }]}>{t.trim()}</Text></View>
+              ))}
+            </View>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={() => setShowInfo(true)} style={{ alignSelf: "center" }}><Text style={{ color: T.green, fontWeight: "700" }}>{ex.videoUrl ? "ویدئو و توضیحات حرکت" : "توضیحات حرکت"}</Text></Pressable>
+          )}
           <Text style={[st.muted, { textAlign: "center" }]}>هدف: {fa(ex.reps)} تکرار{ex.note ? ` · ${ex.note}` : ""}</Text>
           {/* set dots */}
           <View style={{ flexDirection: "row-reverse", justifyContent: "center", gap: 8 }}>
@@ -373,9 +398,18 @@ function Run({ memberId, sessionId, onFinished, onExit }: { memberId: string; se
 }
 
 /** Rest countdown docked at the bottom; driven by the wall-clock timer so it never drifts. */
-export function RestPanel() {
+export function RestPanel({ compact }: { compact?: boolean }) {
   const t = useRestTimer();
   if (!t.active && !t.done) return null;
+  if (compact) {
+    return (
+      <View style={[st.restMini, t.done && { backgroundColor: T.green }]} accessibilityLiveRegion="polite">
+        <ClockIcon size={20} color={t.done ? "#fff" : T.neon} />
+        <Text style={{ flex: 1, color: "#fff", fontWeight: "800", textAlign: "right" }}>{t.done ? "استراحت تمام شد! ست بعدی" : `استراحت · ${fa(mmss(t.leftMs))}`}</Text>
+        <Pressable accessibilityRole="button" onPress={() => (t.done ? restTimer.dismiss() : restTimer.skip())} hitSlop={8}><Text style={{ color: t.done ? "#fff" : T.neon, fontWeight: "800" }}>{t.done ? "باشه" : "رد کردن"}</Text></Pressable>
+      </View>
+    );
+  }
   if (t.done) {
     return (
       <View style={[st.rest, { backgroundColor: T.green }]}>
@@ -462,8 +496,11 @@ function History({ memberId, onBack }: { memberId: string; onBack: () => void })
 }
 
 export const st = StyleSheet.create({
-  header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 6, marginBottom: 2 },
-  headerTitle: { fontSize: 18, fontWeight: "900", color: T.ink },
+  header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginHorizontal: -16, marginTop: -16, marginBottom: 4, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 22, backgroundColor: T.dark, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  todayBanner: { backgroundColor: T.soft, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", borderWidth: 1, borderColor: "#BBF7D0" },
+  playBtn: { position: "absolute", top: "50%", left: "50%", width: 64, height: 64, marginLeft: -32, marginTop: -32, borderRadius: 32, backgroundColor: "rgba(16,24,39,0.75)", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#fff" },
+  headerSlot: { minWidth: 44, alignItems: "flex-end" },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: "900", color: "#fff", textAlign: "center" },
   card: { backgroundColor: T.card, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: T.line, ...shadow },
   h2: { fontSize: 19, fontWeight: "900", color: T.ink, textAlign: "right" },
   h3: { fontSize: 15, fontWeight: "800", color: T.ink, textAlign: "right" },
@@ -490,5 +527,6 @@ export const st = StyleSheet.create({
   setDot: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: T.line, alignItems: "center", justifyContent: "center" },
   input: { borderWidth: 1, borderColor: T.line, borderRadius: 14, height: 52, paddingHorizontal: 14, fontSize: 20, color: T.ink, textAlign: "center", backgroundColor: "#fff" },
   rest: { position: "absolute", left: 12, right: 12, bottom: 12, backgroundColor: "#fff", borderRadius: 24, padding: 16, gap: 12, borderWidth: 1, borderColor: T.line, shadowColor: "#0f172a", shadowOpacity: 0.15, shadowRadius: 24, shadowOffset: { width: 0, height: -4 }, elevation: 10 },
+  restMini: { position: "absolute", left: 12, right: 12, bottom: 10, flexDirection: "row-reverse", alignItems: "center", gap: 10, backgroundColor: T.dark, borderRadius: 18, paddingHorizontal: 16, height: 52, ...shadow },
   restBtn: { flex: 1, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
 });
