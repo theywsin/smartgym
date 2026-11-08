@@ -28,12 +28,19 @@ if [ "${SKIP_DOCKER:-}" != "1" ]; then
   docker compose -f docker/compose.dev.yml up -d postgres
   printf "Waiting for Postgres"
   for i in $(seq 1 60); do
-    if docker compose -f docker/compose.dev.yml exec -T postgres pg_isready -U smartgym_owner -d smartgym >/dev/null 2>&1; then break; fi
+    if docker compose -f docker/compose.dev.yml exec -T postgres pg_isready -h 127.0.0.1 -U smartgym_owner -d smartgym >/dev/null 2>&1; then break; fi
     printf "."; sleep 1
     [ "$i" = 60 ] && { echo; echo "Postgres did not start. Run: docker compose -f docker/compose.dev.yml logs postgres"; exit 1; }
   done
   # The init script that creates the app role only runs on a fresh volume; make sure it exists.
-  docker compose -f docker/compose.dev.yml exec -T postgres psql -q -U smartgym_owner -d smartgym -c \
+  # On first start the image runs a temporary init server (socket only) and restarts it, so wait for TCP
+  # and retry the role fix-up a few times.
+  sleep 2
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    docker compose -f docker/compose.dev.yml exec -T -e PGPASSWORD=owner postgres psql -h 127.0.0.1 -q -U smartgym_owner -d smartgym -c "SELECT 1" >/dev/null 2>&1 && break
+    sleep 2
+  done
+  docker compose -f docker/compose.dev.yml exec -T -e PGPASSWORD=owner postgres psql -h 127.0.0.1 -q -U smartgym_owner -d smartgym -c \
     "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='smartgym_app') THEN CREATE ROLE smartgym_app LOGIN PASSWORD 'app'; END IF; END \$\$; ALTER ROLE smartgym_app PASSWORD 'app'; ALTER ROLE smartgym_owner PASSWORD 'owner';" >/dev/null
   echo " ready"
 fi
