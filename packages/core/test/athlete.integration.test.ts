@@ -8,6 +8,7 @@ import {
   requestOtp, verifyOtp, registerGym, loadTenantContext, inviteStaff, createMember,
   createMembershipPlan, sellMembership, assignCoach, createProgram, checkIn, listBranches,
   listMyMemberProfiles, getAthleteDashboard, athleteStartDebtPayment, setOnlinePaymentSettings, issueCheckinPass, checkInWithPass, checkOut, type TenantContext,
+  athleteWorkoutWeek, athleteStartWorkout, athleteLogSet, athleteFinishWorkout, athleteWorkoutHistory, listMemberWorkoutSessions,
 } from "../src";
 
 const hasDb = !!process.env.DATABASE_URL;
@@ -30,6 +31,7 @@ describe.skipIf(!hasDb)("athlete app", () => {
   let c2: TenantContext;
   let branch1: string;
   let clock: Date | undefined;
+  let c1Owner: TenantContext;
 
   beforeAll(async () => {
     db = createPrismaClient(process.env.DATABASE_URL);
@@ -40,6 +42,7 @@ describe.skipIf(!hasDb)("athlete app", () => {
     const g1 = await registerGym(deps, o1, { name: "باشگاه الف", firstBranchName: "مرکزی" });
     const g2 = await registerGym(deps, o2, { name: "باشگاه ب", firstBranchName: "مرکزی" });
     c1 = await loadTenantContext(db, o1, g1.id);
+    c1Owner = c1;
     c2 = await loadTenantContext(db, o2, g2.id);
     memberA = (await createMember(deps, c1, memberInputSchema.parse({ firstName: "سارا", lastName: "رضایی", phone: athletePhone }))).id;
     memberB = (await createMember(deps, c2, memberInputSchema.parse({ firstName: "سارا", lastName: "ر", phone: athletePhone }))).id;
@@ -110,5 +113,26 @@ describe.skipIf(!hasDb)("athlete app", () => {
     await expect(athleteStartDebtPayment(deps, athlete, memberB, subId)).rejects.toSatisfy((e: unknown) => e instanceof AppError && e.code === "NOT_FOUND");
     const someone = (await signIn(phone())).user;
     await expect(athleteStartDebtPayment(deps, someone, memberA, subId)).rejects.toSatisfy((e: unknown) => e instanceof AppError && e.code === "NOT_FOUND");
+  });
+
+  it("runs a workout: start, resume, log sets, finish, coach report", async () => {
+    const week = await athleteWorkoutWeek(deps, athlete, memberA);
+    expect(week.program?.days[0]!.setsTotal).toBe(4);
+    const s = await athleteStartWorkout(deps, athlete, memberA, 0);
+    const again = await athleteStartWorkout(deps, athlete, memberA, 0);
+    expect(again.id).toBe(s.id);
+    await expect(athleteFinishWorkout(deps, athlete, memberA, s.id)).rejects.toBeInstanceOf(AppError);
+    await athleteLogSet(deps, athlete, memberA, s.id, { exerciseIndex: 0, setNumber: 1, reps: 8, weightKg: 50 });
+    await athleteLogSet(deps, athlete, memberA, s.id, { exerciseIndex: 0, setNumber: 1, reps: 10, weightKg: 60 });
+    await expect(athleteLogSet(deps, athlete, memberA, s.id, { exerciseIndex: 0, setNumber: 5, reps: 10 })).rejects.toBeInstanceOf(AppError);
+    await expect(athleteLogSet(deps, athlete, stranger, s.id, { exerciseIndex: 0, setNumber: 2, reps: 10 })).rejects.toBeInstanceOf(AppError);
+    const done = await athleteFinishWorkout(deps, athlete, memberA, s.id);
+    expect(done.summary.setsDone).toBe(1);
+    expect(done.summary.totalReps).toBe(10);
+    expect(done.summary.volumeKg).toBe(600);
+    await expect(athleteLogSet(deps, athlete, memberA, s.id, { exerciseIndex: 0, setNumber: 2, reps: 10 })).rejects.toBeInstanceOf(AppError);
+    expect((await athleteWorkoutHistory(deps, athlete, memberA)).map((h) => h.id)).toContain(s.id);
+    expect((await listMemberWorkoutSessions(deps, c1Owner, memberA)).map((h: { id: string }) => h.id)).toContain(s.id);
+    await expect(listMemberWorkoutSessions(deps, c2, memberA)).rejects.toBeInstanceOf(AppError);
   });
 });

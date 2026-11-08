@@ -20,12 +20,23 @@ export default function LoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [mode, setMode] = useState<"otp" | "password">("otp");
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
+
+  const done = (r: VerifyResult) => {
+    if (r.activeGymId) router.replace("/manager");
+    else if (r.gyms.length > 1) router.replace("/select-gym");
+    else
+      void api<unknown[]>("/athlete/profiles")
+        .then((p) => router.replace(p.length > 0 ? "/athlete" : "/onboarding"))
+        .catch(() => router.replace("/onboarding"));
+  };
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
@@ -34,48 +45,87 @@ export default function LoginPage() {
           <Logo />
         </div>
         <div className="card p-6 shadow-[var(--shadow-2)] sm:p-8">
-          {phone === null ? (
+          {phone === null && (
+            <div role="tablist" aria-label="روش ورود" className="mb-6 grid grid-cols-2 gap-1 rounded-xl bg-line-2 p-1 text-sm font-semibold">
+              {([["otp", "کد پیامکی"], ["password", "شماره و رمز عبور"]] as const).map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => setMode(k)}
+                  className={`h-9 rounded-lg ${mode === k ? "bg-white text-ink shadow-sm" : "text-ink-2 hover:text-ink"}`}>{label}</button>
+              ))}
+            </div>
+          )}
+          {phone === null && mode === "password" ? (
+            <PasswordStep onDone={done} onForgot={() => setMode("otp")} />
+          ) : phone === null ? (
             <PhoneStep
-              onSent={(p, wait) => {
+              onSent={(p, wait, dev) => {
                 setPhone(p);
                 setResendIn(wait);
+                setDevCode(dev ?? null);
               }}
             />
           ) : (
             <CodeStep
               phone={phone}
               resendIn={resendIn}
-              onResent={(wait) => setResendIn(wait)}
+              onResent={(wait, dev) => { setResendIn(wait); setDevCode(dev ?? null); }}
+              devCode={devCode}
               onBack={() => setPhone(null)}
-              onVerified={(r) => {
-                if (r.activeGymId) router.replace("/manager");
-                else if (r.gyms.length > 1) router.replace("/select-gym");
-                else
-                  void Promise.all([api<{ user: { isSuperAdmin: boolean } }>("/auth/me"), api<unknown[]>("/athlete/profiles")])
-                    .then(([me, p]) => router.replace(me.user.isSuperAdmin ? "/admin" : p.length > 0 ? "/athlete" : "/onboarding"))
-                    .catch(() => router.replace("/onboarding"));
-              }}
+              onVerified={done}
             />
           )}
         </div>
         <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-ink-3">
           <ShieldCheck className="size-3.5" aria-hidden />
-          ورود امن با کد یک‌بار مصرف پیامکی
+          {mode === "otp" ? "ورود امن با کد یک‌بار مصرف پیامکی" : "رمز عبور را می‌توانید بعد از ورود، در پروفایل تعیین کنید"}
         </p>
       </div>
     </main>
   );
 }
 
-function PhoneStep({ onSent }: { onSent: (phone: string, resendIn: number) => void }) {
+const passwordForm = z.object({ phone: iranMobile, password: z.string().min(1, "رمز عبور را وارد کنید").max(200) });
+
+function PasswordStep({ onDone, onForgot }: { onDone: (r: VerifyResult) => void; onForgot: () => void }) {
+  const form = useForm<z.input<typeof passwordForm>, unknown, z.output<typeof passwordForm>>({ resolver: zodResolver(passwordForm) });
+  const [error, setError] = useState<string | null>(null);
+  const submit = form.handleSubmit(async (body) => {
+    setError(null);
+    try {
+      onDone(await api<VerifyResult>("/auth/password/login", { method: "POST", body }));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "خطای غیرمنتظره‌ای رخ داد.");
+    }
+  });
+  const errs = form.formState.errors;
+  return (
+    <form onSubmit={submit} noValidate>
+      <h1 className="text-xl font-extrabold">ورود با رمز عبور</h1>
+      <p className="mt-1 mb-6 text-sm text-ink-2">شماره موبایل و رمز عبوری که در پروفایل تعیین کرده‌اید.</p>
+      <label htmlFor="pphone" className="label">شماره موبایل</label>
+      <input id="pphone" type="tel" inputMode="numeric" autoComplete="username" placeholder="۰۹۱۲ ۳۴۵ ۶۷۸۹" className="input ltr-nums text-left" aria-invalid={!!errs.phone} autoFocus {...form.register("phone")} />
+      {errs.phone && <p className="field-error">{errs.phone.message}</p>}
+      <label htmlFor="ppass" className="label mt-4 block">رمز عبور</label>
+      <input id="ppass" type="password" autoComplete="current-password" className="input text-left" dir="ltr" aria-invalid={!!errs.password} {...form.register("password")} />
+      {errs.password && <p className="field-error">{errs.password.message}</p>}
+      {error && <p role="alert" className="field-error">{error}</p>}
+      <button type="submit" className="btn-primary btn-lg mt-6 w-full" disabled={form.formState.isSubmitting}>
+        {form.formState.isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
+        ورود
+      </button>
+      <button type="button" className="mt-3 w-full text-sm text-brand-700 hover:underline" onClick={onForgot}>رمز ندارید یا فراموش کرده‌اید؟ ورود با کد پیامکی</button>
+    </form>
+  );
+}
+
+function PhoneStep({ onSent }: { onSent: (phone: string, resendIn: number, devCode?: string) => void }) {
   const form = useForm<z.input<typeof phoneForm>, unknown, z.output<typeof phoneForm>>({ resolver: zodResolver(phoneForm) });
   const [error, setError] = useState<string | null>(null);
 
   const submit = form.handleSubmit(async ({ phone }) => {
     setError(null);
     try {
-      const r = await api<{ resendInSeconds: number }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
-      onSent(phone, r.resendInSeconds);
+      const r = await api<{ resendInSeconds: number; devCode?: string }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
+      onSent(phone, r.resendInSeconds, r.devCode);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "خطای غیرمنتظره‌ای رخ داد.");
     }
@@ -115,10 +165,12 @@ function CodeStep({
   onResent,
   onBack,
   onVerified,
+  devCode,
 }: {
   phone: string;
   resendIn: number;
-  onResent: (wait: number) => void;
+  devCode?: string | null;
+  onResent: (wait: number, devCode?: string) => void;
   onBack: () => void;
   onVerified: (r: VerifyResult) => void;
 }) {
@@ -141,8 +193,8 @@ function CodeStep({
     setResending(true);
     setError(null);
     try {
-      const r = await api<{ resendInSeconds: number }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
-      onResent(r.resendInSeconds);
+      const r = await api<{ resendInSeconds: number; devCode?: string }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
+      onResent(r.resendInSeconds, r.devCode);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "خطای غیرمنتظره‌ای رخ داد.");
     } finally {
@@ -169,14 +221,20 @@ function CodeStep({
       </button>
       <h1 className="text-xl font-extrabold">کد تأیید را وارد کنید</h1>
       <p className="mt-1 mb-6 text-sm text-ink-2">
-        کد ۶ رقمی به شماره <span className="ltr-nums font-semibold text-ink">{toPersianDigits(formatIranMobile(phone))}</span> ارسال شد.
+        کد تأیید به شماره <span className="ltr-nums font-semibold text-ink">{toPersianDigits(formatIranMobile(phone))}</span> ارسال شد.
       </p>
+      {devCode && (
+        <div role="status" className="mb-4 rounded-xl border border-dashed border-warn-tx/40 bg-warn-bg px-4 py-3 text-sm text-warn-tx">
+          حالت تست (پیامک واقعی ارسال نمی‌شود). کد ورود: <b className="ltr-nums mx-1 text-base tracking-widest" dir="ltr">{devCode}</b>
+          <button type="button" className="mr-2 underline" onClick={() => { form.setValue("code", devCode); void submit(); }}>ورود با این کد</button>
+        </div>
+      )}
       <label htmlFor="code" className="label">کد تأیید</label>
       <input
         id="code"
         inputMode="numeric"
         autoComplete="one-time-code"
-        maxLength={6}
+        maxLength={8}
         className="input ltr-nums text-center text-lg tracking-[0.5em]"
         aria-invalid={!!fieldError || !!error}
         autoFocus

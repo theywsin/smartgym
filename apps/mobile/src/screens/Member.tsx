@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Text } from "../text";
 import QRCode from "react-native-qrcode-svg";
 import { API_URL, api, errorText } from "../api";
 import { fa, jdate, toman } from "../format";

@@ -157,6 +157,18 @@ export function userRoute(handler: Handler<{ auth: Auth }>) {
     run(req, routeCtx, async (base) => handler({ ...base, auth: await authenticate(req) }));
 }
 
+/** Platform admin panel: requires a session opened with the admin username + password. */
+export function adminRoute(handler: Handler<{ auth: Auth }>) {
+  return (req: NextRequest, routeCtx?: RouteCtx) =>
+    run(req, routeCtx, async (base) => {
+      const auth = await authenticate(req);
+      if (auth.session.kind !== "ADMIN" || !auth.user.isSuperAdmin) {
+        throw new AppError("FORBIDDEN", "برای این بخش از صفحه‌ی ورود مدیر پلتفرم وارد شوید.");
+      }
+      return handler({ ...base, auth });
+    });
+}
+
 /** Requires a signed-in user with an active gym; builds the tenant context on the server. */
 export function tenantRoute(handler: Handler<{ auth: Auth; tenant: TenantContext }>) {
   return (req: NextRequest, routeCtx?: RouteCtx) =>

@@ -98,3 +98,27 @@ export async function updateProgram(deps: CoreDeps, ctx: TenantContext, programI
     return updated;
   });
 }
+
+/** Coach view of an athlete's logged workouts (latest first), with every set. */
+export async function listMemberWorkoutSessions(deps: CoreDeps, ctx: TenantContext, memberId: string) {
+  requirePermission(ctx, "workouts.read");
+  return withTenant(deps.db, ctx, async (tx) => {
+    await assertCoachAccess(tx, ctx, memberId);
+    const rows = await tx.workoutSession.findMany({
+      where: { gymId: ctx.gymId, memberId, setLogs: { some: {} } },
+      orderBy: { startedAt: "desc" }, take: 30,
+      include: { setLogs: { orderBy: [{ exerciseIndex: "asc" }, { setNumber: "asc" }] } },
+    });
+    return rows.map((s) => {
+      const exercises = s.exercises as { name: string; sets: number; reps: string }[];
+      return {
+        id: s.id, dayTitle: s.dayTitle, startedAt: s.startedAt, finishedAt: s.finishedAt, note: s.note,
+        minutes: s.finishedAt ? Math.max(1, Math.round((s.finishedAt.getTime() - s.startedAt.getTime()) / 60_000)) : null,
+        exercises: exercises.map((e, i) => ({
+          name: e.name, plannedSets: e.sets, plannedReps: e.reps,
+          sets: s.setLogs.filter((l) => l.exerciseIndex === i).map((l) => ({ setNumber: l.setNumber, reps: l.reps, weightKg: l.weightKgX10 == null ? null : l.weightKgX10 / 10, note: l.note })),
+        })),
+      };
+    });
+  });
+}

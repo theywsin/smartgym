@@ -122,3 +122,16 @@ AI_DAILY_LIMIT_PER_GYM=50
 ```
 
 Only training facts (goal, level, days, equipment, limitations) are sent; never the member's name, phone or id. Drafts are not saved until the coach saves them. Every call is audited (`ai.workout_draft`). With `AI_PROVIDER=none` (default) the feature returns a clear "not configured" message.
+
+## Uploaded images (UPLOAD_DIR)
+
+Images uploaded in the platform admin (logo, favicon, article covers and inline images) are written to `UPLOAD_DIR`
+(default `<web cwd>/.uploads`) and served at `/uploads/<uuid>.<ext>`. Mount this directory on a persistent volume
+and include it in backups, e.g. `UPLOAD_DIR=/var/lib/smartgym/uploads`. Only PNG, JPEG, WEBP and GIF up to 5 MB are
+accepted (checked from the file bytes; SVG is refused).
+
+## SMS and payment settings in the admin panel
+
+`/admin/integrations` stores the Melipayamak API key (encrypted with a key derived from `JWT_SECRET`), the OTP and
+expiry pattern codes, and the platform-wide online payment switch. If `JWT_SECRET` changes, enter the key again.
+The worker needs the same `JWT_SECRET` to use these settings. Each gym's Saman terminal is set on the gym's page.

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
@@ -40,7 +41,7 @@ export default function UsersPage() {
           {list.data.items.map((u) => (
             <li key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
               <div className="min-w-[180px] flex-1">
-                <p className="font-semibold">{u.name ?? "بدون نام"} {u.isSuperAdmin && <span className="chip text-xs">مدیر پلتفرم</span>}</p>
+                <p className="font-semibold"><Link href={`/admin/users/${u.id}`} className="hover:text-brand-700 hover:underline">{u.name ?? "بدون نام"}</Link> {u.isSuperAdmin && <span className="chip text-xs">مدیر پلتفرم</span>}</p>
                 <p className="ltr-nums text-xs text-ink-3">{toPersianDigits(formatIranMobile(u.phone))}</p>
               </div>
               <p className="min-w-[200px] flex-1 text-xs text-ink-2">{u.gyms.length ? u.gyms.map((g) => `${g.gym} (${ROLE_LABELS_FA[g.role as GymRole] ?? g.role})`).join("، ") : "—"}</p>

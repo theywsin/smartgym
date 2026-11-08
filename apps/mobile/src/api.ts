@@ -1,8 +1,22 @@
 import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
+
+/**
+ * In development, talk to the web app on the same computer that serves the JS bundle, so a phone running
+ * Expo Go reaches http://<computer-ip>:3001 instead of its own localhost.
+ */
+function devApiUrl(): string {
+  try {
+    if (Platform.OS === "web") return `${window.location.protocol}//${window.location.hostname}:3001`;
+    const script: string | undefined = NativeModules.SourceCode?.scriptURL;
+    const host = script ? new URL(script).hostname : "";
+    if (host) return `http://${host}:3001`;
+  } catch { /* fall through */ }
+  return "http://localhost:3001";
+}
 
 /** API origin, e.g. https://app.example.ir (set EXPO_PUBLIC_API_URL at build time). */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || (__DEV__ ? devApiUrl() : "http://localhost:3001")).replace(/\/$/, "");
 
 const ACCESS = "sg_access";
 const REFRESH = "sg_refresh";
@@ -67,7 +81,7 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   try {
     res = await fetch(`${API_URL}/api/v1${path}`, { method: opts.method ?? "GET", headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) });
   } catch {
-    throw new ApiError(0, "NETWORK", "اتصال به اینترنت برقرار نیست.");
+    throw new ApiError(0, "NETWORK", __DEV__ ? `سرور در دسترس نیست: ${API_URL}\nسایت (dev-setup.sh) روشن است؟ گوشی و کامپیوتر روی یک وای‌فای هستند؟` : "اتصال به اینترنت برقرار نیست.");
   }
   if (res.status === 401 && opts.auth !== false && !retried && (await refresh())) return api<T>(path, opts, true);
   const json = await res.json().catch(() => null);

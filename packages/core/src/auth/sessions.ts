@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import type { Session, SessionKind, User } from "@smartgym/db";
-import { withUser } from "@smartgym/db";
+import { withUser, withSystem } from "@smartgym/db";
 import { AppError } from "../errors";
 import { type CoreDeps, nowOf } from "../deps";
 import { randomToken, sha256, hashPassword, verifyPassword } from "./crypto";
@@ -48,7 +48,7 @@ export async function authenticateWebSession(deps: CoreDeps, token: string): Pro
   if (!token || token.length > 200) throw expired();
   const now = nowOf(deps);
   const session = await deps.db.session.findUnique({ where: { tokenHash: sha256(token) }, include: { user: true } });
-  if (!session || session.kind !== "WEB" || session.revokedAt || session.expiresAt <= now) throw expired();
+  if (!session || (session.kind !== "WEB" && session.kind !== "ADMIN") || session.revokedAt || session.expiresAt <= now) throw expired();
   if (now.getTime() - session.lastUsedAt.getTime() > deps.config.webSessionIdleSeconds * 1000) {
     await deps.db.session.update({ where: { id: session.id }, data: { revokedAt: now } });
     throw expired();
@@ -179,4 +179,44 @@ export async function loginWithPassword(deps: CoreDeps, phone: string, password:
   if (!user || !ok) throw new AppError("UNAUTHENTICATED", "شماره موبایل یا رمز عبور نادرست است.");
   if (user.status !== "ACTIVE") throw new AppError("FORBIDDEN", "این حساب کاربری غیرفعال شده است.");
   return deps.db.user.update({ where: { id: user.id }, data: { lastLoginAt: nowOf(deps) } });
+}
+
+// ───────── Platform admin panel: username + password ─────────
+
+const ADMIN_USERNAME = /^[a-z0-9_.-]{3,32}$/;
+const adminFail = () => new AppError("UNAUTHENTICATED", "نام کاربری یا رمز عبور نادرست است.");
+
+/**
+ * Signs a platform admin in with username and password. Only accounts created with the
+ * admin CLI (isSuperAdmin + adminUsername) can use it. Same error and timing for every failure.
+ */
+export async function loginAdmin(deps: CoreDeps, username: string, password: string): Promise<User> {
+  const name = username.trim().toLowerCase();
+  const user = ADMIN_USERNAME.test(name) ? await deps.db.user.findUnique({ where: { adminUsername: name } }) : null;
+  dummyHash ??= hashPassword("smartgym-timing-equaliser");
+  const ok = (await verifyPassword(user?.passwordHash ?? (await dummyHash), password)) && !!user?.passwordHash;
+  if (!user || !ok || !user.isSuperAdmin) throw adminFail();
+  if (user.status !== "ACTIVE") throw new AppError("FORBIDDEN", "این حساب کاربری غیرفعال شده است.");
+  await withSystem(deps.db, (tx) => tx.auditLog.create({ data: { actorUserId: user.id, actorRole: "SUPER_ADMIN", action: "platform.admin_login", entityType: "user", entityId: user.id } }));
+  return deps.db.user.update({ where: { id: user.id }, data: { lastLoginAt: nowOf(deps) } });
+}
+
+/**
+ * Creates or updates a platform admin account (CLI only, never exposed over HTTP).
+ * The account is not a gym user: its phone column holds an "admin:" marker that can never pass
+ * mobile-number validation, so it cannot sign in with OTP.
+ */
+export async function upsertPlatformAdmin(db: CoreDeps["db"], username: string, password: string) {
+  const name = username.trim().toLowerCase();
+  if (!ADMIN_USERNAME.test(name)) throw new Error("Username: 3-32 chars, a-z 0-9 _ . -");
+  if (password.length < 10) throw new Error("Password must be at least 10 characters.");
+  const passwordHash = await hashPassword(password);
+  const existing = await db.user.findUnique({ where: { adminUsername: name } });
+  const user = existing
+    ? await db.user.update({ where: { id: existing.id }, data: { passwordHash, isSuperAdmin: true, status: "ACTIVE" } })
+    : await db.user.create({ data: { phone: `admin:${name}`, adminUsername: name, passwordHash, isSuperAdmin: true } });
+  // Changing the password signs out every open admin session.
+  await db.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+  await db.auditLog.create({ data: { actorRole: "CLI", action: existing ? "platform.admin_password" : "platform.admin_create", entityType: "user", entityId: user.id } });
+  return { id: user.id, username: name, created: !existing };
 }

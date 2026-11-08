@@ -60,7 +60,7 @@ function PlanEditor({ plan, modules, onClose }: { plan: Plan | null; modules: Da
   const [f, setF] = useState({
     key: plan?.key ?? "", nameFa: plan?.nameFa ?? "",
     monthly: plan ? (BigInt(plan.monthlyAmountRial) / 10n).toString() : "", annual: plan ? (BigInt(plan.annualAmountRial) / 10n).toString() : "",
-    trialDays: String(plan?.trialDays ?? 14), members: plan?.limits.members ? String(plan.limits.members) : "", branches: plan?.limits.branches ? String(plan.limits.branches) : "",
+    trialDays: String(plan?.trialDays ?? 1), members: plan?.limits.members ? String(plan.limits.members) : "", branches: plan?.limits.branches ? String(plan.limits.branches) : "",
     modules: new Set(plan?.modules ?? ["core"]), isActive: plan?.isActive ?? true,
   });
   const save = useMutation({

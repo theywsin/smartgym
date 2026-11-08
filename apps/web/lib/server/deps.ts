@@ -1,6 +1,6 @@
 import "server-only";
 import { getPrisma } from "@smartgym/db";
-import { createSmsProviderFromEnv, createAiProviderFromEnv, createGatewayFromEnv, DEFAULT_CONFIG, type CoreDeps, type PaymentGateway } from "@smartgym/core";
+import { createSmsProviderFromEnv, createAiProviderFromEnv, SettingsSmsProvider, createGatewayFromEnv, DEFAULT_CONFIG, type CoreDeps, type PaymentGateway } from "@smartgym/core";
 import { env } from "./env";
 
 let deps: CoreDeps | undefined;
@@ -10,7 +10,8 @@ export function coreDeps(): CoreDeps {
   const e = env();
   deps = {
     db: getPrisma(),
-    sms: createSmsProviderFromEnv(process.env),
+    // Melipayamak settings from the platform admin win; otherwise SMS_PROVIDER from the environment.
+    sms: new SettingsSmsProvider(() => deps!, createSmsProviderFromEnv(process.env)),
     ai: createAiProviderFromEnv(process.env),
     config: { ...DEFAULT_CONFIG, otpPepper: e.OTP_PEPPER, jwtSecret: e.JWT_SECRET, aiDailyLimitPerGym: Number(process.env.AI_DAILY_LIMIT_PER_GYM) || 50 },
   };

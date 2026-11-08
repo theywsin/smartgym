@@ -5,7 +5,7 @@
  * Uses the same DATABASE_URL (non-owner role) and SMS settings as the web app.
  * Every job is safe to run twice: reminders are claimed in notification_log before sending.
  */
-import { createSmsProviderFromEnv, DEFAULT_CONFIG, expireOnlinePaymentRequests, runExpiryReminders, type CoreDeps } from "@smartgym/core";
+import { SettingsSmsProvider, createSmsProviderFromEnv, DEFAULT_CONFIG, expireOnlinePaymentRequests, runExpiryReminders, type CoreDeps } from "@smartgym/core";
 import { createPrismaClient } from "@smartgym/db";
 
 const TEHRAN_OFFSET_MS = 3.5 * 3600_000;
@@ -29,14 +29,20 @@ async function tick(deps: CoreDeps) {
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  const deps: CoreDeps = {
+  const fallback = createSmsProviderFromEnv(process.env);
+  // eslint-disable-next-line prefer-const -- referenced lazily by the SMS provider
+  let deps: CoreDeps;
+  const sms = new SettingsSmsProvider(() => deps, fallback);
+  deps = {
     db: createPrismaClient(process.env.DATABASE_URL),
-    sms: createSmsProviderFromEnv(process.env),
-    // The worker never issues logins; these are only needed to satisfy the shared config type.
-    config: { ...DEFAULT_CONFIG, otpPepper: "worker-unused-0000000000000000000000", jwtSecret: "worker-unused-0000000000000000000000" },
+    sms,
+    // The worker never issues logins. JWT_SECRET is only used to read the SMS key saved in the admin panel.
+    config: { ...DEFAULT_CONFIG, otpPepper: "worker-unused-0000000000000000000000", jwtSecret: process.env.JWT_SECRET ?? "worker-unused-0000000000000000000000" },
   };
+  const origTick = tick;
+  const tickWithSettings = async (d: CoreDeps) => { await sms.refresh(); return origTick(d); };
   if (process.argv.includes("--once")) {
-    await tick(deps);
+    await tickWithSettings(deps);
     log("done");
     await deps.db.$disconnect();
     return;
@@ -48,7 +54,7 @@ async function main() {
     if (running) return;
     running = true;
     try {
-      await tick(deps);
+      await tickWithSettings(deps);
     } catch (err) {
       console.error(JSON.stringify({ level: "error", svc: "worker", msg: "tick failed", err: String(err) }));
     } finally {

@@ -3,15 +3,16 @@
 /*
  * SmartGym 2.0 design tokens, taken from the approved design board
  * (project files: smartgym-design/*.html). Light theme is the default.
- * Font: Peyda (the brand font used on smartgymapp.ir) comes first once its licensed woff2 files are added
- * to public/fonts/peyda/ with an @font-face here. Until then Vazirmatn (self-hosted, OFL) is used.
+ * Font: chosen in the platform admin (Settings → font); app/layout.tsx overrides --font-sans.
+ * Vazirmatn (self-hosted, OFL) is the default and the fallback.
  */
 @theme {
-  --font-sans: "Peyda", "Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif;
+  --font-sans: "Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif;
 
   --color-brand-50: #f0fdf4;
   --color-brand-100: #dcfce7;
   --color-brand-200: #bbf7d0;
+  --color-brand-500: #22c55e;
   --color-brand-600: #16a34a;
   --color-brand-700: #15803d;
   --color-brand-800: #166534;

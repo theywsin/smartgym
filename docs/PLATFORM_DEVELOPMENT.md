@@ -11,10 +11,22 @@ The new platform lives in the npm workspaces `apps/*` and `packages/*`, next to 
 | `apps/web` | Next.js app: manager panel and the `/api/v1` routes |
 | `apps/worker` | Background jobs: membership expiry SMS reminders, expiring payment links |
 
+## Quick start (one command)
+
+```bash
+./scripts/dev-setup.sh          # starts Postgres in Docker (port 5433), writes apps/web/.env.local, migrates, seeds, runs the app
+./scripts/dev-setup.sh --reset  # same, after wiping the local dev database
+```
+
+Open http://localhost:3001 and sign in with `09120000001`; the OTP code is printed in the terminal.
+The platform admin panel is at http://localhost:3001/admin/login; the script creates user `admin` and prints its password (also saved in `.dev-admin`).
+Create or reset an admin anywhere with `DATABASE_URL=<owner url> npm run admin -w @smartgym/core -- <username>`.
+On Windows use WSL, or follow the manual steps below.
+
 ## 1. Services
 
 ```bash
-docker compose -f docker/compose.dev.yml up -d   # Postgres 16, Redis, MinIO
+docker compose -f docker/compose.dev.yml up -d   # Postgres 16
 ```
 
 The compose file creates two database roles:
@@ -26,8 +38,8 @@ The compose file creates two database roles:
 
 ```bash
 npm install
-export MIGRATION_DATABASE_URL="postgresql://smartgym_owner:owner@localhost:5432/smartgym"
-export DATABASE_URL="postgresql://smartgym_app:app@localhost:5432/smartgym"
+export MIGRATION_DATABASE_URL="postgresql://smartgym_owner:owner@localhost:5433/smartgym"
+export DATABASE_URL="postgresql://smartgym_app:app@localhost:5433/smartgym"
 npm run migrate:deploy -w @smartgym/db
 npm run seed -w @smartgym/db                 # permissions, roles, modules, plans
 SEED_DEV=true npm run seed -w @smartgym/db   # plus two demo gyms (development only)

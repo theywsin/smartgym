@@ -20,7 +20,7 @@ export const iranMobile = z
 export const otpCode = z
   .string()
   .trim()
-  .regex(/^\d{6}$/, "کد تأیید باید ۶ رقم باشد");
+  .regex(/^\d{4,8}$/, "کد تأیید نامعتبر است"); // 6 digits from us; Melipayamak OTP service picks its own length
 
 export const otpRequestSchema = z.object({
   phone: iranMobile,
@@ -353,12 +353,23 @@ export const reminderSettingsSchema = z.object({
 
 // ───────────── Phase 5: coach portal ─────────────
 
+const mediaImage = z.union([z.literal(""), z.string().trim().max(400).regex(/^(\/uploads\/[0-9a-f-]{36}\.(png|jpg|webp|gif)|https:\/\/[^\s"'<>]+)$/, "آدرس تصویر نامعتبر است.")]);
+const mediaLink = z.union([z.literal(""), z.string().trim().max(400).regex(/^https:\/\/[^\s"'<>]+$/, "لینک باید با https شروع شود.")]);
+
 const exerciseSchema = z.object({
   name: z.string().trim().min(1, "نام حرکت را بنویسید").max(80),
   sets: z.number().int().min(1).max(20),
   reps: z.string().trim().min(1, "تکرار را بنویسید").max(20), // "12" or "8-10" or "30s"
   restSeconds: z.number().int().min(0).max(600).optional(),
   note: optionalText(200),
+  /** Suggested working weight in kg (0.5 steps). */
+  weightKg: z.number().min(0).max(500).optional(),
+  muscle: optionalText(60),
+  imageUrl: mediaImage.optional(), // picture or GIF
+  videoUrl: mediaLink.optional(), // https video (mp4/aparat/youtube…)
+  tips: optionalText(600), // step-by-step, correct form, common mistakes
+  /** Built-in library exercise id (its start/end frames are animated in the app). */
+  libraryId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
 });
 
 export const workoutProgramSchema = z.object({
@@ -366,7 +377,12 @@ export const workoutProgramSchema = z.object({
   goal: optionalText(100),
   notes: optionalText(1000),
   days: z
-    .array(z.object({ title: z.string().trim().min(1, "عنوان روز را بنویسید").max(60), exercises: z.array(exerciseSchema).min(1, "حداقل یک حرکت اضافه کنید").max(30) }))
+    .array(z.object({
+      title: z.string().trim().min(1, "عنوان روز را بنویسید").max(60),
+      /** 0 = Saturday … 6 = Friday (Iranian week). Optional: without it days rotate in order. */
+      weekday: z.number().int().min(0).max(6).optional(),
+      exercises: z.array(exerciseSchema).min(1, "حداقل یک حرکت اضافه کنید").max(30),
+    }))
     .min(1, "حداقل یک روز تمرینی اضافه کنید")
     .max(7),
 });
@@ -418,6 +434,9 @@ export const adminPlanSchema = z.object({
 export type AdminPlanInput = z.infer<typeof adminPlanSchema>;
 
 const shortText = (max: number) => z.string().trim().max(max);
+const imageUrl = z.union([z.literal(""), z.string().trim().max(400).regex(/^(\/uploads\/[0-9a-f-]{36}\.(png|jpg|webp|gif)|https:\/\/[^\s"'<>]+)$/, "آدرس تصویر نامعتبر است.")]);
+const linkUrl = z.union([z.literal(""), z.string().trim().max(400).regex(/^https:\/\/[^\s"'<>]+$/, "لینک باید با https شروع شود.")]);
+
 export const PLATFORM_SETTING_SCHEMAS = {
   site: z.object({
     name: shortText(60).min(2),
@@ -427,8 +446,20 @@ export const PLATFORM_SETTING_SCHEMAS = {
     address: shortText(300),
     instagram: shortText(100),
     telegram: shortText(100),
+    /** e-Namad trust seal: the id and Code values from the snippet enamad.ir gives you. */
+    enamadId: z.string().trim().regex(/^\d{0,12}$/, "شناسه اینماد فقط عدد است."),
+    logoUrl: imageUrl,
+    faviconUrl: imageUrl,
+    enamadCode: z.string().trim().regex(/^[A-Za-z0-9]{0,40}$/, "کد اینماد نامعتبر است."),
+  }),
+  appearance: z.object({
+    font: z.enum(["vazirmatn", "peyda", "custom"]),
+    /** For "custom": the family name and a woff2/woff/ttf file URL (https, or a path under /fonts/). */
+    customFontName: z.string().trim().regex(/^[A-Za-z0-9 _-]{0,40}$/, "نام فونت فقط حروف انگلیسی و عدد."),
+    customFontUrl: z.union([z.literal(""), z.string().trim().max(300).regex(/^(https:\/\/[^\s"'()<>]+|\/fonts\/[A-Za-z0-9_./-]+)\.(woff2|woff|ttf|otf)$/, "آدرس فایل فونت باید https یا /fonts/ و با پسوند woff2، woff، ttf یا otf باشد.")]),
   }),
   landing: z.object({
+    apps: z.object({ bazaar: linkUrl, myket: linkUrl, googlePlay: linkUrl, appStore: linkUrl, apk: linkUrl }),
     heroTitle: shortText(120).min(2),
     heroSubtitle: shortText(400),
     ctaText: shortText(40).min(2),
@@ -477,11 +508,49 @@ export const articleSchema = z.object({
   title: z.string().trim().min(3).max(160),
   excerpt: z.string().trim().min(10, "خلاصه کوتاه است.").max(400),
   body: z.string().trim().min(50, "متن مقاله کوتاه است.").max(100_000),
-  coverUrl: z.union([z.literal(""), z.url().refine((u) => u.startsWith("https://") || u.startsWith("/"), "آدرس تصویر باید https باشد.")]).optional(),
+  coverUrl: imageUrl.optional(),
   tags: z.array(z.string().trim().min(1).max(30)).max(10).default([]),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
   seoTitle: z.string().trim().max(70).optional(),
   seoDescription: z.string().trim().max(170).optional(),
+  focusKeyword: z.string().trim().max(60).optional(),
+  canonicalUrl: linkUrl.optional(),
+  ogImageUrl: imageUrl.optional(),
+  coverAlt: z.string().trim().max(160).optional(),
+  noindex: z.boolean().default(false),
 });
 export type ArticleInput = z.infer<typeof articleSchema>;
 export const articleListSchema = paginationSchema.extend({ tag: z.string().trim().max(30).optional() });
+
+// Platform integrations (admin)
+export const integrationsSchema = z.object({
+  sms: z.object({
+    provider: z.enum(["env", "melipayamak", "melipayamak_otp"]), // env = SMS_PROVIDER from the server; melipayamak_otp = Melipayamak OTP service (no template)
+    melipayamakApiKey: z.string().trim().max(200).optional(), // omitted or "" = keep the stored key
+    otpBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),
+    expiryBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),
+  }),
+  payment: z.object({
+    onlineEnabled: z.boolean(), // platform-wide switch for members' online payments
+  }),
+});
+export type IntegrationsInput = z.infer<typeof integrationsSchema>;
+
+/** Platform admin edits a gym's basic info and its Saman terminal. */
+export const adminGymUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  terminalId: onlinePaymentSettingsSchema.shape.terminalId,
+});
+export type AdminGymUpdateInput = z.infer<typeof adminGymUpdateSchema>;
+
+// Athlete workout logging
+export const workoutStartSchema = z.object({ dayIndex: z.number().int().min(0).max(6) });
+export const workoutSetLogSchema = z.object({
+  exerciseIndex: z.number().int().min(0).max(29),
+  setNumber: z.number().int().min(1).max(20),
+  reps: z.number().int().min(0).max(200),
+  weightKg: z.number().min(0).max(500).optional(),
+  note: optionalText(200),
+});
+export type WorkoutSetLogInput = z.infer<typeof workoutSetLogSchema>;
+export const workoutFinishSchema = z.object({ note: optionalText(1000) });
