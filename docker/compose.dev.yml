@@ -1,6 +1,7 @@
 # Local development services for SmartGym 2.0.
 #   docker compose -f docker/compose.dev.yml up -d
 # Then: see docs/PLATFORM_DEVELOPMENT.md
+# Only Postgres is needed; the app does not use Redis or object storage yet.
 services:
   postgres:
     image: postgres:16
@@ -12,18 +13,5 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: smartgym
-      MINIO_ROOT_PASSWORD: smartgym-dev-secret
-    ports: ["9000:9000", "9001:9001"]
-    volumes:
-      - miniodata:/data
 volumes:
   pgdata:
-  miniodata:

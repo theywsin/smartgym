@@ -14,7 +14,7 @@ The new platform lives in the npm workspaces `apps/*` and `packages/*`, next to 
 ## 1. Services
 
 ```bash
-docker compose -f docker/compose.dev.yml up -d   # Postgres 16, Redis, MinIO
+docker compose -f docker/compose.dev.yml up -d   # Postgres 16
 ```
 
 The compose file creates two database roles:
