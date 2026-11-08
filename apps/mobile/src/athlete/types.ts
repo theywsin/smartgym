@@ -1,4 +1,4 @@
-export type Exercise = { name: string; sets: number; reps: string; restSeconds: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string };
+export type Exercise = { name: string; sets: number; reps: string; restSeconds: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string; libraryId?: string };
 export type ProgramDay = { index: number; title: string; weekday: number | null; exercises: Exercise[]; setsTotal: number; estMinutes: number };
 export type WeekDay = { weekday: number; date: string; dayIndex: number | null; state: "DONE" | "REST" | "FREE" | "MISSED" | "TODAY" | "PLANNED"; sessionId: string | null };
 export type Week = {

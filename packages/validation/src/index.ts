@@ -368,6 +368,8 @@ const exerciseSchema = z.object({
   imageUrl: mediaImage.optional(), // picture or GIF
   videoUrl: mediaLink.optional(), // https video (mp4/aparat/youtube…)
   tips: optionalText(600), // step-by-step, correct form, common mistakes
+  /** Built-in library exercise id (its start/end frames are animated in the app). */
+  libraryId: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
 });
 
 export const workoutProgramSchema = z.object({

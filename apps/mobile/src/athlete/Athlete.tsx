@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Text } from "../text";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 import { api, errorText } from "../api";
 import { fa, jdate } from "../format";

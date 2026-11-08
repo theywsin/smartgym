@@ -152,8 +152,8 @@ function SignupForm({ initial, plans }: { initial: PlatformSettings["signup"]; p
 }
 
 const FONTS = [
-  ["vazirmatn", "وزیرمتن (پیش‌فرض، داخل برنامه)"],
-  ["peyda", "پیدا (فایل‌ها باید در public/fonts/peyda باشند)"],
+  ["vazirmatn", "وزیرمتن"],
+  ["peyda", "پیدا (پیش‌فرض)"],
   ["custom", "فونت دلخواه با آدرس فایل"],
 ] as const;
 

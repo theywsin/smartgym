@@ -10,7 +10,7 @@ import { type AthleteUser, memberMatch } from "./index";
  * Sessions copy the day's exercises at start so editing the program later never rewrites history.
  */
 
-type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string };
+type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string; libraryId?: string };
 type Day = { title: string; weekday?: number; exercises: Exercise[] };
 
 const TEHRAN_MS = 3.5 * 3600_000;

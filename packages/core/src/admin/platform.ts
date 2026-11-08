@@ -24,7 +24,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   site: {
     name: "اسمارت‌جیم", tagline: "نرم‌افزار ابری مدیریت باشگاه ورزشی", supportPhone: "", supportEmail: "", address: "", instagram: "", telegram: "", enamadId: "", enamadCode: "", logoUrl: "", faviconUrl: "",
   },
-  appearance: { font: "vazirmatn", customFontName: "", customFontUrl: "" },
+  appearance: { font: "peyda", customFontName: "", customFontUrl: "" },
   landing: {
     apps: { bazaar: "", myket: "", googlePlay: "", appStore: "", apk: "" },
     heroTitle: "مدیریت باشگاه، هوشمندتر از *همیشه!*",

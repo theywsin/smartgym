@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "../text";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 import { api, errorText, saveTokens } from "../api";
 import { normalizePhone, toLatin } from "../format";

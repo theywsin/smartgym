@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Text, TextInput } from "../text";
 import Svg, { Circle } from "react-native-svg";
 import { API_URL, api, errorText } from "../api";
 import { fa, jdate, toLatin } from "../format";
@@ -11,6 +12,23 @@ const jdateLong = () => new Intl.DateTimeFormat("fa-IR-u-ca-persian", { day: "nu
 import type { Exercise, HistoryRow, ProgramDay, Session, Week } from "./types";
 
 const media = (u?: string) => (u ? (u.startsWith("/") ? `${API_URL}${u}` : u) : undefined);
+/** Coach's own picture/GIF, or the library's start/end frames alternated as an animation. */
+function ExerciseMedia({ ex, style }: { ex: Exercise; style: object }) {
+  const [f, setF] = useState(0);
+  useEffect(() => {
+    if (ex.imageUrl || !ex.libraryId) return;
+    const t = setInterval(() => setF((x) => 1 - x), 900);
+    return () => clearInterval(t);
+  }, [ex.imageUrl, ex.libraryId]);
+  if (ex.imageUrl) return <Image source={{ uri: media(ex.imageUrl) }} style={style} resizeMode="cover" accessibilityLabel={`تصویر ${ex.name}`} />;
+  return (
+    <View style={[style, { backgroundColor: "#fff", overflow: "hidden" }]} accessibilityLabel={`انیمیشن ${ex.name}`}>
+      {[0, 1].map((i) => (
+        <Image key={i} source={{ uri: `${API_URL}/exercises/${ex.libraryId}/${i}.jpg` }} resizeMode="contain" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: f === i ? 1 : 0 }} />
+      ))}
+    </View>
+  );
+}
 const firstNumber = (reps: string) => Number(toLatin(reps).match(/\d+/)?.[0] ?? 0);
 
 type View_ = { name: "week" } | { name: "day"; dayIndex: number } | { name: "run"; sessionId: string } | { name: "done"; sessionId: string } | { name: "history" };
@@ -154,7 +172,7 @@ function DayDetail({ day, busy, error, onBack, onStart }: { day: ProgramDay; bus
               <Text style={st.muted}>{fa(e.sets)} ست × {fa(e.reps)} تکرار{e.weightKg != null ? ` · ${fa(e.weightKg)} کیلو` : ""} · استراحت {fa(e.restSeconds)} ثانیه</Text>
               {e.muscle ? <Text style={[st.muted, { color: T.green }]}>{e.muscle}</Text> : null}
             </View>
-            {e.imageUrl ? <Image source={{ uri: media(e.imageUrl) }} style={st.thumb} /> : null}
+            {e.imageUrl || e.libraryId ? <ExerciseMedia ex={e} style={st.thumb} /> : <View style={[st.thumb, { alignItems: "center", justifyContent: "center" }]}><DumbbellIcon size={26} color={T.ink3} /></View>}
           </Pressable>
         ))}
         {day.exercises.length > 0 && (
@@ -178,7 +196,7 @@ function ExerciseDetail({ ex, onBack }: { ex: Exercise; onBack: () => void }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
       <Header title={ex.name} onBack={onBack} />
-      {ex.imageUrl ? <Image source={{ uri: media(ex.imageUrl) }} style={st.hero} resizeMode="cover" accessibilityLabel={`تصویر ${ex.name}`} /> : null}
+      {ex.imageUrl || ex.libraryId ? <ExerciseMedia ex={ex} style={st.hero} /> : null}
       {ex.videoUrl ? (
         <Pressable accessibilityRole="link" onPress={() => Linking.openURL(ex.videoUrl!)} style={[st.primary, { flexDirection: "row-reverse", gap: 8 }]}>
           <PlayIcon size={18} /><Text style={st.primaryTx}>پخش ویدئوی آموزشی</Text>
@@ -317,9 +335,9 @@ function Run({ memberId, sessionId, onFinished, onExit }: { memberId: string; se
         <View style={[st.card, { gap: 10 }]}>
           <Text style={[st.muted, { textAlign: "center" }]}>ست {fa(Math.min(nextSet, ex.sets))} از {fa(ex.sets)}</Text>
           <Text style={[st.h2, { textAlign: "center" }]}>{ex.name}</Text>
-          {ex.imageUrl ? (
+          {ex.imageUrl || ex.libraryId ? (
             <Pressable accessibilityRole="button" accessibilityLabel={ex.videoUrl ? "پخش ویدئوی حرکت" : "توضیحات حرکت"} onPress={() => (ex.videoUrl ? Linking.openURL(ex.videoUrl) : setShowInfo(true))}>
-              <Image source={{ uri: media(ex.imageUrl) }} style={st.hero} resizeMode="cover" />
+              <ExerciseMedia ex={ex} style={st.hero} />
               {ex.videoUrl ? <View style={st.playBtn}><PlayIcon size={30} /></View> : null}
             </Pressable>
           ) : null}

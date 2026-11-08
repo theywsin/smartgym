@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View, type TextInputProps } from "react-native";
+import { Text, TextInput } from "./text";
 
 export const C = { bg: "#f6f8f7", card: "#ffffff", ink: "#111827", ink2: "#4b5563", ink3: "#9ca3af", brand: "#16a34a", brandTx: "#ffffff", line: "#e5e7eb", err: "#b91c1c", warn: "#b45309", okBg: "#dcfce7" };
 

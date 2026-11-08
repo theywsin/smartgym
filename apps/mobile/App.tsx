@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
+import { FONT_FILES } from "./src/text";
 import { api, clearTokens, hasSession } from "./src/api";
 import { Login } from "./src/screens/Login";
 import { Profiles } from "./src/screens/Profiles";
@@ -11,10 +13,12 @@ type Route = { name: "loading" } | { name: "login" } | { name: "profiles" } | { 
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ name: "loading" });
+  const [fontsLoaded, fontError] = useFonts(FONT_FILES);
   useEffect(() => { hasSession().then((s) => setRoute(s ? { name: "profiles" } : { name: "login" })); }, []);
   const openMember = useCallback((id: string) => setRoute({ name: "member", id, single: false }), []);
   const logout = async () => { await api("/auth/logout", { method: "POST" }).catch(() => undefined); await clearTokens(); setRoute({ name: "login" }); };
 
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, backgroundColor: "#f8fafc" }} />;
   if (route.name === "login") {
     return (
       <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>

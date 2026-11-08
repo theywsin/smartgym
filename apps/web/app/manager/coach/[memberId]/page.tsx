@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, BookOpen, Copy, Loader2, Plus, Trash2 } from "lucide-react";
 import { toPersianDigits } from "@smartgym/shared";
 import { api, ApiError } from "@/lib/client/api";
 import { useCan } from "@/lib/client/me";
@@ -12,16 +12,17 @@ import { jdate } from "@/lib/client/format";
 import { ErrorState, LoadingState } from "@/components/states";
 import { AiDraftPanel } from "@/components/ai-draft";
 import { ImageUpload } from "@/components/image-upload";
+import { ExerciseAnim, ExercisePicker } from "@/components/exercise-library";
 
-type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string };
+type Exercise = { name: string; sets: number; reps: string; restSeconds?: number; note?: string; weightKg?: number; muscle?: string; imageUrl?: string; videoUrl?: string; tips?: string; libraryId?: string };
 type Day = { title: string; weekday?: number; exercises: Exercise[] };
 const WEEKDAYS = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
-type DraftEx = { name: string; sets: string; reps: string; rest: string; note: string; weight: string; muscle: string; imageUrl: string; videoUrl: string; tips: string };
+type DraftEx = { name: string; sets: string; reps: string; rest: string; note: string; weight: string; muscle: string; imageUrl: string; videoUrl: string; tips: string; libraryId: string };
 type Program = { id: string; title: string; goal: string | null; notes: string | null; days: Day[]; isActive: boolean; createdAt: string; updatedAt: string; archivedAt: string | null };
 type Member = { id: string; firstName: string; lastName: string; code: number };
 type Draft = { title: string; goal: string; notes: string; days: { title: string; weekday: string; exercises: DraftEx[] }[] };
 
-const blankExercise = (): DraftEx => ({ name: "", sets: "3", reps: "10", rest: "90", note: "", weight: "", muscle: "", imageUrl: "", videoUrl: "", tips: "" });
+const blankExercise = (): DraftEx => ({ name: "", sets: "3", reps: "10", rest: "90", note: "", weight: "", muscle: "", imageUrl: "", videoUrl: "", tips: "", libraryId: "" });
 const toLatin = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).trim();
 
 function toDraft(p?: Program): Draft {
@@ -32,7 +33,7 @@ function toDraft(p?: Program): Draft {
       title: d.title, weekday: d.weekday != null ? String(d.weekday) : "",
       exercises: d.exercises.map((e) => ({
         name: e.name, sets: String(e.sets), reps: e.reps, rest: e.restSeconds != null ? String(e.restSeconds) : "", note: e.note ?? "",
-        weight: e.weightKg != null ? String(e.weightKg) : "", muscle: e.muscle ?? "", imageUrl: e.imageUrl ?? "", videoUrl: e.videoUrl ?? "", tips: e.tips ?? "",
+        weight: e.weightKg != null ? String(e.weightKg) : "", muscle: e.muscle ?? "", imageUrl: e.imageUrl ?? "", videoUrl: e.videoUrl ?? "", tips: e.tips ?? "", libraryId: e.libraryId ?? "",
       })),
     })),
   };
@@ -48,7 +49,7 @@ function fromDraft(d: Draft) {
         name: e.name, sets: Number(toLatin(e.sets)) || 0, reps: toLatin(e.reps),
         ...(toLatin(e.rest) !== "" && { restSeconds: Number(toLatin(e.rest)) }), note: e.note || undefined,
         ...(toLatin(e.weight) !== "" && { weightKg: Number(toLatin(e.weight).replace(/[/٫]/, ".")) }),
-        muscle: e.muscle || undefined, imageUrl: e.imageUrl || undefined, videoUrl: e.videoUrl || undefined, tips: e.tips || undefined,
+        muscle: e.muscle || undefined, imageUrl: e.imageUrl || undefined, videoUrl: e.videoUrl || undefined, tips: e.tips || undefined, libraryId: e.libraryId || undefined,
       })),
     })),
   };
@@ -64,6 +65,7 @@ export default function AthleteProgramPage() {
   const history = programs.data?.filter((p) => !p.isActive) ?? [];
   const [mode, setMode] = useState<"view" | "new" | "edit">("view");
   const [draft, setDraft] = useState<Draft>(toDraft());
+  const [picker, setPicker] = useState<number | null>(null);
 
   const save = useMutation({
     mutationFn: () =>
@@ -132,7 +134,10 @@ export default function AthleteProgramPage() {
                   return (
                     <div key={k} className="space-y-2 rounded-xl border border-line-2 p-2">
                     <div className="grid grid-cols-[1fr_4rem_5rem_5rem_5rem_2rem] gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                      {ex.libraryId && <ExerciseAnim id={ex.libraryId} className="size-10 shrink-0 rounded-lg border border-line-2" />}
                       <input aria-label="نام حرکت" className="input" placeholder="مثلاً پرس سینه" value={ex.name} onChange={(e) => setEx({ name: e.target.value })} />
+                      </div>
                       <input aria-label="ست" inputMode="numeric" className="input ltr-nums" value={ex.sets} onChange={(e) => setEx({ sets: e.target.value })} />
                       <input aria-label="تکرار" className="input ltr-nums" value={ex.reps} onChange={(e) => setEx({ reps: e.target.value })} />
                       <input aria-label="استراحت" inputMode="numeric" className="input ltr-nums" value={ex.rest} onChange={(e) => setEx({ rest: e.target.value })} />
@@ -153,11 +158,22 @@ export default function AthleteProgramPage() {
                   );
                 })}
               </div>
-              <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => setDay(i, (d) => ({ ...d, exercises: [...d.exercises, blankExercise()] }))}><Plus className="size-3.5" aria-hidden />حرکت</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-secondary h-8 px-3 text-xs" onClick={() => setPicker(i)}><BookOpen className="size-3.5" aria-hidden />افزودن از کتابخانه‌ی حرکات</button>
+                <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => setDay(i, (d) => ({ ...d, exercises: [...d.exercises, blankExercise()] }))}><Plus className="size-3.5" aria-hidden />حرکت دلخواه</button>
+              </div>
             </section>
           ))}
           {draft.days.length < 7 && (
             <button type="button" className="btn-secondary" onClick={() => setDraft({ ...draft, days: [...draft.days, { title: `روز ${toPersianDigits(draft.days.length + 1)}`, weekday: "", exercises: [blankExercise()] }] })}><Plus className="size-4" aria-hidden />روز تمرینی</button>
+          )}
+          {picker != null && (
+            <ExercisePicker onClose={() => setPicker(null)} onPick={(lib) => setDay(picker, (d) => {
+              const item = { ...blankExercise(), name: lib.name, muscle: lib.muscle, tips: lib.tips.join("\n"), libraryId: lib.id, rest: lib.muscle === "کاردیو" ? "60" : "90", reps: lib.muscle === "کاردیو" ? "10 دقیقه" : "10" };
+              // Replace the untouched empty row the day starts with.
+              const rest = d.exercises.filter((x) => x.name.trim() || x.libraryId);
+              return { ...d, exercises: [...rest, item] };
+            })} />
           )}
           {err && <p role="alert" className="field-error">{err.fields ? Object.values(err.fields)[0]?.[0] ?? err.message : err.message}</p>}
           <div className="flex gap-2">
