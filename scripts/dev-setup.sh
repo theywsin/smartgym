@@ -6,9 +6,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PORT_DB=${PORT_DB:-5433}
-APP_URL_DB="postgresql://smartgym_app:app@localhost:${PORT_DB}/smartgym"
-OWNER_URL_DB="postgresql://smartgym_owner:owner@localhost:${PORT_DB}/smartgym"
+# Reuse the port saved by a previous run, otherwise pick the first free port from 5433.
+SAVED_PORT=$(grep -s '^SMARTGYM_DB_PORT=' .dev-db-port | cut -d= -f2 || true)
+free_port() { node -e "
+const net=require('net');(async()=>{for(let p=5433;p<5500;p++){const ok=await new Promise(r=>{const s=net.createServer().once('error',()=>r(false)).once('listening',()=>s.close(()=>r(true))).listen(p,'0.0.0.0')});if(ok){console.log(p);return}}process.exit(1)})()"; }
 ENV_FILE=apps/web/.env.local
 say() { printf '\n\033[1;32m▶ %s\033[0m\n' "$1"; }
 
@@ -16,8 +17,14 @@ command -v node >/dev/null || { echo "Node.js 22 is not installed: https://nodej
 
 if [ "${SKIP_DOCKER:-}" != "1" ]; then
   command -v docker >/dev/null || { echo "Docker Desktop is not installed or not running."; exit 1; }
-  if [ "${1:-}" = "--reset" ]; then say "Removing the old dev database"; docker compose -f docker/compose.dev.yml down -v; fi
-  say "Starting Postgres (port ${PORT_DB})"
+  if [ "${1:-}" = "--reset" ]; then say "Removing the old dev database"; docker compose -f docker/compose.dev.yml down -v; SAVED_PORT=""; fi
+  # If our container is already running keep its port; otherwise choose a free one.
+  RUNNING_PORT=$(docker compose -f docker/compose.dev.yml port postgres 5432 2>/dev/null | sed 's/.*://' || true)
+  PORT_DB=${PORT_DB:-${RUNNING_PORT:-${SAVED_PORT:-}}}
+  if [ -z "$PORT_DB" ] || { [ -z "$RUNNING_PORT" ] && ! node -e "require('net').createServer().once('error',()=>process.exit(1)).listen($PORT_DB,'0.0.0.0',function(){this.close()})"; }; then PORT_DB=$(free_port); fi
+  echo "SMARTGYM_DB_PORT=$PORT_DB" > .dev-db-port
+  export SMARTGYM_DB_PORT=$PORT_DB
+  say "Starting Postgres (port ${SMARTGYM_DB_PORT})"
   docker compose -f docker/compose.dev.yml up -d postgres
   printf "Waiting for Postgres"
   for i in $(seq 1 60); do
@@ -30,6 +37,10 @@ if [ "${SKIP_DOCKER:-}" != "1" ]; then
     "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='smartgym_app') THEN CREATE ROLE smartgym_app LOGIN PASSWORD 'app'; END IF; END \$\$; ALTER ROLE smartgym_app PASSWORD 'app'; ALTER ROLE smartgym_owner PASSWORD 'owner';" >/dev/null
   echo " ready"
 fi
+
+PORT_DB=${PORT_DB:-5433}
+APP_URL_DB="postgresql://smartgym_app:app@localhost:${PORT_DB}/smartgym"
+OWNER_URL_DB="postgresql://smartgym_owner:owner@localhost:${PORT_DB}/smartgym"
 
 say "Writing ${ENV_FILE}"
 [ -f "$ENV_FILE" ] || cp apps/web/.env.example "$ENV_FILE"
