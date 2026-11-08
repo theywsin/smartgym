@@ -10,7 +10,7 @@ const HERO_H = 380;
 /** Brand mark: a bold "S" with a dumbbell plate, drawn so it stays sharp at any size. */
 function Mark({ size = 64 }: { size?: number }) {
   return (
-    <Svg width={size * 1.5} height={size} viewBox="0 0 96 64" accessibilityElementsHidden>
+    <Svg width={size * 1.5} height={size} viewBox="0 0 96 64">
       <Defs>
         <LinearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#4ade80" /><Stop offset="1" stopColor="#16a34a" /></LinearGradient>
       </Defs>
@@ -24,14 +24,14 @@ function Mark({ size = 64 }: { size?: number }) {
 
 function PhoneIcon({ color = G.ink3, size = 22 }: { color?: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden>
+    <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" fill={color} />
     </Svg>
   );
 }
 function MobileIcon() {
   return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" accessibilityElementsHidden>
+    <Svg width={16} height={16} viewBox="0 0 24 24">
       <Rect x="6" y="2" width="12" height="20" rx="3" stroke={G.green2} strokeWidth={2.2} fill="none" />
       <Rect x="10" y="17" width="4" height="1.8" rx="0.9" fill={G.green2} />
     </Svg>
@@ -39,7 +39,7 @@ function MobileIcon() {
 }
 function Dumbbell() {
   return (
-    <Svg width={48} height={24} viewBox="0 0 48 24" accessibilityElementsHidden>
+    <Svg width={48} height={24} viewBox="0 0 48 24">
       {[[2, 7, 10], [8, 3, 18], [36, 3, 18], [42, 7, 10]].map(([x, y, h], i) => <Rect key={i} x={x} y={y} width={4} height={h} rx={2} fill="#cbd5e1" />)}
       <Rect x={13} y={10} width={22} height={4} rx={2} fill="#cbd5e1" />
     </Svg>
