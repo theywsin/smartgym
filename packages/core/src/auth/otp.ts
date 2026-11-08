@@ -20,7 +20,7 @@ function codeHash(deps: CoreDeps, phone: string, code: string): string {
 export async function requestOtp(
   deps: CoreDeps,
   input: { phone: string; purpose: OtpPurpose; ip?: string | null }
-): Promise<{ expiresInSeconds: number; resendInSeconds: number }> {
+): Promise<{ expiresInSeconds: number; resendInSeconds: number; devCode?: string }> {
   const now = nowOf(deps);
   const since = new Date(now.getTime() - WINDOW_MS);
 
@@ -68,7 +68,9 @@ export async function requestOtp(
   // Test mode only (console SMS provider, which production refuses unless ALLOW_CONSOLE_SMS=true):
   // return the code so the login screen can show it. A real SMS provider never gets here.
   const devCode = (await deps.sms.isTest?.()) ? code : undefined;
-  return { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000, ...(devCode ? { devCode } : {}) };
+  const out: { expiresInSeconds: number; resendInSeconds: number; devCode?: string } = { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000 };
+  if (devCode) out.devCode = devCode;
+  return out;
 }
 
 /**
