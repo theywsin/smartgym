@@ -9,3 +9,4 @@ coverage/
 db_fallback.json
 .dev-db-port
 .dev-admin
+.uploads/

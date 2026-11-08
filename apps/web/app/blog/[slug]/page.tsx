@@ -24,8 +24,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: a.seoTitle ?? a.title,
     description: a.seoDescription ?? a.excerpt,
-    alternates: { canonical: `/blog/${a.slug}` },
-    openGraph: { type: "article", title: a.title, description: a.excerpt, publishedTime: a.publishedAt?.toISOString(), images: a.coverUrl ? [a.coverUrl] : undefined },
+    alternates: { canonical: a.canonicalUrl || `/blog/${a.slug}` },
+    keywords: [a.focusKeyword, ...a.tags].filter((k): k is string => !!k),
+    robots: a.noindex ? { index: false, follow: true } : undefined,
+    openGraph: { type: "article", title: a.seoTitle ?? a.title, description: a.seoDescription ?? a.excerpt, publishedTime: a.publishedAt?.toISOString(), modifiedTime: a.updatedAt.toISOString(), tags: a.tags, images: (a.ogImageUrl || a.coverUrl) ? [{ url: (a.ogImageUrl || a.coverUrl)!, alt: a.coverAlt ?? a.title }] : undefined },
+    twitter: { card: "summary_large_image", title: a.seoTitle ?? a.title, description: a.seoDescription ?? a.excerpt },
   };
 }
 
@@ -36,7 +39,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const jsonLd = {
     "@context": "https://schema.org", "@type": "BlogPosting", headline: a.title, description: a.excerpt, inLanguage: "fa",
     datePublished: a.publishedAt?.toISOString(), dateModified: a.updatedAt.toISOString(), mainEntityOfPage: `${appUrl()}/blog/${a.slug}`,
-    publisher: { "@type": "Organization", name: s.site.name }, ...(a.coverUrl ? { image: a.coverUrl } : {}),
+    publisher: { "@type": "Organization", name: s.site.name }, ...(a.coverUrl ? { image: a.coverUrl.startsWith("/") ? `${appUrl()}${a.coverUrl}` : a.coverUrl } : {}), ...(a.focusKeyword ? { keywords: a.focusKeyword } : {}),
   };
   return (
     <>
@@ -53,7 +56,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             </header>
             {a.coverUrl && (
               // eslint-disable-next-line @next/next/no-img-element -- admin-provided cover
-              <img src={a.coverUrl} alt="" className="mb-6 w-full rounded-2xl" />
+              <img src={a.coverUrl} alt={a.coverAlt ?? a.title} className="mb-6 w-full rounded-2xl" />
             )}
             <div className="text-[17px] text-ink"><Markdown source={a.body} /></div>
             <aside className="mt-12 rounded-2xl bg-brand-50 p-6 text-center">

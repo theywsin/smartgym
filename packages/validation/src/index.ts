@@ -418,6 +418,9 @@ export const adminPlanSchema = z.object({
 export type AdminPlanInput = z.infer<typeof adminPlanSchema>;
 
 const shortText = (max: number) => z.string().trim().max(max);
+const imageUrl = z.union([z.literal(""), z.string().trim().max(400).regex(/^(\/uploads\/[0-9a-f-]{36}\.(png|jpg|webp|gif)|https:\/\/[^\s"'<>]+)$/, "آدرس تصویر نامعتبر است.")]);
+const linkUrl = z.union([z.literal(""), z.string().trim().max(400).regex(/^https:\/\/[^\s"'<>]+$/, "لینک باید با https شروع شود.")]);
+
 export const PLATFORM_SETTING_SCHEMAS = {
   site: z.object({
     name: shortText(60).min(2),
@@ -429,6 +432,8 @@ export const PLATFORM_SETTING_SCHEMAS = {
     telegram: shortText(100),
     /** e-Namad trust seal: the id and Code values from the snippet enamad.ir gives you. */
     enamadId: z.string().trim().regex(/^\d{0,12}$/, "شناسه اینماد فقط عدد است."),
+    logoUrl: imageUrl,
+    faviconUrl: imageUrl,
     enamadCode: z.string().trim().regex(/^[A-Za-z0-9]{0,40}$/, "کد اینماد نامعتبر است."),
   }),
   appearance: z.object({
@@ -438,6 +443,7 @@ export const PLATFORM_SETTING_SCHEMAS = {
     customFontUrl: z.union([z.literal(""), z.string().trim().max(300).regex(/^(https:\/\/[^\s"'()<>]+|\/fonts\/[A-Za-z0-9_./-]+)\.(woff2|woff|ttf|otf)$/, "آدرس فایل فونت باید https یا /fonts/ و با پسوند woff2، woff، ttf یا otf باشد.")]),
   }),
   landing: z.object({
+    apps: z.object({ bazaar: linkUrl, myket: linkUrl, googlePlay: linkUrl, appStore: linkUrl, apk: linkUrl }),
     heroTitle: shortText(120).min(2),
     heroSubtitle: shortText(400),
     ctaText: shortText(40).min(2),
@@ -486,11 +492,37 @@ export const articleSchema = z.object({
   title: z.string().trim().min(3).max(160),
   excerpt: z.string().trim().min(10, "خلاصه کوتاه است.").max(400),
   body: z.string().trim().min(50, "متن مقاله کوتاه است.").max(100_000),
-  coverUrl: z.union([z.literal(""), z.url().refine((u) => u.startsWith("https://") || u.startsWith("/"), "آدرس تصویر باید https باشد.")]).optional(),
+  coverUrl: imageUrl.optional(),
   tags: z.array(z.string().trim().min(1).max(30)).max(10).default([]),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
   seoTitle: z.string().trim().max(70).optional(),
   seoDescription: z.string().trim().max(170).optional(),
+  focusKeyword: z.string().trim().max(60).optional(),
+  canonicalUrl: linkUrl.optional(),
+  ogImageUrl: imageUrl.optional(),
+  coverAlt: z.string().trim().max(160).optional(),
+  noindex: z.boolean().default(false),
 });
 export type ArticleInput = z.infer<typeof articleSchema>;
 export const articleListSchema = paginationSchema.extend({ tag: z.string().trim().max(30).optional() });
+
+// Platform integrations (admin)
+export const integrationsSchema = z.object({
+  sms: z.object({
+    provider: z.enum(["env", "melipayamak"]), // env = use SMS_PROVIDER from the server environment
+    melipayamakApiKey: z.string().trim().max(200).optional(), // omitted or "" = keep the stored key
+    otpBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),
+    expiryBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),
+  }),
+  payment: z.object({
+    onlineEnabled: z.boolean(), // platform-wide switch for members' online payments
+  }),
+});
+export type IntegrationsInput = z.infer<typeof integrationsSchema>;
+
+/** Platform admin edits a gym's basic info and its Saman terminal. */
+export const adminGymUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  terminalId: onlinePaymentSettingsSchema.shape.terminalId,
+});
+export type AdminGymUpdateInput = z.infer<typeof adminGymUpdateSchema>;

@@ -901,6 +901,21 @@ model WorkoutProgram {
 }
 
 /// Platform-wide settings edited by the super admin (site name, support contacts, landing content).
+/// Images uploaded by platform admins (logo, article covers and inline images). Files live on disk under UPLOAD_DIR.
+model PlatformUpload {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  fileName   String   @unique @map("file_name") // random id + extension, served at /uploads/<fileName>
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  sha256     String
+  width      Int?
+  height     Int?
+  uploadedBy String?  @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("platform_upload")
+}
+
 model PlatformSetting {
   key       String   @id
   value     Json
@@ -983,6 +998,11 @@ model Article {
   status         ArticleStatus @default(DRAFT)
   seoTitle       String?       @map("seo_title")
   seoDescription String?       @map("seo_description")
+  focusKeyword   String?       @map("focus_keyword")
+  canonicalUrl   String?       @map("canonical_url")
+  ogImageUrl     String?       @map("og_image_url")
+  coverAlt       String?       @map("cover_alt")
+  noindex        Boolean       @default(false)
   readMinutes    Int           @default(1) @map("read_minutes")
   authorUserId   String?       @map("author_user_id") @db.Uuid
   publishedAt    DateTime?     @map("published_at") @db.Timestamptz(3)

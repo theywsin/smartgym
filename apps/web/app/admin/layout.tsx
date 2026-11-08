@@ -13,6 +13,7 @@ const TABS = [
   ["/admin", "باشگاه‌ها"],
   ["/admin/plans", "پلن‌های اشتراک"],
   ["/admin/settings", "تنظیمات سایت"],
+  ["/admin/integrations", "پیامک و درگاه"],
   ["/admin/tickets", "تیکت‌ها"],
   ["/admin/articles", "مقالات"],
   ["/admin/users", "کاربران"],

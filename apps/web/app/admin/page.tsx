@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
@@ -117,6 +118,7 @@ function GymActions({ gym }: { gym: Gym }) {
 
   return (
     <div className="grid gap-4 border-t border-line bg-line-2/50 p-4 sm:grid-cols-2">
+      <Link href={`/admin/gyms/${gym.id}`} className="btn-secondary h-9 w-fit sm:col-span-2">جزئیات کامل، کارکنان، پرداخت‌ها و درگاه سامان</Link>
       <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); plan.mutate({ planKey, months }); }}>
         <h3 className="text-sm font-bold">ثبت اشتراک پرداخت‌شده</h3>
         <div className="flex gap-2">

@@ -19,11 +19,12 @@ function csrfToken(): string | undefined {
     ?.split("=")[1];
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown; csv?: string; idempotencyKey?: string } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown; csv?: string; file?: Blob; idempotencyKey?: string } = {}): Promise<T> {
   const method = init.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
   if (init.body !== undefined) headers["Content-Type"] = "application/json";
   if (init.csv !== undefined) headers["Content-Type"] = "text/csv; charset=utf-8";
+  if (init.file !== undefined) headers["Content-Type"] = init.file.type || "application/octet-stream";
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
   if (method !== "GET") {
     const token = csrfToken();
@@ -34,7 +35,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     res = await fetch(`/api/v1${path}`, {
       method,
       headers,
-      body: init.csv !== undefined ? init.csv : init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.file !== undefined ? init.file : init.csv !== undefined ? init.csv : init.body === undefined ? undefined : JSON.stringify(init.body),
       credentials: "same-origin",
     });
   } catch {

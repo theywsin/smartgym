@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { SetPasswordCard } from "@/components/set-password";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, ChevronLeft } from "lucide-react";
@@ -30,6 +31,7 @@ export default function AthleteHome() {
       </div>
     );
   return (
+    <div className="space-y-6">
     <div className="card p-6">
       <h1 className="mb-4 text-xl font-extrabold">باشگاه‌های من</h1>
       <ul className="space-y-2">
@@ -47,6 +49,8 @@ export default function AthleteHome() {
           </li>
         ))}
       </ul>
+    </div>
+      <SetPasswordCard />
     </div>
   );
 }

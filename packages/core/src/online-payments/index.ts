@@ -8,6 +8,11 @@ import { type TenantContext, requirePermission, requireWritableGym, primaryRole,
 import { findAccessibleMember } from "../members";
 import { subscriptionBalance } from "../finance";
 import type { GatewayCallback, PaymentGateway } from "./gateway";
+import { onlinePaymentsEnabled } from "../admin/integrations";
+
+async function requireOnlineEnabled(deps: CoreDeps) {
+  if (!(await onlinePaymentsEnabled(deps))) throw new AppError("BUSINESS_RULE", "پرداخت آنلاین موقتاً غیرفعال است.");
+}
 
 export * from "./gateway";
 
@@ -71,6 +76,7 @@ function publicView(r: { resNum: string; amountRial: bigint; status: string; exp
 export async function createPaymentLink(deps: CoreDeps, ctx: TenantContext, input: { subscriptionId: string; amountRial?: bigint }) {
   requirePermission(ctx, "memberships.manage");
   requireWritableGym(ctx);
+  await requireOnlineEnabled(deps);
   const now = nowOf(deps);
   return withTenant(deps.db, ctx, async (tx) => {
     const sub = await tx.memberSubscription.findFirst({ where: { id: input.subscriptionId, gymId: ctx.gymId } });
@@ -146,6 +152,7 @@ function toLocalMobile(phone: string | null): string | undefined {
 
 /** Payer pressed "pay": get a fresh gateway token and return the bank URL. */
 export async function startOnlinePayment(deps: CoreDeps, gateway: PaymentGateway, resNum: string, callbackUrl: string) {
+  await requireOnlineEnabled(deps);
   const now = nowOf(deps);
   const prepared = await withSystem(deps.db, async (tx) => {
     const r = await tx.onlinePaymentRequest.findUnique({ where: { resNum } });
@@ -266,6 +273,7 @@ export async function settleGatewayCallback(deps: CoreDeps, gateway: PaymentGate
 export async function athleteStartDebtPayment(deps: CoreDeps, user: { id: string; phone: string }, memberId: string, subscriptionId: string) {
   const { getAthleteDashboardMember } = await import("../athlete");
   const m = await getAthleteDashboardMember(deps, user, memberId);
+  await requireOnlineEnabled(deps);
   const now = nowOf(deps);
   return withSystem(deps.db, async (tx) => {
     const sub = await tx.memberSubscription.findFirst({ where: { id: subscriptionId, gymId: m.gymId, memberId: m.id, status: { not: "CANCELLED" } } });

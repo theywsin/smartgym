@@ -10,7 +10,7 @@ export function readMinutes(body: string) {
   return Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 180));
 }
 
-const publicSelect = { slug: true, title: true, excerpt: true, coverUrl: true, tags: true, publishedAt: true, readMinutes: true } as const;
+const publicSelect = { slug: true, title: true, excerpt: true, coverUrl: true, coverAlt: true, noindex: true, tags: true, publishedAt: true, readMinutes: true } as const;
 
 export async function listPublishedArticles(deps: CoreDeps, input: { page: number; pageSize: number; tag?: string }) {
   const now = nowOf(deps);
@@ -67,7 +67,7 @@ export async function adminSaveArticle(deps: CoreDeps, actor: AdminActor, id: st
     if (clash && clash.id !== id) throw new AppError("CONFLICT", "این نامک قبلاً استفاده شده است.", { fields: { slug: ["تکراری"] } });
     const data = {
       slug: input.slug, title: input.title, excerpt: input.excerpt, body: input.body, coverUrl: input.coverUrl || null, tags: input.tags,
-      status: input.status, seoTitle: input.seoTitle || null, seoDescription: input.seoDescription || null, readMinutes: readMinutes(input.body),
+      status: input.status, seoTitle: input.seoTitle || null, seoDescription: input.seoDescription || null, focusKeyword: input.focusKeyword || null, canonicalUrl: input.canonicalUrl || null, ogImageUrl: input.ogImageUrl || null, coverAlt: input.coverAlt || null, noindex: input.noindex ?? false, readMinutes: readMinutes(input.body),
     };
     let saved;
     if (id) {

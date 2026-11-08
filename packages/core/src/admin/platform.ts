@@ -8,11 +8,11 @@ import type { CoreDeps } from "../deps";
 import { writeAudit } from "../audit";
 import type { AdminActor } from "./index";
 
-async function requireSuperAdmin(tx: Tx, actor: AdminActor) {
+export async function requireSuperAdmin(tx: Tx, actor: AdminActor) {
   const u = await tx.user.findUnique({ where: { id: actor.userId }, select: { isSuperAdmin: true, status: true } });
   if (!u?.isSuperAdmin || u.status !== "ACTIVE") throw new AppError("FORBIDDEN", "این بخش فقط برای مدیر پلتفرم است.");
 }
-const audit = (tx: Tx, actor: AdminActor, action: string, entityType: string, entityId: string | null, before: unknown, after: unknown) =>
+export const adminAudit = (tx: Tx, actor: AdminActor, action: string, entityType: string, entityId: string | null, before: unknown, after: unknown) =>
   writeAudit(tx, {
     actorUserId: actor.userId, actorRole: "SUPER_ADMIN", action, entityType, entityId,
     before: before as Prisma.InputJsonValue, after: after as Prisma.InputJsonValue, ip: actor.ip, userAgent: actor.userAgent,
@@ -22,10 +22,11 @@ const audit = (tx: Tx, actor: AdminActor, action: string, entityType: string, en
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   site: {
-    name: "اسمارت‌جیم", tagline: "نرم‌افزار ابری مدیریت باشگاه ورزشی", supportPhone: "", supportEmail: "", address: "", instagram: "", telegram: "", enamadId: "", enamadCode: "",
+    name: "اسمارت‌جیم", tagline: "نرم‌افزار ابری مدیریت باشگاه ورزشی", supportPhone: "", supportEmail: "", address: "", instagram: "", telegram: "", enamadId: "", enamadCode: "", logoUrl: "", faviconUrl: "",
   },
   appearance: { font: "vazirmatn", customFontName: "", customFontUrl: "" },
   landing: {
+    apps: { bazaar: "", myket: "", googlePlay: "", appStore: "", apk: "" },
     heroTitle: "مدیریت باشگاه، هوشمندتر از *همیشه!*",
     heroSubtitle: "با اسمارت‌جیم، باشگاه خود را به یک کسب‌وکار مدرن تبدیل کنید و تجربه‌ای بی‌نظیر برای اعضا بسازید. عضویت، حضور با QR، صندوق، فروشگاه، پرتال مربی و اپ ورزشکار در یک پنل.",
     ctaText: "شروع رایگان",
@@ -80,7 +81,7 @@ export async function adminSetPlatformSetting<K extends PlatformSettingKey>(deps
       update: { value: parsed as Prisma.InputJsonValue, updatedBy: actor.userId },
       create: { key, value: parsed as Prisma.InputJsonValue, updatedBy: actor.userId },
     });
-    await audit(tx, actor, "platform.setting", "platform_setting", key, before?.value ?? null, parsed);
+    await adminAudit(tx, actor, "platform.setting", "platform_setting", key, before?.value ?? null, parsed);
     return (await readSettings(tx))[key];
   });
 }
@@ -151,7 +152,7 @@ export async function adminSavePlan(deps: CoreDeps, actor: AdminActor, planId: s
     }
     await tx.subscriptionPlanModule.deleteMany({ where: { planId: id } });
     await tx.subscriptionPlanModule.createMany({ data: modules.map((m) => ({ planId: id, moduleId: m.id })) });
-    await audit(tx, actor, planId ? "platform.plan_update" : "platform.plan_create", "subscription_plan", id, before, { ...input });
+    await adminAudit(tx, actor, planId ? "platform.plan_update" : "platform.plan_create", "subscription_plan", id, before, { ...input });
     return { id };
   });
 }
@@ -190,7 +191,7 @@ export async function adminSetUserStatus(deps: CoreDeps, actor: AdminActor, user
     if (u.isSuperAdmin) throw new AppError("BUSINESS_RULE", "مدیر پلتفرم را از اینجا نمی‌توان غیرفعال کرد.");
     await tx.user.update({ where: { id: u.id }, data: { status: input.status } });
     if (input.status === "DISABLED") await tx.session.updateMany({ where: { userId: u.id, revokedAt: null }, data: { revokedAt: new Date() } });
-    await audit(tx, actor, "platform.user_status", "user", u.id, { status: u.status }, input);
+    await adminAudit(tx, actor, "platform.user_status", "user", u.id, { status: u.status }, input);
     return { id: u.id, status: input.status };
   });
 }

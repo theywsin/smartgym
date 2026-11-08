@@ -2,24 +2,41 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Dumbbell, Instagram, Mail, MapPin, Phone, Send, ArrowLeft } from "lucide-react";
 import type { PlatformSettings } from "@smartgym/validation";
+import { getPlatformSettings } from "@smartgym/core";
+import { coreDeps } from "@/lib/server/deps";
 
-function Brand({ dark }: { dark?: boolean }) {
+function Brand({ dark, name, logoUrl }: { dark?: boolean; name?: string; logoUrl?: string }) {
   return (
     <span className="flex items-center gap-2">
-      <span className="flex size-9 items-center justify-center rounded-[10px] bg-brand-500 text-white"><Dumbbell className="size-5" aria-hidden /></span>
-      <span className={`text-lg font-black ${dark ? "text-white" : "text-ink"}`}>اسمارت‌جیم</span>
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- logo uploaded in the platform admin
+        <img src={logoUrl} alt="" className="h-9 w-auto max-w-[140px] object-contain" />
+      ) : (
+        <span className="flex size-9 items-center justify-center rounded-[10px] bg-brand-500 text-white"><Dumbbell className="size-5" aria-hidden /></span>
+      )}
+      <span className={`text-lg font-black ${dark ? "text-white" : "text-ink"}`}>{name || "اسمارت‌جیم"}</span>
     </span>
   );
+}
+
+async function siteBrand(): Promise<{ name?: string; logoUrl?: string }> {
+  try {
+    const s = (await getPlatformSettings(coreDeps())).site;
+    return { name: s.name, logoUrl: s.logoUrl };
+  } catch {
+    return {};
+  }
 }
 
 const NAV: [string, string][] = [["/", "صفحه اصلی"], ["/#features", "امکانات"], ["/#pricing", "قیمت‌ها"], ["/blog", "وبلاگ"], ["/#faq", "سوالات"]];
 
 export async function SiteHeader({ cta, dark }: { cta: string; dark?: boolean }) {
   const signedIn = (await cookies()).has("sg_session");
+  const brand = await siteBrand();
   return (
     <header className={dark ? "relative z-20" : "sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur"}>
       <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4 px-4 py-4">
-        <Link href="/" aria-label="صفحه‌ی اصلی"><Brand dark={dark} /></Link>
+        <Link href="/" aria-label="صفحه‌ی اصلی"><Brand dark={dark} {...brand} /></Link>
         <nav aria-label="منوی اصلی" className={`hidden gap-7 text-sm font-semibold md:flex ${dark ? "text-white/80" : "text-ink-2"}`}>
           {NAV.map(([href, label], i) => (
             <Link key={href} href={href} className={`${dark ? "hover:text-white" : "hover:text-ink"} ${i === 0 && dark ? "border-b-2 border-brand-500 pb-1 text-brand-500" : ""}`}>{label}</Link>
@@ -44,7 +61,7 @@ export function SiteFooter({ site }: { site: PlatformSettings["site"] }) {
     <footer id="contact" className="bg-[#07130d] text-white/75">
       <div className="mx-auto grid max-w-[1180px] gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]">
         <div className="space-y-3">
-          <Brand dark />
+          <Brand dark name={site.name} logoUrl={site.logoUrl} />
           <p className="text-sm">{site.tagline}</p>
         </div>
         <nav aria-label="پیوندها" className="space-y-2.5 text-sm">

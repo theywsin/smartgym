@@ -8,6 +8,7 @@ import { getPlatformSettings, listPublicPlans, listPublishedArticles } from "@sm
 import { formatJalali, toPersianDigits } from "@smartgym/shared";
 import { coreDeps } from "@/lib/server/deps";
 import { SiteFooter, SiteHeader } from "@/components/site/chrome";
+import { AppDownload } from "@/components/site/app-download";
 import { Pricing, type PricingPlan } from "@/components/site/pricing";
 
 export const dynamic = "force-dynamic";
@@ -145,6 +146,8 @@ export default async function Landing() {
             </div>
           </section>
         )}
+
+        <AppDownload apps={s.landing.apps} name={s.site.name} />
 
         {/* ───────── FAQ + CTA ───────── */}
         <section id="faq" className="mx-auto grid max-w-[1180px] scroll-mt-20 items-start gap-6 px-4 pb-16 lg:grid-cols-2" aria-labelledby="q-t">

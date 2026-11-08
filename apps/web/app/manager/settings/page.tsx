@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/client/api";
 import { ErrorState, LoadingState } from "@/components/states";
+import { SetPasswordCard } from "@/components/set-password";
 
 type Settings = { terminalId: string | null };
 
@@ -48,6 +49,7 @@ export default function SettingsPage() {
         </section>
       )}
       <ReminderSettings />
+      <SetPasswordCard />
     </div>
   );
 }

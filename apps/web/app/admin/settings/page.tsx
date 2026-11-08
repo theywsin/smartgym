@@ -7,6 +7,7 @@ import type { PlatformSettings } from "@smartgym/validation";
 import { api, ApiError } from "@/lib/client/api";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/field";
+import { ImageUpload } from "@/components/image-upload";
 
 type Platform = { settings: PlatformSettings; plans: { key: string; nameFa: string }[] };
 
@@ -60,6 +61,10 @@ function SiteForm({ initial }: { initial: PlatformSettings["site"] }) {
       </div>
       <Field label="نشانی"><input className="input" value={f.address} onChange={set("address")} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
+        <ImageUpload label="لوگو (PNG شفاف پیشنهاد می‌شود)" aspect="aspect-[3/1]" value={f.logoUrl} onChange={(logoUrl) => setF((s) => ({ ...s, logoUrl }))} />
+        <ImageUpload label="فاوآیکن (مربعی، حداقل ۱۹۲ پیکسل)" aspect="aspect-square" value={f.faviconUrl} onChange={(faviconUrl) => setF((s) => ({ ...s, faviconUrl }))} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="اینماد: شناسه (id)"><input className="input ltr-nums" dir="ltr" placeholder="123456" value={f.enamadId} onChange={set("enamadId")} /></Field>
         <Field label="اینماد: کد (Code)"><input className="input" dir="ltr" placeholder="AbC123..." value={f.enamadCode} onChange={set("enamadCode")} /></Field>
       </div>
@@ -83,19 +88,28 @@ function LandingForm({ initial }: { initial: PlatformSettings["landing"] }) {
         <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={f.showPricing} onChange={(e) => setF({ ...f, showPricing: e.target.checked })} /> نمایش جدول قیمت‌ها</label>
       </div>
       <ListEditor
-        title="ویژگی‌ها" items={f.features} onChange={(features) => setF({ ...f, features })} blank={{ title: "", body: "" }}
+        title="ویژگی‌ها" items={f.features} onChange={(features) => setF((s) => ({ ...s, features }))} blank={{ title: "", body: "" }}
         render={(it, upd) => (<>
           <input className="input" aria-label="عنوان ویژگی" placeholder="عنوان" value={it.title} onChange={(e) => upd({ ...it, title: e.target.value })} />
           <textarea className="input min-h-16" aria-label="توضیح ویژگی" placeholder="توضیح" value={it.body} onChange={(e) => upd({ ...it, body: e.target.value })} />
         </>)}
       />
       <ListEditor
-        title="پرسش‌های متداول" items={f.faq} onChange={(faq) => setF({ ...f, faq })} blank={{ q: "", a: "" }}
+        title="پرسش‌های متداول" items={f.faq} onChange={(faq) => setF((s) => ({ ...s, faq }))} blank={{ q: "", a: "" }}
         render={(it, upd) => (<>
           <input className="input" aria-label="پرسش" placeholder="پرسش" value={it.q} onChange={(e) => upd({ ...it, q: e.target.value })} />
           <textarea className="input min-h-16" aria-label="پاسخ" placeholder="پاسخ" value={it.a} onChange={(e) => upd({ ...it, a: e.target.value })} />
         </>)}
       />
+      <fieldset className="space-y-3 rounded-xl border border-line p-4">
+        <legend className="px-1 text-sm font-bold">لینک دانلود اپلیکیشن</legend>
+        <p className="text-xs text-ink-3">فقط لینک‌های https. بخش «دانلود اپلیکیشن» در صفحه‌ی اصلی وقتی نمایش داده می‌شود که دست‌کم یکی پر باشد.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([["bazaar", "کافه‌بازار"], ["myket", "مایکت"], ["googlePlay", "گوگل‌پلی"], ["appStore", "اپ‌استور / سیب‌اپ"], ["apk", "دانلود مستقیم APK"]] as const).map(([k, label]) => (
+            <Field key={k} label={label}><input className="input" dir="ltr" placeholder="https://" value={f.apps[k]} onChange={(e) => setF({ ...f, apps: { ...f.apps, [k]: e.target.value } })} /></Field>
+          ))}
+        </div>
+      </fieldset>
       <Status m={save} />
       <button className="btn-primary" disabled={save.isPending}>ذخیره</button>
     </form>

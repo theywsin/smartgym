@@ -29,3 +29,6 @@ export * from "./admin/platform";
 export * from "./tickets";
 export * from "./articles";
 export * from "./ai";
+export * from "./admin/uploads";
+export * from "./admin/integrations";
+export * from "./admin/detail";

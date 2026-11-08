@@ -1,3 +1,4 @@
+import { onlinePaymentsEnabled } from "../admin/integrations";
 import { withSystem } from "@smartgym/db";
 import { notFound } from "../errors";
 import { type CoreDeps, nowOf } from "../deps";
@@ -105,7 +106,7 @@ export async function getAthleteDashboard(deps: CoreDeps, user: AthleteUser, mem
       program,
       payments,
       debts,
-      onlinePaymentEnabled: !!(onlinePay?.value as { terminalId?: string | null } | null)?.terminalId,
+      onlinePaymentEnabled: !!(onlinePay?.value as { terminalId?: string | null } | null)?.terminalId && (await onlinePaymentsEnabled(deps)),
       profile: { phone: m.phone, birthDate: m.birthDate, gender: m.gender, homeBranch: m.homeBranchId ? (await tx.branch.findUnique({ where: { id: m.homeBranchId }, select: { name: true } }))?.name ?? null : null, memberSince: m.createdAt },
       coachName: coachProfile ? [coachProfile.firstName, coachProfile.lastName].filter(Boolean).join(" ") || null : null,
     };

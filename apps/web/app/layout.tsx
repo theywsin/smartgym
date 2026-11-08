@@ -5,12 +5,26 @@ import "./globals.css";
 import { getPlatformSettings } from "@smartgym/core";
 import type { PlatformSettings } from "@smartgym/validation";
 import { Providers } from "@/components/providers";
-import { coreDeps } from "@/lib/server/deps";
+import { appUrl, coreDeps } from "@/lib/server/deps";
 
-export const metadata: Metadata = {
-  title: { default: "اسمارت‌جیم", template: "%s · اسمارت‌جیم" },
-  description: "پلتفرم هوشمند مدیریت باشگاه‌های ورزشی",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  await connection();
+  let name = "اسمارت‌جیم";
+  let description = "پلتفرم هوشمند مدیریت باشگاه‌های ورزشی";
+  let favicon = "";
+  try {
+    const s = await getPlatformSettings(coreDeps());
+    name = s.site.name || name;
+    description = s.site.tagline || description;
+    favicon = s.site.faviconUrl || s.site.logoUrl || "";
+  } catch { /* defaults */ }
+  return {
+    metadataBase: new URL(appUrl()),
+    title: { default: name, template: `%s · ${name}` },
+    description,
+    ...(favicon ? { icons: { icon: favicon, apple: favicon } } : {}),
+  };
+}
 
 const FALLBACK = `"Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif`;
 const PEYDA_WEIGHTS: [string, number][] = [["Regular", 400], ["Medium", 500], ["Bold", 700], ["Black", 900]];
