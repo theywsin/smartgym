@@ -128,4 +128,12 @@ describe.skipIf(!hasDb)("platform tools", () => {
     const r2 = await requestOtp({ ...deps, sms: real }, { phone: phone(), purpose: "LOGIN", ip: "10.99.2.2" });
     expect("devCode" in r2).toBe(false);
   });
+
+  it("outside production, shows the code on screen when the SMS provider fails", async () => {
+    const broken = { name: "broken", createOtp: async () => { throw new Error("Melipayamak OTP failed (HTTP 401)"); }, sendOtp: async () => ({}), sendTemplate: async () => ({}), supports: () => false };
+    const p = phone();
+    const r = await requestOtp({ ...deps, sms: broken }, { phone: p, purpose: "LOGIN", ip: "10.99.3.1" });
+    expect(r.devCode).toMatch(/^\d{6}$/);
+    expect((await verifyOtp(deps, { phone: p, code: r.devCode! })).user.phone).toBe(p);
+  });
 });

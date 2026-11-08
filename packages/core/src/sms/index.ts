@@ -173,11 +173,13 @@ export class MelipayamakOtpSmsProvider implements SmsProvider {
       body: JSON.stringify({ to }),
       signal: AbortSignal.timeout(10_000),
     });
-    const body = (await res.json().catch(() => null)) as { code?: string | number; status?: string } | null;
+    const text = await res.text();
+    let body: { code?: string | number; status?: string } | null = null;
+    try { body = JSON.parse(text); } catch { body = null; }
     const code = String(body?.code ?? "").trim();
     if (!res.ok || !/^\d{4,8}$/.test(code)) {
-      // Never include the API key or the code in the error.
-      throw new Error(`Melipayamak OTP failed (HTTP ${res.status}, ${body?.status ?? "no status"})`);
+      // Never include the API key or the code in the error; the provider's own status text helps diagnose.
+      throw new Error(`Melipayamak OTP failed (HTTP ${res.status}, ${body?.status ?? text.slice(0, 200).replaceAll(this.apiKey, "***")})`);
     }
     return { code };
   }

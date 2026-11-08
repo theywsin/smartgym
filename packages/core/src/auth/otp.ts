@@ -48,11 +48,15 @@ export async function requestOtp(
 
   // Send first when the provider makes the code itself (Melipayamak OTP); otherwise we make it and send after saving.
   let code: string;
+  let smsFailedInDev = false;
   try {
     code = deps.sms.createOtp ? (await deps.sms.createOtp(input.phone)).code : randomOtp();
   } catch (err) {
-    console.error(JSON.stringify({ level: "error", msg: "otp sms failed", err: String(err) }));
-    throw new AppError("BUSINESS_RULE", "ارسال پیامک انجام نشد. چند دقیقه بعد دوباره تلاش کنید.");
+    console.error(JSON.stringify({ level: "error", msg: "otp sms failed", err: String(err), cause: String((err as { cause?: unknown })?.cause ?? "") }));
+    // Local development only: keep testing possible by showing the code on screen. Never in production.
+    if (process.env.NODE_ENV === "production") throw new AppError("BUSINESS_RULE", "ارسال پیامک انجام نشد. چند دقیقه بعد دوباره تلاش کنید.");
+    code = randomOtp();
+    smsFailedInDev = true;
   }
   const expiresAt = new Date(now.getTime() + deps.config.otpTtlSeconds * 1000);
   // Invalidate older open codes for this phone so only the newest works.
@@ -67,7 +71,7 @@ export async function requestOtp(
   if (!deps.sms.createOtp) await deps.sms.sendOtp(input.phone, code);
   // Test mode only (console SMS provider, which production refuses unless ALLOW_CONSOLE_SMS=true):
   // return the code so the login screen can show it. A real SMS provider never gets here.
-  const devCode = (await deps.sms.isTest?.()) ? code : undefined;
+  const devCode = smsFailedInDev || (await deps.sms.isTest?.()) ? code : undefined;
   const out: { expiresInSeconds: number; resendInSeconds: number; devCode?: string } = { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000 };
   if (devCode) out.devCode = devCode;
   return out;
