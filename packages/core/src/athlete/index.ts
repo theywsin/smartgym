@@ -14,7 +14,7 @@ import { membershipSummary, SUMMARY_SUBS_INCLUDE } from "../memberships/state";
  */
 export type AthleteUser = { id: string; phone: string };
 
-const memberMatch = (user: AthleteUser) => ({
+export const memberMatch = (user: AthleteUser) => ({
   phone: user.phone,
   status: "ACTIVE" as const,
   archivedAt: null,

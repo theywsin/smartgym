@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { api, clearTokens, hasSession } from "./src/api";
 import { Login } from "./src/screens/Login";
 import { Profiles } from "./src/screens/Profiles";
-import { Member } from "./src/screens/Member";
+import { Athlete } from "./src/athlete/Athlete";
 import { C, Loading } from "./src/ui";
 
 type Route = { name: "loading" } | { name: "login" } | { name: "profiles" } | { name: "member"; id: string; single: boolean };
@@ -31,7 +31,7 @@ export default function App() {
       <View style={{ flex: 1, width: "100%", maxWidth: 560, alignSelf: "center" }}>
         {route.name === "loading" && <Loading />}
         {route.name === "profiles" && <Profiles onOpen={openMember} onLogout={logout} />}
-        {route.name === "member" && <Member memberId={route.id} onBack={() => setRoute({ name: "profiles" })} />}
+        {route.name === "member" && <Athlete memberId={route.id} onSwitchGym={() => setRoute({ name: "profiles" })} onLogout={logout} />}
       </View>
     </SafeAreaView>
   );

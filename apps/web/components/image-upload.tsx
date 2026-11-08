@@ -5,7 +5,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { api, ApiError } from "@/lib/client/api";
 
 /** Upload an image (admin only) and get its /uploads/... URL back. Shows a preview of the current value. */
-export function ImageUpload({ value, onChange, label, aspect = "aspect-video" }: { value: string; onChange: (url: string) => void; label: string; aspect?: string }) {
+export function ImageUpload({ value, onChange, label, aspect = "aspect-video", endpoint = "/admin/uploads" }: { value: string; onChange: (url: string) => void; label: string; aspect?: string; endpoint?: string }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +36,7 @@ export function ImageUpload({ value, onChange, label, aspect = "aspect-video" }:
           if (!file) return;
           setBusy(true); setError("");
           try {
-            const r = await api<{ url: string }>("/admin/uploads", { method: "POST", file });
+            const r = await api<{ url: string }>(endpoint, { method: "POST", file });
             onChange(r.url);
           } catch (err) {
             setError(err instanceof ApiError ? err.message : "بارگذاری انجام نشد.");

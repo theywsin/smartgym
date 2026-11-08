@@ -181,6 +181,8 @@ model Gym {
   coachAthletes CoachAthlete[]
   payments      Payment[]
   onlinePaymentRequests OnlinePaymentRequest[]
+  workoutSessions WorkoutSession[]
+  workoutSetLogs  WorkoutSetLog[]
   expenseCategories ExpenseCategory[]
   expenses      Expense[]
   coachPayouts  CoachPayout[]
@@ -898,6 +900,46 @@ model WorkoutProgram {
   @@index([gymId, memberId, createdAt])
   @@index([gymId, coachUserId])
   @@map("workout_program")
+}
+
+/// One training session run by the athlete. The day's exercises are copied in at start,
+/// so later program edits never change history.
+model WorkoutSession {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  gymId      String    @map("gym_id") @db.Uuid
+  memberId   String    @map("member_id") @db.Uuid
+  programId  String    @map("program_id") @db.Uuid
+  dayIndex   Int       @map("day_index")
+  dayTitle   String    @map("day_title")
+  exercises  Json
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+  note       String?
+  setLogs    WorkoutSetLog[]
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, memberId, startedAt])
+  @@map("workout_session")
+}
+
+model WorkoutSetLog {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  gymId         String   @map("gym_id") @db.Uuid
+  sessionId     String   @map("session_id") @db.Uuid
+  exerciseIndex Int      @map("exercise_index")
+  setNumber     Int      @map("set_number")
+  reps          Int
+  /// kg × 10 (one decimal place), null = bodyweight
+  weightKgX10   Int?     @map("weight_kg_x10")
+  note          String?
+  loggedAt      DateTime @default(now()) @map("logged_at") @db.Timestamptz(3)
+
+  gym     Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  session WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, exerciseIndex, setNumber])
+  @@map("workout_set_log")
 }
 
 /// Platform-wide settings edited by the super admin (site name, support contacts, landing content).

@@ -353,12 +353,21 @@ export const reminderSettingsSchema = z.object({
 
 // ───────────── Phase 5: coach portal ─────────────
 
+const mediaImage = z.union([z.literal(""), z.string().trim().max(400).regex(/^(\/uploads\/[0-9a-f-]{36}\.(png|jpg|webp|gif)|https:\/\/[^\s"'<>]+)$/, "آدرس تصویر نامعتبر است.")]);
+const mediaLink = z.union([z.literal(""), z.string().trim().max(400).regex(/^https:\/\/[^\s"'<>]+$/, "لینک باید با https شروع شود.")]);
+
 const exerciseSchema = z.object({
   name: z.string().trim().min(1, "نام حرکت را بنویسید").max(80),
   sets: z.number().int().min(1).max(20),
   reps: z.string().trim().min(1, "تکرار را بنویسید").max(20), // "12" or "8-10" or "30s"
   restSeconds: z.number().int().min(0).max(600).optional(),
   note: optionalText(200),
+  /** Suggested working weight in kg (0.5 steps). */
+  weightKg: z.number().min(0).max(500).optional(),
+  muscle: optionalText(60),
+  imageUrl: mediaImage.optional(), // picture or GIF
+  videoUrl: mediaLink.optional(), // https video (mp4/aparat/youtube…)
+  tips: optionalText(600), // step-by-step, correct form, common mistakes
 });
 
 export const workoutProgramSchema = z.object({
@@ -366,7 +375,12 @@ export const workoutProgramSchema = z.object({
   goal: optionalText(100),
   notes: optionalText(1000),
   days: z
-    .array(z.object({ title: z.string().trim().min(1, "عنوان روز را بنویسید").max(60), exercises: z.array(exerciseSchema).min(1, "حداقل یک حرکت اضافه کنید").max(30) }))
+    .array(z.object({
+      title: z.string().trim().min(1, "عنوان روز را بنویسید").max(60),
+      /** 0 = Saturday … 6 = Friday (Iranian week). Optional: without it days rotate in order. */
+      weekday: z.number().int().min(0).max(6).optional(),
+      exercises: z.array(exerciseSchema).min(1, "حداقل یک حرکت اضافه کنید").max(30),
+    }))
     .min(1, "حداقل یک روز تمرینی اضافه کنید")
     .max(7),
 });
@@ -526,3 +540,15 @@ export const adminGymUpdateSchema = z.object({
   terminalId: onlinePaymentSettingsSchema.shape.terminalId,
 });
 export type AdminGymUpdateInput = z.infer<typeof adminGymUpdateSchema>;
+
+// Athlete workout logging
+export const workoutStartSchema = z.object({ dayIndex: z.number().int().min(0).max(6) });
+export const workoutSetLogSchema = z.object({
+  exerciseIndex: z.number().int().min(0).max(29),
+  setNumber: z.number().int().min(1).max(20),
+  reps: z.number().int().min(0).max(200),
+  weightKg: z.number().min(0).max(500).optional(),
+  note: optionalText(200),
+});
+export type WorkoutSetLogInput = z.infer<typeof workoutSetLogSchema>;
+export const workoutFinishSchema = z.object({ note: optionalText(1000) });

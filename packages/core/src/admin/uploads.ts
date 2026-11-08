@@ -41,19 +41,28 @@ export const UPLOAD_EXT_MIME: Record<string, string> = { png: "image/png", jpg: 
 
 /** Stores an admin-uploaded image on disk and records it. Returns its public URL. */
 export async function adminSaveUpload(deps: CoreDeps, actor: AdminActor, bytes: Uint8Array, uploadDir: string) {
+  return saveImage(deps, actor, bytes, uploadDir, true);
+}
+
+/** Coaches upload exercise pictures/GIFs. Caller must check the coach permission first. */
+export async function staffSaveUpload(deps: CoreDeps, actor: AdminActor & { gymId: string }, bytes: Uint8Array, uploadDir: string) {
+  return saveImage(deps, actor, bytes, uploadDir, false);
+}
+
+async function saveImage(deps: CoreDeps, actor: AdminActor & { gymId?: string }, bytes: Uint8Array, uploadDir: string, superAdmin: boolean) {
   if (bytes.length === 0) throw new AppError("VALIDATION_FAILED", "فایلی انتخاب نشده است.");
   if (bytes.length > MAX_UPLOAD_BYTES) throw new AppError("VALIDATION_FAILED", "حجم تصویر باید کمتر از ۵ مگابایت باشد.");
   const kind = sniffImage(bytes);
   if (!kind) throw new AppError("VALIDATION_FAILED", "فقط تصویر PNG، JPG، WEBP یا GIF قابل بارگذاری است.");
   return withSystem(deps.db, async (tx) => {
-    await requireSuperAdmin(tx, actor);
+    if (superAdmin) await requireSuperAdmin(tx, actor);
     const fileName = `${crypto.randomUUID()}.${kind.ext}`;
     await fs.mkdir(/*turbopackIgnore: true*/ uploadDir, { recursive: true });
     await fs.writeFile(path.join(/*turbopackIgnore: true*/ uploadDir, fileName), bytes, { flag: "wx" });
     const row = await tx.platformUpload.create({
       data: { fileName, mimeType: kind.mime, sizeBytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex"), width: kind.width, height: kind.height, uploadedBy: actor.userId },
     });
-    await adminAudit(tx, actor, "platform.upload", "platform_upload", row.id, null, { fileName, sizeBytes: bytes.length });
+    await adminAudit(tx, actor, superAdmin ? "platform.upload" : "gym.upload", "platform_upload", row.id, null, { fileName, sizeBytes: bytes.length, gymId: actor.gymId ?? null });
     return { id: row.id, url: `/uploads/${fileName}`, width: row.width, height: row.height };
   });
 }

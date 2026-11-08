@@ -32,3 +32,4 @@ export * from "./ai";
 export * from "./admin/uploads";
 export * from "./admin/integrations";
 export * from "./admin/detail";
+export * from "./athlete/workouts";
