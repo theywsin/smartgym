@@ -65,7 +65,10 @@ export async function requestOtp(
   });
 
   if (!deps.sms.createOtp) await deps.sms.sendOtp(input.phone, code);
-  return { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000 };
+  // Test mode only (console SMS provider, which production refuses unless ALLOW_CONSOLE_SMS=true):
+  // return the code so the login screen can show it. A real SMS provider never gets here.
+  const devCode = (await deps.sms.isTest?.()) ? code : undefined;
+  return { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000, ...(devCode ? { devCode } : {}) };
 }
 
 /**

@@ -119,4 +119,13 @@ describe.skipIf(!hasDb)("platform tools", () => {
     const r = await verifyOtp(d, { phone: p, code: "4821" });
     expect(r.user.phone).toBe(p);
   });
+
+  it("returns the code for on-screen display only with the test (console) provider", async () => {
+    const p1 = phone();
+    const r1 = await requestOtp(deps, { phone: p1, purpose: "LOGIN", ip: "10.99.2.1" });
+    expect(r1.devCode).toBe(sms.sent.get(p1));
+    const real = { name: "real", sendOtp: async () => ({}), sendTemplate: async () => ({}), supports: () => false };
+    const r2 = await requestOtp({ ...deps, sms: real }, { phone: phone(), purpose: "LOGIN", ip: "10.99.2.2" });
+    expect("devCode" in r2).toBe(false);
+  });
 });

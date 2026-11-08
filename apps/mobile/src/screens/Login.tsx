@@ -53,13 +53,15 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [help, setHelp] = useState(false);
+  const [devCode, setDevCode] = useState("");
 
   async function requestCode() {
     const p = normalizePhone(phone);
     if (!p) return setError("شماره موبایل معتبر نیست.");
     setBusy(true); setError("");
     try {
-      await api("/auth/otp/request", { method: "POST", body: { phone: p, purpose: "LOGIN" }, auth: false });
+      const r = await api<{ devCode?: string }>("/auth/otp/request", { method: "POST", body: { phone: p, purpose: "LOGIN" }, auth: false });
+      setDevCode(r.devCode ?? "");
       setStep("code");
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
@@ -126,6 +128,14 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
             </>
           )}
 
+          {!isPhone && devCode ? (
+            <Pressable accessibilityRole="button" onPress={() => setCode(devCode)} style={s.devBox}>
+              <Text style={s.devTx}>حالت تست: پیامک واقعی ارسال نمی‌شود</Text>
+              <Text style={s.devCode}>{devCode}</Text>
+              <Text style={s.devTx}>برای پر کردن کد، اینجا را بزنید</Text>
+            </Pressable>
+          ) : null}
+
           {error ? (
             <View style={s.errRow} accessibilityRole="alert">
               <View style={s.errDot}><Text style={s.errDotTx}>!</Text></View>
@@ -188,6 +198,9 @@ const s = StyleSheet.create({
   label: { color: G.ink, fontSize: 16, fontWeight: "800", textAlign: "right" },
   inputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: G.line, borderRadius: 16, paddingHorizontal: 16, height: 58, backgroundColor: "#fff", gap: 10 },
   input: { flex: 1, minWidth: 0, width: "100%", fontSize: 20, color: G.ink, textAlign: "right", writingDirection: "ltr", height: "100%" },
+  devBox: { borderWidth: 1, borderStyle: "dashed", borderColor: "#f59e0b", backgroundColor: "#fffbeb", borderRadius: 14, padding: 12, alignItems: "center", gap: 4 },
+  devTx: { color: "#92400e", fontSize: 13, textAlign: "center" },
+  devCode: { color: "#92400e", fontSize: 26, fontWeight: "900", letterSpacing: 6, writingDirection: "ltr" },
   errRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
   errDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: G.err, alignItems: "center", justifyContent: "center" },
   errDotTx: { color: "#fff", fontWeight: "900", fontSize: 13 },

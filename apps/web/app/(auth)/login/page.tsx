@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [mode, setMode] = useState<"otp" | "password">("otp");
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -56,16 +57,18 @@ export default function LoginPage() {
             <PasswordStep onDone={done} onForgot={() => setMode("otp")} />
           ) : phone === null ? (
             <PhoneStep
-              onSent={(p, wait) => {
+              onSent={(p, wait, dev) => {
                 setPhone(p);
                 setResendIn(wait);
+                setDevCode(dev ?? null);
               }}
             />
           ) : (
             <CodeStep
               phone={phone}
               resendIn={resendIn}
-              onResent={(wait) => setResendIn(wait)}
+              onResent={(wait, dev) => { setResendIn(wait); setDevCode(dev ?? null); }}
+              devCode={devCode}
               onBack={() => setPhone(null)}
               onVerified={done}
             />
@@ -114,15 +117,15 @@ function PasswordStep({ onDone, onForgot }: { onDone: (r: VerifyResult) => void;
   );
 }
 
-function PhoneStep({ onSent }: { onSent: (phone: string, resendIn: number) => void }) {
+function PhoneStep({ onSent }: { onSent: (phone: string, resendIn: number, devCode?: string) => void }) {
   const form = useForm<z.input<typeof phoneForm>, unknown, z.output<typeof phoneForm>>({ resolver: zodResolver(phoneForm) });
   const [error, setError] = useState<string | null>(null);
 
   const submit = form.handleSubmit(async ({ phone }) => {
     setError(null);
     try {
-      const r = await api<{ resendInSeconds: number }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
-      onSent(phone, r.resendInSeconds);
+      const r = await api<{ resendInSeconds: number; devCode?: string }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
+      onSent(phone, r.resendInSeconds, r.devCode);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "خطای غیرمنتظره‌ای رخ داد.");
     }
@@ -162,10 +165,12 @@ function CodeStep({
   onResent,
   onBack,
   onVerified,
+  devCode,
 }: {
   phone: string;
   resendIn: number;
-  onResent: (wait: number) => void;
+  devCode?: string | null;
+  onResent: (wait: number, devCode?: string) => void;
   onBack: () => void;
   onVerified: (r: VerifyResult) => void;
 }) {
@@ -188,8 +193,8 @@ function CodeStep({
     setResending(true);
     setError(null);
     try {
-      const r = await api<{ resendInSeconds: number }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
-      onResent(r.resendInSeconds);
+      const r = await api<{ resendInSeconds: number; devCode?: string }>("/auth/otp/request", { method: "POST", body: { phone, purpose: "LOGIN" } });
+      onResent(r.resendInSeconds, r.devCode);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "خطای غیرمنتظره‌ای رخ داد.");
     } finally {
@@ -216,8 +221,14 @@ function CodeStep({
       </button>
       <h1 className="text-xl font-extrabold">کد تأیید را وارد کنید</h1>
       <p className="mt-1 mb-6 text-sm text-ink-2">
-        کد ۶ رقمی به شماره <span className="ltr-nums font-semibold text-ink">{toPersianDigits(formatIranMobile(phone))}</span> ارسال شد.
+        کد تأیید به شماره <span className="ltr-nums font-semibold text-ink">{toPersianDigits(formatIranMobile(phone))}</span> ارسال شد.
       </p>
+      {devCode && (
+        <div role="status" className="mb-4 rounded-xl border border-dashed border-warn-tx/40 bg-warn-bg px-4 py-3 text-sm text-warn-tx">
+          حالت تست (پیامک واقعی ارسال نمی‌شود). کد ورود: <b className="ltr-nums mx-1 text-base tracking-widest" dir="ltr">{devCode}</b>
+          <button type="button" className="mr-2 underline" onClick={() => { form.setValue("code", devCode); void submit(); }}>ورود با این کد</button>
+        </div>
+      )}
       <label htmlFor="code" className="label">کد تأیید</label>
       <input
         id="code"

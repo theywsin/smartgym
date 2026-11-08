@@ -111,6 +111,7 @@ export class SettingsSmsProvider implements SmsProvider {
   /** Loads the current settings now (call before checking supports()). */
   async refresh() { cache = null; await this.current(); }
   async sendOtp(phone: string, code: string) { return (await this.current()).sendOtp(phone, code); }
+  async isTest() { const p = await this.current(); return !!(await p.isTest?.()); }
   /** Always present: uses the provider's own code when it makes one, otherwise generates and sends ours. */
   async createOtp(phone: string) {
     const p = await this.current();

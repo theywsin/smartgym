@@ -17,6 +17,8 @@ export interface SmsProvider {
    * returns the code that was sent, so it can be hashed and checked. When present it is used instead of sendOtp.
    */
   createOtp?(phoneE164: string): Promise<{ code: string; providerRef?: string }>;
+  /** True only for the console (test) provider: the code may then be shown on screen. */
+  isTest?(): Promise<boolean>;
   /** Throws SmsTemplateNotConfigured when the template has no approved id configured. */
   sendTemplate(phoneE164: string, template: SmsTemplate, args: string[]): Promise<{ providerRef?: string }>;
   supports(template: SmsTemplate): boolean;
@@ -32,6 +34,7 @@ export class SmsTemplateNotConfigured extends Error {
 export class ConsoleSmsProvider implements SmsProvider {
   readonly name = "console";
   readonly sent = new Map<string, string>();
+  async isTest() { return true; }
 
   async sendOtp(phoneE164: string, code: string) {
     this.sent.set(phoneE164, code);
