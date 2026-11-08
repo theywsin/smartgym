@@ -60,7 +60,7 @@ import {
   MOCK_MEMBERS,
   MOCK_COACHES
 } from "./data";
-import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost } from "./types";
+import { UserRole, Tenant, Booking, StoreProduct, toPersianNums, BlogPost, type Invoice } from "./types";
 import ExerciseAnimation from "./components/ExerciseAnimation";
 
 // Custom Premium Sub-components Integration
@@ -78,6 +78,7 @@ import PlatformMonitoringCenter from "./components/PlatformMonitoringCenter";
 import InteractiveTrainingSystem from "./components/InteractiveTrainingSystem";
 import SmsOtpAuthenticationSystem from "./components/SmsOtpAuthenticationSystem";
 import TenantWelcomeSetupWizard from "./components/TenantWelcomeSetupWizard";
+import { getAuth, clearAuth, login as serverLogin, AUTH_EXPIRED_EVENT } from "./lib/authSession";
 
 // @ts-ignore
 import mascotSmart from "./assets/images/mascot_smart_1783248774021.jpg";
@@ -282,8 +283,10 @@ export default function App() {
 
   // Super Admin Authentication States
   const [isSuperAdminLoggedIn, setIsSuperAdminLoggedIn] = useState(() => {
-    return localStorage.getItem("isSuperAdminLoggedIn") === "true";
+    return getAuth()?.role === "SUPER_ADMIN";
   });
+  // Bumped after every login/logout so data is reloaded with the new permissions.
+  const [authVersion, setAuthVersion] = useState(0);
   const [adminUsernameInput, setAdminUsernameInput] = useState("");
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
@@ -785,24 +788,19 @@ export default function App() {
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            return data;
+          if (Array.isArray(data)) {
+            // The shared exercise library falls back to the built-in list when empty.
+            if (data.length === 0 && table === "exercises_database") return seedData;
+            // A signed-in user sees only real records, never demo data.
+            if (data.length > 0 || getAuth()) return data;
           }
         }
       }
     } catch (e) {
       console.error(`Error loading table ${table} from API:`, e);
     }
-    // Seed initial data if empty or API fetch failed
-    try {
-      await fetch(`/api/db/${table}/batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(seedData)
-      });
-    } catch (e) {
-      console.error(`Error seeding ${table} to API:`, e);
-    }
+    // Not signed in (or API unavailable): show the built-in demo data locally.
+    // Demo data is never written to the server.
     return seedData;
   };
 
@@ -949,6 +947,19 @@ export default function App() {
     };
 
     initializeCloudDatabase();
+  }, [authVersion]);
+
+  // When the server rejects an expired session, sign the user out everywhere.
+  useEffect(() => {
+    const onExpired = () => {
+      setIsSuperAdminLoggedIn(false);
+      setLoggedInTenant(null);
+      setLoggedInCoach(null);
+      setLoggedInMember(null);
+      setAuthVersion((v) => v + 1);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, []);
 
   // Automated state synchronization to live cloud database
@@ -1085,17 +1096,11 @@ export default function App() {
   // Mascot Live Chat support functions
   const fetchSmartMessages = async (sessionId: string) => {
     try {
-      const res = await fetch(`/api/db/smart_support_chats`);
+      const res = await fetch(`/api/support-chat/${encodeURIComponent(sessionId)}`);
       if (res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const chats = await res.json();
-          const found = chats.find((c: any) => c.id === sessionId);
-          if (found) {
-            setSmartChatMessages(found.messages || []);
-            return;
-          }
-        }
+        const found = await res.json();
+        setSmartChatMessages(found.messages || []);
+        return;
       }
 
       const initialMsg = {
@@ -1114,7 +1119,7 @@ export default function App() {
         messages: [initialMsg]
       };
 
-      await fetch(`/api/db/smart_support_chats`, {
+      await fetch(`/api/support-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newChat)
@@ -1161,7 +1166,7 @@ export default function App() {
         messages: updatedMessages
       };
 
-      await fetch(`/api/db/smart_support_chats`, {
+      await fetch(`/api/support-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(chatData)
@@ -1175,31 +1180,19 @@ export default function App() {
           timestamp: new Date().toISOString()
         };
         
-        const res = await fetch(`/api/db/smart_support_chats`);
+        const res = await fetch(`/api/support-chat/${encodeURIComponent(smartChatSession.id)}`);
         if (res.ok) {
-          const contentType = res.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const chats = await res.json();
-            const found = chats.find((c: any) => c.id === smartChatSession.id);
-            if (found) {
-              const currentMsgs = found.messages || [];
-              if (currentMsgs.length > 0 && currentMsgs[currentMsgs.length - 1].sender === "user") {
-                const withReply = [...currentMsgs, smartReply];
-                setSmartChatMessages(withReply);
-                
-                const updatedChat = {
-                  ...found,
-                  messages: withReply,
-                  updatedAt: new Date().toISOString()
-                };
+          const found = await res.json();
+          const currentMsgs = found.messages || [];
+          if (currentMsgs.length > 0 && currentMsgs[currentMsgs.length - 1].sender === "user") {
+            const withReply = [...currentMsgs, smartReply];
+            setSmartChatMessages(withReply);
 
-                await fetch(`/api/db/smart_support_chats`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(updatedChat)
-                });
-              }
-            }
+            await fetch(`/api/support-chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: smartChatSession.id, messages: withReply })
+            });
           }
         }
       }, 2500);
@@ -1569,11 +1562,11 @@ export default function App() {
     })
       .then(async (response) => {
         if (response.ok) {
-          setTenants([...tenants, newlyCreated]);
+          setTenants([...tenants, { ...newlyCreated, password: undefined }]);
           setNewTenant({ name: "", ownerName: "", email: "", phone: "", username: "", password: "", planName: "پلن حرفه‌ای (نقره‌ای)", status: "ACTIVE" });
           setTenantFormTouched({});
           setTenantFormSubmitted(false);
-          alert(`باشگاه "${newlyCreated.name}" با موفقیت در دیتابیس سراسری ثبت و تعریف شد.\nنام کاربری: ${newlyCreated.username}\nکلمه عبور: ${newlyCreated.password}`);
+          alert(`باشگاه "${newlyCreated.name}" با موفقیت در دیتابیس سراسری ثبت و تعریف شد.\nنام کاربری: ${newlyCreated.username}`);
         } else {
           const text = await response.text();
           alert(`خطا در ذخیره باشگاه در دیتابیس: ${text}`);
@@ -1659,7 +1652,7 @@ export default function App() {
     })
       .then(async (response) => {
         if (response.ok) {
-          setMembers([...members, newlyCreated]);
+          setMembers([...members, { ...newlyCreated, password: undefined }]);
           // Clear Form & validation state
           setNewMemberName("");
           setNewMemberPhone("");
@@ -1681,12 +1674,12 @@ export default function App() {
   };
 
   // Login Member handler (Member Action)
-  const handleMemberLogin = (e: React.FormEvent) => {
+  const handleMemberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const found = members.find(
-      (m) => m.username.toLowerCase() === loginUsername.trim().toLowerCase() && m.password === loginPassword
-    );
+    const result = await serverLogin("member", loginUsername.trim(), loginPassword);
+    const found: any = result.ok ? result.session.profile : null;
     if (found) {
+      setAuthVersion((v) => v + 1);
       setLoggedInMember(found);
       setLoginError("");
       
@@ -1706,6 +1699,8 @@ export default function App() {
 
   // Logout member
   const handleMemberLogout = () => {
+    clearAuth();
+    setAuthVersion((v) => v + 1);
     setLoggedInMember(null);
     setLoginUsername("");
     setLoginPassword("");
@@ -2554,24 +2549,12 @@ export default function App() {
                     setIsAdminLoginLoading(true);
                     setAdminLoginError("");
                     try {
-                      const response = await fetch("/api/admin/login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: adminUsernameInput, password: adminPasswordInput })
-                      });
-                      let resData: any = {};
-                      const contentType = response.headers.get("content-type");
-                      if (contentType && contentType.includes("application/json")) {
-                        resData = await response.json();
-                      } else {
-                        const text = await response.text();
-                        resData = { error: text || "قالب پاسخ نامعتبر از سرور" };
-                      }
-                      if (response.ok && resData.success) {
+                      const result = await serverLogin("admin", adminUsernameInput, adminPasswordInput);
+                      if (result.ok) {
                         setIsSuperAdminLoggedIn(true);
-                        localStorage.setItem("isSuperAdminLoggedIn", "true");
+                        setAuthVersion((v) => v + 1);
                       } else {
-                        setAdminLoginError(resData.error || "نام کاربری یا کلمه عبور اشتباه است!");
+                        setAdminLoginError(result.error || "نام کاربری یا کلمه عبور اشتباه است!");
                       }
                     } catch (err: any) {
                       setAdminLoginError("خطای ارتباط با سرور. لطفا اتصال را بررسی کنید.");
@@ -2614,7 +2597,8 @@ export default function App() {
                   onClick={() => {
                     if (confirm("آیا مایل به خروج امن از پنل سوپر ادمین هستید؟")) {
                       setIsSuperAdminLoggedIn(false);
-                      localStorage.removeItem("isSuperAdminLoggedIn");
+                      clearAuth();
+                      setAuthVersion((v) => v + 1);
                       setActiveTab("landing");
                     }
                   }}
@@ -2917,7 +2901,7 @@ export default function App() {
                           <span className="text-slate-500 block text-[10px] mt-0.5">مالک: {tenant.ownerName} | تلفن: {tenant.phone}</span>
                           {tenant.username && (
                             <div className="mt-1.5 inline-block bg-blue-950/20 border border-blue-500/10 px-2 py-0.5 rounded text-[9px] font-mono text-blue-400">
-                              کاربری: {tenant.username} | رمز: {tenant.password}
+                              کاربری: {tenant.username}
                             </div>
                           )}
                         </div>
@@ -3815,27 +3799,18 @@ export default function App() {
                 </div>
               )}
 
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
                 const u = tenantUsernameInput.trim();
                 const p = tenantPasswordInput.trim();
-                
-                // Find dynamically created tenants matching the user/pass
-                const matchedTenant = tenants.find(
-                  (t) => t.username && t.username.toLowerCase() === u.toLowerCase() && t.password === p
-                );
 
-                // Match dynamically generated or demo credentials
-                if ((u === "oxygen" && p === "123") || 
-                    (generatedClubCredentials && u === generatedClubCredentials.username && p === generatedClubCredentials.password) ||
-                    matchedTenant) {
-                  
-                  const tenantToLog = matchedTenant || {
-                    id: u === "oxygen" ? "oxygen" : u,
-                    name: u === "oxygen" ? "باشگاه مدرن اکسیژن" : generatedClubCredentials?.clubName || "باشگاه فیتنس",
-                    planName: u === "oxygen" ? "طلایی سالانه" : purchasedPlan?.name || "پلن پایه",
-                    features: u === "oxygen" ? ["کاربران نامحدود", "پشتیبانی تیکتی VIP", "آنالیز فیزیکی هوشمند", "اتصال درگاه پرداخت اختصاصی"] : (purchasedPlan?.features || [])
-                  };
+                // Credentials are checked on the server only.
+                const result = await serverLogin("tenant", u, p);
+                const matchedTenant: any = result.ok ? result.session.profile : null;
+
+                if (matchedTenant) {
+                  setAuthVersion((v) => v + 1);
+                  const tenantToLog = matchedTenant;
 
                   setLoggedInTenant({
                     id: tenantToLog.id,
@@ -3846,7 +3821,7 @@ export default function App() {
                   });
                   setTenantLoginError("");
                 } else {
-                  setTenantLoginError("نام کاربری یا کلمه عبور وارد شده نامعتبر است.");
+                  setTenantLoginError(result.ok ? "نام کاربری یا کلمه عبور وارد شده نامعتبر است." : result.error);
                 }
               }} className="space-y-4">
                 <div>
@@ -3958,6 +3933,8 @@ export default function App() {
                 <button 
                   onClick={() => {
                     setLoggedInTenant(null);
+                    clearAuth();
+                    setAuthVersion((v) => v + 1);
                     setTenantUsernameInput("");
                     setTenantPasswordInput("");
                   }}
@@ -4413,11 +4390,12 @@ export default function App() {
                                 setClubRevenue(prev => prev + req.priceToman);
 
                                 // Add to invoices
-                                const newInvoice = {
+                                const newInvoice: Invoice = {
                                   id: `inv_renewal_${Date.now()}`,
                                   memberName: req.memberName,
                                   planName: req.planName,
-                                  amount: `${toPersianNums(req.priceToman.toLocaleString())} تومان`,
+                                  amountToman: req.priceToman,
+                                  paymentMethod: "OFFLINE",
                                   date: "1405/04/04",
                                   status: "PAID"
                                 };
@@ -4789,14 +4767,22 @@ export default function App() {
                       return;
                     }
                     const newCoach = {
-                      id: String(coaches.length + 1),
+                      id: `coach_${Date.now()}`,
                       name: newCoachName.trim(),
                       username: newCoachUsername.trim(),
                       password: newCoachPassword.trim(),
                       specialty: newCoachSpecialty.trim(),
-                      clubId: loggedInTenant.id || "1"
+                      clubId: loggedInTenant.id
                     };
-                    setCoaches([...coaches, newCoach]);
+                    // Save on the server first (the password is hashed there), then keep it out of client state.
+                    fetch("/api/db/coaches", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(newCoach)
+                    }).then((res) => {
+                      if (!res.ok) alert("خطا در ذخیره مربی در پایگاه داده.");
+                    }).catch(() => alert("خطا در ارتباط با سرور جهت ذخیره مربی."));
+                    setCoaches([...coaches, { ...newCoach, password: undefined }]);
                     setNewCoachName("");
                     setNewCoachUsername("");
                     setNewCoachPassword("");
@@ -4998,14 +4984,15 @@ export default function App() {
               </div>
             )}
 
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault();
-              const found = coaches.find(c => c.username.toLowerCase() === coachUsernameInput.toLowerCase() && c.password === coachPasswordInput);
-              if (found) {
-                setLoggedInCoach(found);
+              const result = await serverLogin("coach", coachUsernameInput.trim(), coachPasswordInput);
+              if (result.ok) {
+                setLoggedInCoach(result.session.profile);
                 setCoachLoginError("");
+                setAuthVersion((v) => v + 1);
               } else {
-                setCoachLoginError("نام کاربری یا رمز عبور اشتباه است.");
+                setCoachLoginError(result.error || "نام کاربری یا رمز عبور اشتباه است.");
               }
             }} className="space-y-4">
               <div>
@@ -5065,6 +5052,8 @@ export default function App() {
                 <button
                   onClick={() => {
                     setLoggedInCoach(null);
+                    clearAuth();
+                    setAuthVersion((v) => v + 1);
                     setCoachUsernameInput("");
                     setCoachPasswordInput("");
                   }}
@@ -5635,7 +5624,7 @@ export default function App() {
                           </div>
                           <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-white/5">
                             <span className="text-[9px] text-slate-500 block">رمز عبور</span>
-                            <span className="font-mono text-amber-400 font-bold text-sm">{member.password}</span>
+                            <span className="font-mono text-amber-400 font-bold text-sm">••••••</span>
                           </div>
                           <div className="bg-slate-950 px-3 py-1.5 rounded-xl border border-white/5 text-center">
                             <span className="text-[9px] text-slate-500 block">جلسات باقیمانده</span>

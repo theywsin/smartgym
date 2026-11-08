@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily SmartGym database backup (03:30 Tehran = 00:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

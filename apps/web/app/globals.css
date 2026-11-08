@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+/*
+ * SmartGym 2.0 design tokens, taken from the approved design board
+ * (project files: smartgym-design/*.html). Light theme is the default.
+ * Font: chosen in the platform admin (Settings → font); app/layout.tsx overrides --font-sans.
+ * Vazirmatn (self-hosted, OFL) is the default and the fallback.
+ */
+@theme {
+  --font-sans: "Vazirmatn Variable", "Vazirmatn", Tahoma, sans-serif;
+
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-500: #22c55e;
+  --color-brand-600: #16a34a;
+  --color-brand-700: #15803d;
+  --color-brand-800: #166534;
+
+  --color-ink: #111827;
+  --color-ink-2: #6b7280;
+  --color-ink-3: #9ca3af;
+  --color-line: #e5e7eb;
+  --color-line-2: #f3f4f6;
+  --color-canvas: #f9fafb;
+  --color-surface: #ffffff;
+
+  --color-err: #ef4444;
+  --color-err-bg: #fef2f2;
+  --color-err-tx: #b91c1c;
+  --color-warn: #f59e0b;
+  --color-warn-bg: #fffbeb;
+  --color-warn-tx: #b45309;
+  --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
+  --color-info-tx: #1d4ed8;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+
+  --shadow-1: 0 1px 2px rgba(17, 24, 39, 0.05);
+  --shadow-2: 0 1px 3px rgba(17, 24, 39, 0.06), 0 4px 12px rgba(17, 24, 39, 0.04);
+  --shadow-3: 0 8px 24px rgba(17, 24, 39, 0.08), 0 2px 6px rgba(17, 24, 39, 0.04);
+}
+
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}
+
+/* Base building blocks are utilities so other components can @apply them (Tailwind v4). */
+@utility btn {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-transparent px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed;
+}
+@utility chip {
+  @apply inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-white px-3 text-xs text-[#374151];
+}
+
+@layer components {
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 disabled:bg-[#d1d5db];
+  }
+  .btn-secondary {
+    @apply btn border-line bg-surface text-ink hover:border-[#d1d5db] hover:bg-canvas disabled:text-ink-3;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-2 hover:bg-line-2 hover:text-ink;
+  }
+  .btn-lg {
+    @apply h-12 rounded-xl px-6 text-[15px];
+  }
+  .input {
+    @apply h-[42px] w-full min-w-0 rounded-[10px] border border-line bg-white px-3 text-sm text-ink placeholder:text-ink-3 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 aria-invalid:border-err aria-invalid:ring-err-bg;
+  }
+  .label {
+    @apply mb-1.5 block text-[13px] font-semibold text-ink;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs text-err-tx;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-surface p-5;
+  }
+  .card-title {
+    @apply text-[15px] font-bold leading-6;
+  }
+  .page-title {
+    @apply text-2xl font-extrabold leading-9;
+  }
+  .chip-brand {
+    @apply chip border-brand-200 bg-brand-50 font-semibold text-brand-700;
+  }
+  .nav-item {
+    @apply flex h-10 items-center gap-3 rounded-[10px] px-3 text-sm font-medium whitespace-nowrap text-[#4b5563] hover:bg-line-2;
+  }
+  .nav-item[aria-current="page"] {
+    @apply bg-brand-50 font-bold text-brand-700;
+  }
+  .ltr-nums {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+  }
+}

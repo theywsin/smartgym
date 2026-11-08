@@ -12,7 +12,12 @@ import {
   getPlatformSettings, 
   savePlatformSettings 
 } from "../controllers/dbController";
-import { dbGetSettings, dbSaveSettings, reinitializePool, isUsingRealMySQL } from "../config/database";
+import { dbGetSettings, dbSaveSettings, dbGetTable, dbSaveItem, dbGetItem, dbUpdateFields, reinitializePool, isUsingRealMySQL } from "../config/database";
+import { authenticateToken, optionalAuth, requireRole, AuthenticatedRequest } from "../middleware/auth";
+import { HttpError } from "../middleware/error";
+import { generateToken, hashPassword, verifyPassword, AuthRole, TokenPayload } from "../utils/auth";
+import { stripSecrets } from "../policy/tableAccess";
+import { rateLimit } from "../utils/rateLimit";
 
 const router = Router();
 
@@ -73,8 +78,13 @@ function updateEnvFile(updates: Record<string, string>) {
   }
 }
 
-// --- AI Endpoints ---
-router.post("/ai/workout", async (req: Request, res: Response, next: NextFunction) => {
+// --- AI Endpoints (login required; each call spends the platform's AI quota) ---
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  key: (req) => `ai:${(req as AuthenticatedRequest).user?.userId || req.ip}`,
+});
+router.post("/ai/workout", authenticateToken, aiLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { age, gender, weight, height, goal, fitnessLevel, experience, injuries, daysPerWeek } = req.body;
     const ai = getAIClient();
@@ -128,7 +138,7 @@ router.post("/ai/workout", async (req: Request, res: Response, next: NextFunctio
   }
 });
 
-router.post("/ai/nutrition", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/ai/nutrition", authenticateToken, aiLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { age, gender, weight, height, goal, activityLevel, dietaryRestrictions, dailyCalorieTarget } = req.body;
     const ai = getAIClient();
@@ -172,7 +182,7 @@ router.post("/ai/nutrition", async (req: Request, res: Response, next: NextFunct
   }
 });
 
-router.post("/ai/chat", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/ai/chat", authenticateToken, aiLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { messages, userRole } = req.body;
     const ai = getAIClient();
@@ -213,16 +223,30 @@ router.post("/ai/chat", async (req: Request, res: Response, next: NextFunction) 
 });
 
 // --- Installer Endpoints ---
+// Disabled unless INSTALLER_ENABLED=true is set in the server environment.
+// Enable it only for the first setup, then remove the variable and restart.
+function installerEnabled(): boolean {
+  return process.env.INSTALLER_ENABLED === "true";
+}
+
 router.get("/installer/status", (req: Request, res: Response) => {
   res.json({
-    hasEnv: fs.existsSync(path.join(process.cwd(), ".env")),
-    dbHost: process.env.DB_HOST || "",
-    dbUser: process.env.DB_USER || "",
-    dbName: process.env.DB_NAME || "",
-    dbPort: process.env.DB_PORT || "3306",
-    adminUser: process.env.ADMIN_USERNAME || "admin",
+    installerEnabled: installerEnabled(),
     isDbConnected: isUsingRealMySQL,
   });
+});
+
+router.use("/installer", optionalAuth, (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!installerEnabled()) {
+    res.status(403).json({ success: false, error: "نصب‌کننده غیرفعال است. برای فعال‌سازی موقت، INSTALLER_ENABLED=true را در تنظیمات سرور قرار دهید." });
+    return;
+  }
+  // Once a database is connected, only the super admin may re-run installer steps.
+  if (isUsingRealMySQL && req.user?.role !== "SUPER_ADMIN") {
+    res.status(403).json({ success: false, error: "پایگاه داده قبلاً نصب شده است. فقط سوپر ادمین می‌تواند تنظیمات نصب را تغییر دهد." });
+    return;
+  }
+  next();
 });
 
 router.post("/installer/test-db", async (req: Request, res: Response) => {
@@ -490,66 +514,218 @@ router.post("/installer/setup-db", async (req: Request, res: Response, next: Nex
   }
 });
 
-router.post("/installer/save-admin", async (req: Request, res: Response) => {
-  const { username, password, brandName } = req.body;
+router.post("/installer/save-admin", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // 1. Save to platform_settings table in database
-    try {
-      await dbSaveSettings({
-        admin_username: username || "admin",
-        admin_password: password || "admin123",
-        platformBrandLogo: brandName || "پلتفرم ابری اسمارت جیم",
-        platform_brand_name: brandName || "پلتفرم ابری اسمارت جیم"
-      });
-    } catch (dbErr) {
-      console.error("Failed to save admin credentials to platform_settings table:", dbErr);
+    const { username, password, brandName } = req.body || {};
+    if (typeof username !== "string" || !/^[a-zA-Z0-9_.-]{3,50}$/.test(username)) {
+      throw new HttpError(400, "نام کاربری سوپر ادمین باید ۳ تا ۵۰ کاراکتر انگلیسی باشد.");
     }
+    if (typeof password !== "string" || password.length < 10) {
+      throw new HttpError(400, "رمز عبور سوپر ادمین باید حداقل ۱۰ کاراکتر باشد.");
+    }
+    const passwordHash = await hashPassword(password);
+    const brand = typeof brandName === "string" && brandName.trim() ? brandName.trim() : "پلتفرم ابری اسمارت جیم";
 
-    // 2. Save to environment variables and .env file
-    updateEnvFile({
-      ADMIN_USERNAME: username || "admin",
-      ADMIN_PASSWORD: password || "admin123",
-      PLATFORM_BRAND_NAME: brandName || "پلتفرم ابری اسمارت جیم",
+    await dbSaveSettings({
+      admin_username: username,
+      admin_password_hash: passwordHash,
+      admin_password: "",
+      platformBrandLogo: brand,
+      platform_brand_name: brand,
     });
 
+    // Only non-secret values go to .env; the password is stored as a bcrypt hash.
+    updateEnvFile({ ADMIN_USERNAME: username, PLATFORM_BRAND_NAME: brand });
+
     res.json({ success: true, message: "اطلاعات حساب سوپر ادمین و برند اختصاصی شما با موفقیت ذخیره شد! 🛡️" });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message || "خطا در ثبت اطلاعات کاربری" });
+  } catch (error) {
+    next(error);
   }
 });
 
-// --- Authentication & User Endpoints ---
-router.post("/admin/login", async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  let sysUser = process.env.ADMIN_USERNAME || "admin";
-  let sysPass = process.env.ADMIN_PASSWORD || "admin123";
+// --- Authentication ---
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  key: (req) => `login:${req.ip}:${String(req.body?.username || "").toLowerCase()}`,
+});
 
+type LoginKind = "admin" | "tenant" | "coach" | "member";
+
+const LOGIN_TABLE: Record<Exclude<LoginKind, "admin">, { table: string; role: AuthRole }> = {
+  tenant: { table: "tenants", role: "GYM_OWNER" },
+  coach: { table: "coaches", role: "COACH" },
+  member: { table: "members", role: "MEMBER" },
+};
+
+const dummyHash = hashPassword("smartgym-timing-equaliser");
+
+const INVALID_LOGIN = "نام کاربری یا کلمه عبور وارد شده صحیح نمی‌باشد!";
+
+async function loginSuperAdmin(username: string, password: string): Promise<TokenPayload | null> {
+  let settings: Record<string, string> = {};
   try {
-    const dbSettings = await dbGetSettings();
-    if (dbSettings && dbSettings.admin_username) {
-      sysUser = dbSettings.admin_username;
-    }
-    if (dbSettings && dbSettings.admin_password) {
-      sysPass = dbSettings.admin_password;
-    }
-  } catch (dbErr) {
-    console.error("Failed to fetch admin settings from DB, using env/fallback:", dbErr);
+    settings = await dbGetSettings();
+  } catch (err) {
+    console.error("Failed to read admin settings:", err);
   }
 
-  if (username === sysUser && password === sysPass) {
-    res.json({ success: true, message: "خوش آمدید سوپر ادمین گرامی! 🔐" });
-  } else {
-    res.status(401).json({ success: false, error: "نام کاربری یا کلمه عبور وارد شده صحیح نمی‌باشد!" });
+  const expectedUser = settings.admin_username || process.env.ADMIN_USERNAME || "";
+  if (!expectedUser || username !== expectedUser) return null;
+
+  const stored =
+    settings.admin_password_hash ||
+    settings.admin_password || // legacy plain text from the prototype installer
+    process.env.ADMIN_PASSWORD_HASH ||
+    process.env.ADMIN_PASSWORD ||
+    "";
+  const { ok, needsRehash } = await verifyPassword(password, stored);
+  if (!ok) return null;
+
+  if (needsRehash) {
+    try {
+      await dbSaveSettings({ admin_password_hash: await hashPassword(password), admin_password: "" });
+    } catch (err) {
+      console.error("Failed to upgrade admin password hash:", err);
+    }
+  }
+  return { userId: "super_admin", username, role: "SUPER_ADMIN" };
+}
+
+async function loginAccount(
+  kind: Exclude<LoginKind, "admin">,
+  username: string,
+  password: string
+): Promise<{ payload: TokenPayload; profile: any } | null> {
+  const { table, role } = LOGIN_TABLE[kind];
+  const rows = await dbGetTable(table);
+  const wanted = username.toLowerCase();
+  const row = rows.find((r) => typeof r.username === "string" && r.username.toLowerCase() === wanted);
+  if (!row) {
+    await verifyPassword(password, await dummyHash); // equalise timing for unknown usernames
+    return null;
+  }
+  const { ok, needsRehash } = await verifyPassword(password, row.password);
+  if (!ok) return null;
+  if (kind === "tenant" && row.status === "SUSPENDED") {
+    throw new HttpError(403, "حساب این باشگاه تعلیق شده است. با پشتیبانی تماس بگیرید.");
+  }
+  if (needsRehash) {
+    await dbUpdateFields(table, row.id, { password: await hashPassword(password) });
+  }
+  const clubId = kind === "tenant" ? row.id : row.clubId;
+  return {
+    payload: { userId: row.id, username: row.username, role, clubId },
+    profile: stripSecrets(row),
+  };
+}
+
+router.post("/auth/login", loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { kind, username, password } = req.body || {};
+    if (!["admin", "tenant", "coach", "member"].includes(kind)) throw new HttpError(400, "نوع حساب نامعتبر است.");
+    if (typeof username !== "string" || typeof password !== "string" || !username.trim() || !password) {
+      throw new HttpError(400, "نام کاربری و رمز عبور الزامی است.");
+    }
+
+    if (kind === "admin") {
+      const payload = await loginSuperAdmin(username.trim(), password);
+      if (!payload) throw new HttpError(401, INVALID_LOGIN);
+      res.json({ success: true, token: generateToken(payload), role: payload.role, profile: { username: payload.username } });
+      return;
+    }
+
+    const result = await loginAccount(kind, username.trim(), password);
+    if (!result) throw new HttpError(401, INVALID_LOGIN);
+    res.json({ success: true, token: generateToken(result.payload), role: result.payload.role, profile: result.profile });
+  } catch (error) {
+    next(error);
   }
 });
 
-// --- Dynamic CRUD Endpoints ---
-router.get("/platform/settings", getPlatformSettings);
-router.post("/platform/settings", savePlatformSettings);
+router.get("/auth/me", authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  res.json({ success: true, user: req.user });
+});
 
-router.get("/db/:table", getTableData);
-router.post("/db/:table", saveTableItem);
-router.post("/db/:table/batch", saveTableBatch);
-router.delete("/db/:table/:id", deleteTableItem);
+// Backwards-compatible alias for the old admin login form.
+router.post("/admin/login", loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { username, password } = req.body || {};
+    const payload =
+      typeof username === "string" && typeof password === "string"
+        ? await loginSuperAdmin(username.trim(), password)
+        : null;
+    if (!payload) {
+      res.status(401).json({ success: false, error: INVALID_LOGIN });
+      return;
+    }
+    res.json({ success: true, token: generateToken(payload), role: payload.role, message: "خوش آمدید سوپر ادمین گرامی! 🔐" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- Public support chat (landing page mascot) ---
+// Guests can only read and append to their own chat, identified by its random id.
+const CHAT_ID = /^sc_\d{10,15}_[a-z0-9]{3,12}$/;
+const chatLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, key: (req) => `chat:${req.ip}` });
+
+router.get("/support-chat/:id", chatLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    if (!CHAT_ID.test(id)) throw new HttpError(400, "شناسه گفتگو نامعتبر است.");
+    const chat = await dbGetItem("smart_support_chats", id);
+    if (!chat) throw new HttpError(404, "گفتگو یافت نشد.");
+    res.json({ id: chat.id, messages: chat.messages || [], updatedAt: chat.updatedAt });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/support-chat", chatLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, userName, userPhone, messages } = req.body || {};
+    if (typeof id !== "string" || !CHAT_ID.test(id)) throw new HttpError(400, "شناسه گفتگو نامعتبر است.");
+    if (!Array.isArray(messages) || messages.length > 500) throw new HttpError(400, "پیام‌ها نامعتبر است.");
+
+    const existing = await dbGetItem("smart_support_chats", id);
+    const current: any[] = Array.isArray(existing?.messages) ? existing.messages : [];
+    const knownIds = new Set(current.map((m) => m?.id));
+
+    // Append only new guest/mascot messages; guests can never write as "admin".
+    const appended = messages
+      .filter((m: any) => m && typeof m.id === "string" && !knownIds.has(m.id))
+      .filter((m: any) => m.sender === "user" || m.sender === "smart_ai")
+      .map((m: any) => ({
+        id: m.id.slice(0, 100),
+        sender: m.sender,
+        text: String(m.text ?? "").slice(0, 4000),
+        timestamp: new Date().toISOString(),
+      }));
+
+    const now = new Date().toISOString();
+    await dbSaveItem("smart_support_chats", {
+      id,
+      userName: existing?.userName ?? String(userName ?? "کاربر مهمان").slice(0, 100),
+      userPhone: existing?.userPhone ?? String(userPhone ?? "").slice(0, 20),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      messages: [...current, ...appended],
+    });
+    res.json({ success: true, messages: [...current, ...appended] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- Platform settings ---
+router.get("/platform/settings", getPlatformSettings);
+router.post("/platform/settings", authenticateToken, requireRole(["SUPER_ADMIN"]), savePlatformSettings);
+
+// --- Generic table endpoints (interim; every call is checked by server/policy/tableAccess.ts) ---
+router.get("/db/:table", optionalAuth, getTableData);
+router.post("/db/:table", authenticateToken, saveTableItem);
+router.post("/db/:table/batch", authenticateToken, saveTableBatch);
+router.delete("/db/:table/:id", authenticateToken, deleteTableItem);
 
 export default router;
