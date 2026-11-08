@@ -90,4 +90,4 @@ echo "  Gym manager demo:  sign in with 09120000001 (the SMS code is printed bel
 echo "  Platform admin:    http://localhost:3001/admin/login"
 sed 's/^/                     /' .dev-admin
 [ "${NO_START:-}" = "1" ] && exit 0
-exec npm run dev -w @smartgym/web -- -p 3001
+exec npm run dev -w @smartgym/web -- -p 3001 -H 0.0.0.0

@@ -8,7 +8,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/field";
 
 type Integrations = {
-  sms: { provider: "env" | "melipayamak"; apiKeyMasked: string; apiKeySet: boolean; otpBodyId: string; expiryBodyId: string; envProvider: string };
+  sms: { provider: "env" | "melipayamak" | "melipayamak_otp"; apiKeyMasked: string; apiKeySet: boolean; otpBodyId: string; expiryBodyId: string; envProvider: string };
   payment: { onlineEnabled: boolean };
 };
 
@@ -45,14 +45,15 @@ function Form({ initial }: { initial: Integrations }) {
         <h2 id="sms-t" className="card-title">پنل پیامکی</h2>
         <fieldset className="flex flex-wrap gap-4 text-sm">
           <legend className="label mb-2">ارسال پیامک با</legend>
-          <label className="flex items-center gap-2"><input type="radio" name="p" checked={provider === "melipayamak"} onChange={() => setProvider("melipayamak")} /> ملی پیامک (تنظیمات همین صفحه)</label>
+          <label className="flex items-center gap-2"><input type="radio" name="p" checked={provider === "melipayamak_otp"} onChange={() => setProvider("melipayamak_otp")} /> ملی پیامک، سرویس OTP (فقط کلید API، بدون الگو)</label>
+          <label className="flex items-center gap-2"><input type="radio" name="p" checked={provider === "melipayamak"} onChange={() => setProvider("melipayamak")} /> ملی پیامک، خط خدماتی با الگو</label>
           <label className="flex items-center gap-2"><input type="radio" name="p" checked={provider === "env"} onChange={() => setProvider("env")} /> تنظیمات سرور {initial.sms.envProvider && <span className="chip text-xs" dir="ltr">{initial.sms.envProvider}</span>}</label>
         </fieldset>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="کلید API ملی پیامک" hint={initial.sms.apiKeySet ? `ذخیره شده: ${initial.sms.apiKeyMasked}. برای تغییر، کلید جدید بنویسید.` : "از پنل ملی پیامک، بخش وب‌سرویس کپی کنید."}>
             <input className="input" dir="ltr" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={initial.sms.apiKeySet ? initial.sms.apiKeyMasked : ""} />
           </Field>
-          <Field label="کد الگوی کد ورود (bodyId)" error={fieldErr("otpBodyId")} hint="متن الگو یک متغیر دارد: {0} = کد">
+          <Field label="کد الگوی کد ورود (bodyId)" error={fieldErr("otpBodyId")} hint="فقط برای «خط خدماتی با الگو». متن الگو یک متغیر دارد: {0} = کد">
             <input className="input ltr-nums" dir="ltr" inputMode="numeric" value={otpBodyId} onChange={(e) => setOtp(e.target.value)} />
           </Field>
           <Field label="کد الگوی یادآوری تمدید" error={fieldErr("expiryBodyId")} hint="متغیرها: {0} نام، {1} باشگاه، {2} روز باقی‌مانده">

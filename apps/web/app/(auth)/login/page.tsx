@@ -223,7 +223,7 @@ function CodeStep({
         id="code"
         inputMode="numeric"
         autoComplete="one-time-code"
-        maxLength={6}
+        maxLength={8}
         className="input ltr-nums text-center text-lg tracking-[0.5em]"
         aria-invalid={!!fieldError || !!error}
         autoFocus

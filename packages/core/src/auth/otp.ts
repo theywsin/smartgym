@@ -46,7 +46,14 @@ export async function requestOtp(
     }
   }
 
-  const code = randomOtp();
+  // Send first when the provider makes the code itself (Melipayamak OTP); otherwise we make it and send after saving.
+  let code: string;
+  try {
+    code = deps.sms.createOtp ? (await deps.sms.createOtp(input.phone)).code : randomOtp();
+  } catch (err) {
+    console.error(JSON.stringify({ level: "error", msg: "otp sms failed", err: String(err) }));
+    throw new AppError("BUSINESS_RULE", "ارسال پیامک انجام نشد. چند دقیقه بعد دوباره تلاش کنید.");
+  }
   const expiresAt = new Date(now.getTime() + deps.config.otpTtlSeconds * 1000);
   // Invalidate older open codes for this phone so only the newest works.
   await deps.db.otpChallenge.updateMany({
@@ -57,7 +64,7 @@ export async function requestOtp(
     data: { phone: input.phone, purpose: input.purpose, codeHash: codeHash(deps, input.phone, code), ip: input.ip ?? null, expiresAt },
   });
 
-  await deps.sms.sendOtp(input.phone, code);
+  if (!deps.sms.createOtp) await deps.sms.sendOtp(input.phone, code);
   return { expiresInSeconds: deps.config.otpTtlSeconds, resendInSeconds: RESEND_COOLDOWN_MS / 1000 };
 }
 

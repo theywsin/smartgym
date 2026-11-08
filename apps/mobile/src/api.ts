@@ -81,7 +81,7 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   try {
     res = await fetch(`${API_URL}/api/v1${path}`, { method: opts.method ?? "GET", headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) });
   } catch {
-    throw new ApiError(0, "NETWORK", "اتصال به اینترنت برقرار نیست.");
+    throw new ApiError(0, "NETWORK", __DEV__ ? `سرور در دسترس نیست: ${API_URL}\nسایت (dev-setup.sh) روشن است؟ گوشی و کامپیوتر روی یک وای‌فای هستند؟` : "اتصال به اینترنت برقرار نیست.");
   }
   if (res.status === 401 && opts.auth !== false && !retried && (await refresh())) return api<T>(path, opts, true);
   const json = await res.json().catch(() => null);

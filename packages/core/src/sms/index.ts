@@ -2,6 +2,7 @@
  * SMS provider abstraction. Credentials come from server env only.
  *   SMS_PROVIDER=console    (default outside production) logs codes, never sends
  *   SMS_PROVIDER=melipayamak needs MELIPAYAMAK_API_KEY and MELIPAYAMAK_OTP_BODY_ID (approved shared-line template)
+ *   SMS_PROVIDER=melipayamak_otp needs only MELIPAYAMAK_API_KEY (Melipayamak makes and sends the code)
  *   SMS_PROVIDER=kavenegar  needs KAVENEGAR_API_KEY and KAVENEGAR_OTP_TEMPLATE
  * Optional notification templates: MELIPAYAMAK_EXPIRY_BODY_ID / KAVENEGAR_EXPIRY_TEMPLATE.
  */
@@ -11,6 +12,11 @@ export type SmsTemplate = "MEMBERSHIP_EXPIRY"; // {0} first name, {1} gym name, 
 export interface SmsProvider {
   readonly name: string;
   sendOtp(phoneE164: string, code: string): Promise<{ providerRef?: string }>;
+  /**
+   * Providers whose service generates the code itself (Melipayamak "send/otp"): sends the SMS and
+   * returns the code that was sent, so it can be hashed and checked. When present it is used instead of sendOtp.
+   */
+  createOtp?(phoneE164: string): Promise<{ code: string; providerRef?: string }>;
   /** Throws SmsTemplateNotConfigured when the template has no approved id configured. */
   sendTemplate(phoneE164: string, template: SmsTemplate, args: string[]): Promise<{ providerRef?: string }>;
   supports(template: SmsTemplate): boolean;
@@ -141,9 +147,53 @@ export class MelipayamakSmsProvider implements SmsProvider {
   }
 }
 
+/**
+ * Melipayamak OTP service: no template needed. Melipayamak writes and sends the message and
+ * returns the generated code.  POST https://console.melipayamak.com/api/send/otp/{apiKey}  {to}  ->  {code, status}
+ */
+export class MelipayamakOtpSmsProvider implements SmsProvider {
+  readonly name = "melipayamak-otp";
+  constructor(
+    private readonly apiKey: string,
+    private readonly fetchImpl: typeof fetch = fetch,
+    /** Optional shared-line provider for notification templates (expiry reminders). */
+    private readonly templates: SmsProvider | null = null
+  ) {
+    if (!apiKey) throw new Error("Melipayamak OTP needs an API key");
+  }
+
+  async createOtp(phoneE164: string) {
+    const to = `0${phoneE164.replace(/^\+98/, "")}`;
+    const res = await this.fetchImpl(`https://console.melipayamak.com/api/send/otp/${encodeURIComponent(this.apiKey)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ to }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as { code?: string | number; status?: string } | null;
+    const code = String(body?.code ?? "").trim();
+    if (!res.ok || !/^\d{4,8}$/.test(code)) {
+      // Never include the API key or the code in the error.
+      throw new Error(`Melipayamak OTP failed (HTTP ${res.status}, ${body?.status ?? "no status"})`);
+    }
+    return { code };
+  }
+  async sendOtp(): Promise<{ providerRef?: string }> {
+    throw new Error("MelipayamakOtpSmsProvider generates its own codes; use createOtp");
+  }
+  supports(t: SmsTemplate) { return !!this.templates?.supports(t); }
+  async sendTemplate(phoneE164: string, t: SmsTemplate, args: string[]) {
+    if (!this.templates) throw new SmsTemplateNotConfigured(t);
+    return this.templates.sendTemplate(phoneE164, t, args);
+  }
+}
+
 export function createSmsProviderFromEnv(env: NodeJS.ProcessEnv = process.env): SmsProvider {
   const kind = env.SMS_PROVIDER ?? (env.NODE_ENV === "production" ? "" : "console");
   switch (kind) {
+    case "melipayamak_otp":
+      return new MelipayamakOtpSmsProvider(env.MELIPAYAMAK_API_KEY ?? "", fetch,
+        Number(env.MELIPAYAMAK_EXPIRY_BODY_ID) > 0 ? new MelipayamakSmsProvider(env.MELIPAYAMAK_API_KEY ?? "", Number(env.MELIPAYAMAK_EXPIRY_BODY_ID), fetch, { MEMBERSHIP_EXPIRY: Number(env.MELIPAYAMAK_EXPIRY_BODY_ID) }) : null);
     case "console":
       if (env.NODE_ENV === "production" && env.ALLOW_CONSOLE_SMS !== "true") {
         throw new Error("SMS_PROVIDER=console is not allowed in production");

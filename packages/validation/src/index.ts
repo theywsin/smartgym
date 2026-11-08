@@ -20,7 +20,7 @@ export const iranMobile = z
 export const otpCode = z
   .string()
   .trim()
-  .regex(/^\d{6}$/, "کد تأیید باید ۶ رقم باشد");
+  .regex(/^\d{4,8}$/, "کد تأیید نامعتبر است"); // 6 digits from us; Melipayamak OTP service picks its own length
 
 export const otpRequestSchema = z.object({
   phone: iranMobile,
@@ -509,7 +509,7 @@ export const articleListSchema = paginationSchema.extend({ tag: z.string().trim(
 // Platform integrations (admin)
 export const integrationsSchema = z.object({
   sms: z.object({
-    provider: z.enum(["env", "melipayamak"]), // env = use SMS_PROVIDER from the server environment
+    provider: z.enum(["env", "melipayamak", "melipayamak_otp"]), // env = SMS_PROVIDER from the server; melipayamak_otp = Melipayamak OTP service (no template)
     melipayamakApiKey: z.string().trim().max(200).optional(), // omitted or "" = keep the stored key
     otpBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),
     expiryBodyId: z.string().trim().regex(/^\d{0,10}$/, "کد الگو فقط عدد است."),

@@ -119,7 +119,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
               <View style={s.inputWrap}>
                 <TextInput
                   accessibilityLabel="کد تأیید" value={code} onChangeText={(t) => { setCode(t); setError(""); }} keyboardType="number-pad"
-                  maxLength={6} autoComplete="sms-otp" textContentType="oneTimeCode" onSubmitEditing={verify} autoFocus
+                  maxLength={8} autoComplete="sms-otp" textContentType="oneTimeCode" onSubmitEditing={verify} autoFocus
                   placeholder="- - - - - -" placeholderTextColor={G.ink3} style={[s.input, { textAlign: "center", letterSpacing: 8 }]}
                 />
               </View>

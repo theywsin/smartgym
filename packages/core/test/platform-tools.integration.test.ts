@@ -110,4 +110,13 @@ describe.skipIf(!hasDb)("platform tools", () => {
     await expect(loginWithPassword(deps, ownerPhone, "wrong-pass-0000")).rejects.toBeInstanceOf(AppError);
     expect((await adminRevokeUserSessions(deps, admin, owner.userId)).revoked).toBe(0);
   });
+
+  it("uses the provider's own code when it generates one (Melipayamak OTP)", async () => {
+    const p = phone();
+    const own = { ...sms, name: "gen", createOtp: async () => ({ code: "4821" }), sendOtp: sms.sendOtp.bind(sms), sendTemplate: sms.sendTemplate.bind(sms), supports: () => true };
+    const d = { ...deps, sms: own };
+    await requestOtp(d, { phone: p, purpose: "LOGIN", ip: "10.99.1.1" });
+    const r = await verifyOtp(d, { phone: p, code: "4821" });
+    expect(r.user.phone).toBe(p);
+  });
 });

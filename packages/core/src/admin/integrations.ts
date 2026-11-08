@@ -5,7 +5,8 @@ import { AppError } from "../errors";
 import type { CoreDeps } from "../deps";
 import type { AdminActor } from "./index";
 import { adminAudit, requireSuperAdmin } from "./platform";
-import { MelipayamakSmsProvider, type SmsProvider, type SmsTemplate } from "../sms";
+import { randomOtp } from "../auth/crypto";
+import { MelipayamakOtpSmsProvider, MelipayamakSmsProvider, type SmsProvider, type SmsTemplate } from "../sms";
 
 /**
  * Third-party service settings edited in the platform admin. Stored apart from the public settings
@@ -14,7 +15,7 @@ import { MelipayamakSmsProvider, type SmsProvider, type SmsTemplate } from "../s
  */
 const KEY = "integrations";
 
-type Stored = { sms: { provider: "env" | "melipayamak"; apiKeyEnc?: string; otpBodyId: string; expiryBodyId: string }; payment: { onlineEnabled: boolean } };
+type Stored = { sms: { provider: "env" | "melipayamak" | "melipayamak_otp"; apiKeyEnc?: string; otpBodyId: string; expiryBodyId: string }; payment: { onlineEnabled: boolean } };
 const DEFAULTS: Stored = { sms: { provider: "env", otpBodyId: "", expiryBodyId: "" }, payment: { onlineEnabled: true } };
 
 const aesKey = (secret: string) => crypto.createHash("sha256").update(`smartgym/integrations/v1:${secret}`).digest();
@@ -59,6 +60,9 @@ export async function adminSetIntegrations(deps: CoreDeps, actor: AdminActor, in
   if (input.sms.provider === "melipayamak" && (!apiKeyEnc || !input.sms.otpBodyId)) {
     throw new AppError("VALIDATION_FAILED", "برای ملی پیامک کلید API و کد الگوی ورود لازم است.", { fields: { otpBodyId: ["لازم است"] } });
   }
+  if (input.sms.provider === "melipayamak_otp" && !apiKeyEnc) {
+    throw new AppError("VALIDATION_FAILED", "برای سرویس OTP ملی پیامک کلید API لازم است.", { fields: { melipayamakApiKey: ["لازم است"] } });
+  }
   const next: Stored = { sms: { provider: input.sms.provider, apiKeyEnc, otpBodyId: input.sms.otpBodyId, expiryBodyId: input.sms.expiryBodyId }, payment: input.payment };
   await withSystem(deps.db, async (tx) => {
     await requireSuperAdmin(tx, actor);
@@ -91,8 +95,13 @@ export class SettingsSmsProvider implements SmsProvider {
       try {
         const s = await readStored(this.deps());
         const key = s.sms.apiKeyEnc ? decrypt(this.deps().config.jwtSecret, s.sms.apiKeyEnc) : null;
+        const tpl = Number(s.sms.expiryBodyId) > 0 ? { MEMBERSHIP_EXPIRY: Number(s.sms.expiryBodyId) } : {};
         if (s.sms.provider === "melipayamak" && key && Number(s.sms.otpBodyId) > 0) {
-          provider = new MelipayamakSmsProvider(key, Number(s.sms.otpBodyId), fetch, Number(s.sms.expiryBodyId) > 0 ? { MEMBERSHIP_EXPIRY: Number(s.sms.expiryBodyId) } : {});
+          provider = new MelipayamakSmsProvider(key, Number(s.sms.otpBodyId), fetch, tpl);
+        } else if (s.sms.provider === "melipayamak_otp" && key) {
+          // Reminders still need an approved shared-line template; the OTP itself does not.
+          const shared = Number(s.sms.expiryBodyId) > 0 ? new MelipayamakSmsProvider(key, Number(s.sms.expiryBodyId), fetch, tpl) : null;
+          provider = new MelipayamakOtpSmsProvider(key, fetch, shared);
         }
       } catch { provider = null; }
       cache = { at: Date.now(), provider };
@@ -102,6 +111,14 @@ export class SettingsSmsProvider implements SmsProvider {
   /** Loads the current settings now (call before checking supports()). */
   async refresh() { cache = null; await this.current(); }
   async sendOtp(phone: string, code: string) { return (await this.current()).sendOtp(phone, code); }
+  /** Always present: uses the provider's own code when it makes one, otherwise generates and sends ours. */
+  async createOtp(phone: string) {
+    const p = await this.current();
+    if (p.createOtp) return p.createOtp(phone);
+    const code = randomOtp();
+    const r = await p.sendOtp(phone, code);
+    return { code, providerRef: r.providerRef };
+  }
   async sendTemplate(phone: string, t: SmsTemplate, args: string[]) { return (await this.current()).sendTemplate(phone, t, args); }
   supports(t: SmsTemplate) { return (cache?.provider ?? this.fallback).supports(t); }
 }
